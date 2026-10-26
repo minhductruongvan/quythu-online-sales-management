@@ -117,6 +117,12 @@ class KhachHang(models.Model):
         verbose_name="Họ tên",
     )
 
+    so_dien_thoai = models.CharField(
+        max_length=15,
+        blank=True,
+        null=True,
+    )
+
     trang_thai = models.CharField(
         max_length=20,
         choices=TrangThai.choices,
