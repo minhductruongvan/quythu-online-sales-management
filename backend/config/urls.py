@@ -1,10 +1,15 @@
+# File: backend/config/urls.py
 from django.contrib import admin
 from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    
-    # Khi người dùng vào trang web thì dẫn sang app products
     path('products/', include('products.urls')),
-    path('', include('products.urls')),  # Vào thẳng trang chủ là thấy sản phẩm
+    path('', include('products.urls')),
 ]
+
+# Cho phép hiển thị các file ảnh media tải lên từ máy tính khi chạy localhost
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
