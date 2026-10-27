@@ -286,8 +286,8 @@ class HoSoKhachHangSerializer(serializers.ModelSerializer):
 
             instance.tai_khoan.email = tai_khoan_data["email"]
 
-        if "so_dien_thoai" in tai_khoan_data:
-            so_dien_thoai = tai_khoan_data["so_dien_thoai"]
+        if "so_dien_thoai" in validated_data:
+            so_dien_thoai = validated_data["so_dien_thoai"]
 
             instance.so_dien_thoai = so_dien_thoai
 
@@ -380,6 +380,24 @@ class PhanLoaiKhachHangSerializer(serializers.ModelSerializer):
             "ma_kh",
             "ho_ten",
         ]
+
+class TrangThaiKhachHangSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = KhachHang
+        fields = [
+            "ma_kh",
+            "ho_ten",
+            "trang_thai",
+        ]
+        read_only_fields = [
+            "ma_kh",
+            "ho_ten",
+        ]
+
+class TrangThaiTaiKhoanSerializer(serializers.Serializer):
+    hanh_dong = serializers.ChoiceField(
+        choices=["LOCK", "UNLOCK"]
+    )
 
 class DiaChiKHSerializer(serializers.ModelSerializer):
     class Meta:

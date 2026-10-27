@@ -3,18 +3,31 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
+from django.db.models import Q
+from django.db import transaction
 from .models import TaiKhoan, KhachHang, NhanVien, LichSuKhachHang, DiaChiKH
 from .serializers import (
     DangKyKhachHangSerializer,
+    TrangThaiKhachHangSerializer,
     DangNhapSerializer,
     ThongTinCaNhanSerializer,
     HoSoKhachHangSerializer,
     ThemKhachHangSerializer,
     PhanLoaiKhachHangSerializer,
     DiaChiKHSerializer,
+    TrangThaiTaiKhoanSerializer,
 )
-
+from .services import (
+    DichVuTrangThaiTaiKhoan,
+    DichVuLichSuHoSo,
+    LoiNghiepVuTaiKhoan,
+    LoiQuyenTaiKhoan,
+)
+from .permissions import (
+    CoQuyenKhachHang,
+    QuyenKhachHang,
+    IsCustomer,
+)
 
 class DangKyKhachHangView(APIView):
     permission_classes = [AllowAny]
@@ -116,12 +129,8 @@ class DangXuatView(APIView):
         )
 
 class ThongTinCaNhanView(APIView):
+    permission_classes = [IsCustomer]
     def get(self, request):
-        if not request.user.is_authenticated:
-            return Response(
-                {"message": "Bạn chưa đăng nhập."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
 
         if not hasattr(request.user, "khach_hang"):
             return Response(
@@ -141,11 +150,7 @@ class ThongTinCaNhanView(APIView):
         )
 
     def patch(self, request):
-        if not request.user.is_authenticated:
-            return Response(
-                {"message": "Bạn chưa đăng nhập."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
+
 
         if not hasattr(request.user, "khach_hang"):
             return Response(
@@ -181,27 +186,43 @@ class ThongTinCaNhanView(APIView):
         )
 
 class DanhSachKhachHangView(APIView):
-    def get(self, request):
-        if not request.user.is_authenticated:
-            return Response(
-                {"message": "Bạn chưa đăng nhập."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
+    permission_classes = [CoQuyenKhachHang]
 
-        if request.user.vai_tro not in [
-            TaiKhoan.VaiTro.EMPLOYEE,
-            TaiKhoan.VaiTro.MANAGER,
-        ]:
-            return Response(
-                {"message": "Bạn không có quyền xem danh sách khách hàng."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+    quyen_theo_method = {
+        "GET": QuyenKhachHang.XEM_DANH_SACH,
+        "POST": QuyenKhachHang.TAO_KHACH_HANG,
+    }
+    def get(self, request):
+
 
         danh_sach = KhachHang.objects.select_related(
             "tai_khoan",
             "loai_khach_hang",
         ).all()
+        tu_khoa = request.query_params.get("search", "").strip()
 
+        if tu_khoa:
+            danh_sach = danh_sach.filter(
+                Q(ma_kh__icontains=tu_khoa)
+                | Q(ho_ten__icontains=tu_khoa)
+                | Q(so_dien_thoai__icontains=tu_khoa)
+                | Q(tai_khoan__email__icontains=tu_khoa)
+            )
+        loai_khach_hang = request.query_params.get(
+            "loai_khach_hang", ""
+        ).strip()
+        trang_thai = request.query_params.get(
+            "trang_thai", ""
+        ).strip().upper()
+
+        if trang_thai:
+            danh_sach = danh_sach.filter(
+                trang_thai=trang_thai
+            )
+        if loai_khach_hang:
+            danh_sach = danh_sach.filter(
+                loai_khach_hang__ten_loai_kh=loai_khach_hang
+            )
         serializer = HoSoKhachHangSerializer(
             danh_sach,
             many=True,
@@ -216,20 +237,6 @@ class DanhSachKhachHangView(APIView):
         )
 
     def post(self, request):
-        if not request.user.is_authenticated:
-            return Response(
-                {"message": "Bạn chưa đăng nhập."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-
-        if request.user.vai_tro not in [
-            TaiKhoan.VaiTro.EMPLOYEE,
-            TaiKhoan.VaiTro.MANAGER,
-        ]:
-            return Response(
-                {"message": "Bạn không có quyền thêm khách hàng."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
 
         serializer = ThemKhachHangSerializer(data=request.data)
 
@@ -258,21 +265,15 @@ class DanhSachKhachHangView(APIView):
             status=status.HTTP_400_BAD_REQUEST,
         )
 class ChiTietKhachHangView(APIView):
-    def get(self, request, ma_kh):
-        if not request.user.is_authenticated:
-            return Response(
-                {"message": "Bạn chưa đăng nhập."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
 
-        if request.user.vai_tro not in [
-            TaiKhoan.VaiTro.EMPLOYEE,
-            TaiKhoan.VaiTro.MANAGER,
-        ]:
-            return Response(
-                {"message": "Bạn không có quyền xem hồ sơ khách hàng."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+    permission_classes = [CoQuyenKhachHang]
+
+    quyen_theo_method = {
+        "GET": QuyenKhachHang.XEM_CHI_TIET,
+        "PATCH": QuyenKhachHang.CAP_NHAT_KHACH_HANG,
+    }
+    def get(self, request, ma_kh):
+
 
         khach_hang = KhachHang.objects.select_related(
             "tai_khoan",
@@ -296,22 +297,8 @@ class ChiTietKhachHangView(APIView):
             },
             status=status.HTTP_200_OK,
         )
-
+    @transaction.atomic
     def patch(self, request, ma_kh):
-        if not request.user.is_authenticated:
-            return Response(
-                {"message": "Bạn chưa đăng nhập."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-
-        if request.user.vai_tro not in [
-            TaiKhoan.VaiTro.EMPLOYEE,
-            TaiKhoan.VaiTro.MANAGER,
-        ]:
-            return Response(
-                {"message": "Bạn không có quyền chỉnh sửa hồ sơ khách hàng."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
 
         khach_hang = KhachHang.objects.select_related(
             "tai_khoan",
@@ -325,6 +312,9 @@ class ChiTietKhachHangView(APIView):
                 {"message": "Không tìm thấy khách hàng."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+        du_lieu_cu = DichVuLichSuHoSo.lay_du_lieu_hien_tai(
+            khach_hang
+        )
 
         serializer = HoSoKhachHangSerializer(
             khach_hang,
@@ -334,7 +324,16 @@ class ChiTietKhachHangView(APIView):
 
         if serializer.is_valid():
             khach_hang = serializer.save()
+            du_lieu_moi = DichVuLichSuHoSo.lay_du_lieu_hien_tai(
+                khach_hang
+            )
 
+            DichVuLichSuHoSo.ghi_lich_su_cap_nhat(
+                khach_hang=khach_hang,
+                nguoi_thuc_hien=request.user,
+                du_lieu_cu=du_lieu_cu,
+                du_lieu_moi=du_lieu_moi,
+            )
             return Response(
                 {
                     "message": "Cập nhật hồ sơ khách hàng thành công.",
@@ -352,19 +351,10 @@ class ChiTietKhachHangView(APIView):
         )
 
 class PhanLoaiKhachHangView(APIView):
+    permission_classes = [CoQuyenKhachHang]
+    quyen_yeu_cau = QuyenKhachHang.PHAN_LOAI
+    @transaction.atomic
     def patch(self, request, ma_kh):
-        if not request.user.is_authenticated:
-            return Response(
-                {"message": "Bạn chưa đăng nhập."},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-
-        if request.user.vai_tro not in ["EMPLOYEE", "MANAGER"]:
-            return Response(
-                {"message": "Bạn không có quyền thực hiện chức năng này."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
         try:
             khach_hang = KhachHang.objects.select_related(
                 "loai_khach_hang"
@@ -423,19 +413,134 @@ class PhanLoaiKhachHangView(APIView):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-class DanhSachDiaChiView(APIView):
-    def get(self, request):
-        if not request.user.is_authenticated:
+class TrangThaiKhachHangView(APIView):
+    permission_classes = [CoQuyenKhachHang]
+    quyen_yeu_cau = QuyenKhachHang.DOI_TRANG_THAI
+
+    @transaction.atomic
+    def patch(self, request, ma_kh):
+
+        try:
+            khach_hang = KhachHang.objects.get(ma_kh=ma_kh)
+        except KhachHang.DoesNotExist:
             return Response(
-                {"message": "Bạn chưa đăng nhập."},
-                status=status.HTTP_401_UNAUTHORIZED,
+                {"message": "Không tìm thấy khách hàng."},
+                status=status.HTTP_404_NOT_FOUND,
             )
 
-        if request.user.vai_tro != TaiKhoan.VaiTro.CUSTOMER:
+        trang_thai_cu = khach_hang.trang_thai
+
+        serializer = TrangThaiKhachHangSerializer(
+            khach_hang,
+            data=request.data,
+            partial=True,
+        )
+
+        if serializer.is_valid():
+            khach_hang = serializer.save()
+
+            if trang_thai_cu != khach_hang.trang_thai:
+                so_thu_tu = LichSuKhachHang.objects.count() + 1
+
+                while True:
+                    ma_lich_su = f"LS{so_thu_tu:03d}"
+
+                    if not LichSuKhachHang.objects.filter(
+                        ma_lich_su=ma_lich_su
+                    ).exists():
+                        break
+
+                    so_thu_tu += 1
+
+                LichSuKhachHang.objects.create(
+                    ma_lich_su=ma_lich_su,
+                    khach_hang=khach_hang,
+                    nguoi_thuc_hien=request.user,
+                    loai_thay_doi=LichSuKhachHang.LoaiThayDoi.STATUS,
+                    noi_dung_cu=trang_thai_cu,
+                    noi_dung_moi=khach_hang.trang_thai,
+                )
+
             return Response(
-                {"message": "Bạn không có quyền truy cập chức năng này."},
+                {
+                    "message": "Cập nhật trạng thái khách hàng thành công.",
+                    "data": serializer.data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+class TrangThaiTaiKhoanView(APIView):
+    permission_classes = [CoQuyenKhachHang]
+    quyen_yeu_cau = QuyenKhachHang.KHOA_MO_TAI_KHOAN
+    def patch(self, request, ma_kh):
+        try:
+            khach_hang = KhachHang.objects.select_related(
+                "tai_khoan"
+            ).get(ma_kh=ma_kh)
+        except KhachHang.DoesNotExist:
+            return Response(
+                {"message": "Không tìm thấy khách hàng."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = TrangThaiTaiKhoanSerializer(
+            data=request.data
+        )
+
+        if not serializer.is_valid():
+            return Response(
+                serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            tai_khoan = (
+                DichVuTrangThaiTaiKhoan.thay_doi_trang_thai(
+                    khach_hang=khach_hang,
+                    nguoi_thuc_hien=request.user,
+                    hanh_dong=serializer.validated_data["hanh_dong"],
+                )
+            )
+
+        except LoiQuyenTaiKhoan as exc:
+            return Response(
+                {"message": str(exc)},
                 status=status.HTTP_403_FORBIDDEN,
             )
+
+        except LoiNghiepVuTaiKhoan as exc:
+            return Response(
+                {"message": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {
+                "message": (
+                    "Khóa tài khoản thành công."
+                    if tai_khoan.trang_thai
+                    == TaiKhoan.TrangThai.LOCKED
+                    else "Mở khóa tài khoản thành công."
+                ),
+                "data": {
+                    "ma_kh": khach_hang.ma_kh,
+                    "ma_tk": tai_khoan.ma_tk,
+                    "email": tai_khoan.email,
+                    "trang_thai": tai_khoan.trang_thai,
+                    "is_active": tai_khoan.is_active,
+                },
+            },
+            status=status.HTTP_200_OK,
+        )
+
+class DanhSachDiaChiView(APIView):
+    permission_classes = [IsCustomer]
+    def get(self, request):
 
         try:
             khach_hang = request.user.khach_hang
@@ -464,17 +569,6 @@ class DanhSachDiaChiView(APIView):
         )
 
     def post(self, request):
-        if not request.user.is_authenticated:
-            return Response(
-                {"message": "Bạn chưa đăng nhập."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-
-        if request.user.vai_tro != TaiKhoan.VaiTro.CUSTOMER:
-            return Response(
-                {"message": "Bạn không có quyền thực hiện chức năng này."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
 
         try:
             khach_hang = request.user.khach_hang
@@ -523,18 +617,8 @@ class DanhSachDiaChiView(APIView):
         )
 
 class ChiTietDiaChiView(APIView):
+    permission_classes = [IsCustomer]
     def get(self, request, ma_dia_chi):
-        if not request.user.is_authenticated:
-            return Response(
-                {"message": "Bạn chưa đăng nhập."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-
-        if request.user.vai_tro != TaiKhoan.VaiTro.CUSTOMER:
-            return Response(
-                {"message": "Bạn không có quyền truy cập chức năng này."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
 
         try:
             khach_hang = request.user.khach_hang
@@ -565,17 +649,7 @@ class ChiTietDiaChiView(APIView):
             status=status.HTTP_200_OK,
         )
     def patch(self, request, ma_dia_chi):
-        if not request.user.is_authenticated:
-            return Response(
-                {"message": "Bạn chưa đăng nhập."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
 
-        if request.user.vai_tro != TaiKhoan.VaiTro.CUSTOMER:
-            return Response(
-                {"message": "Bạn không có quyền thực hiện chức năng này."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
 
         try:
             khach_hang = request.user.khach_hang
@@ -628,17 +702,7 @@ class ChiTietDiaChiView(APIView):
             status=status.HTTP_400_BAD_REQUEST,
         )
     def delete(self, request, ma_dia_chi):
-        if not request.user.is_authenticated:
-            return Response(
-                {"message": "Bạn chưa đăng nhập."},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
 
-        if request.user.vai_tro != TaiKhoan.VaiTro.CUSTOMER:
-            return Response(
-                {"message": "Bạn không có quyền thực hiện chức năng này."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
 
         try:
             khach_hang = request.user.khach_hang

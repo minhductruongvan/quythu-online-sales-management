@@ -10,6 +10,8 @@ from .views import (
     PhanLoaiKhachHangView,
     DanhSachDiaChiView,
     ChiTietDiaChiView,
+    TrangThaiKhachHangView,
+    TrangThaiTaiKhoanView,
 )
 
 urlpatterns = [
@@ -52,6 +54,16 @@ urlpatterns = [
         "addresses/<str:ma_dia_chi>/",
         ChiTietDiaChiView.as_view(),
         name="customer-address-detail",
+    ),
+    path(
+        "<str:ma_kh>/status/",
+        TrangThaiKhachHangView.as_view(),
+        name="customer-status",
+    ),
+    path(
+        "<str:ma_kh>/account-status/",
+        TrangThaiTaiKhoanView.as_view(),
+        name="customer-account-status",
     ),
     path(
         "<str:ma_kh>/",
