@@ -10,7 +10,6 @@
 # - Model của M1, M2 được tham chiếu bằng chuỗi "app.Model", không import trực tiếp.
 
 from django.db import models
-from django.db import models
 from django.utils import timezone
 
 
