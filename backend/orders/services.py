@@ -5,6 +5,7 @@
 #   3. Tra tỉnh/thành         4. Giỏ hàng (M3-UC01, M3-UC02)
 #   5. Địa chỉ giao hàng (M3-UC04)
 #   6. Tính giá và tính tiền (M3-UC02 phần hiển thị, M3-UC03 bước 1)
+#   7. Đặt hàng (M3-UC03 bước 3–4)
 #
 # Quy ước (theo M1 – customers/services.py):
 # - View không tự xử lý nghiệp vụ, chỉ gọi hàm ở file này.
@@ -15,7 +16,8 @@
 import unicodedata
 from decimal import Decimal
 
-from django.db import transaction
+from django.db import DatabaseError, transaction
+from django.utils import timezone
 
 from customers.models import DiaChiKH
 
@@ -27,7 +29,11 @@ from .models import (
     GioHang,
     LichSuTrangThaiDonHang,
     LoaiGia,
+    PhuongThucThanhToan,
+    TacNhan,
     TinhThanh,
+    TrangThaiDonHang,
+    TrangThaiThanhToan,
 )
 
 # ==========================================================
@@ -498,3 +504,134 @@ class DichVuTinhTien:
             "phi_van_chuyen": phi_van_chuyen,
             "tong_thanh_toan": tong_tien_hang + phi_van_chuyen,
         }
+
+
+# ==========================================================
+# 7. ĐẶT HÀNG – M3-UC03 bước 3–4
+#    Quy tắc: M3-BR07 (chốt giá), M3-BR08 (bản sao địa chỉ), M3-BR09 (PTTT),
+#    M3-BR10 (một giao dịch CSDL), M3-BR15 (lịch sử), M3-BR16 (bản ghi thanh toán).
+# ==========================================================
+class DichVuDatHang:
+
+    # ---------- Kiểm tra phương thức thanh toán (UC03-E1) ----------
+    @staticmethod
+    def lay_phuong_thuc(ma_pttt):
+        if not ma_pttt:
+            raise LoiNghiepVuDonHang("Vui lòng chọn phương thức thanh toán.")
+
+        phuong_thuc = PhuongThucThanhToan.objects.filter(
+            ma_pttt=ma_pttt, dang_kich_hoat=True
+        ).first()
+
+        if phuong_thuc is None:
+            raise LoiNghiepVuDonHang("Phương thức thanh toán không hợp lệ.")
+
+        return phuong_thuc
+
+    # ---------- Ghép địa chỉ để lưu bản sao vào đơn (M3-BR08) ----------
+    @staticmethod
+    def ghep_dia_chi(dia_chi):
+        """Ví dụ: "12 Lê Lợi, Phường Thuận Hòa". Phần nào trống thì bỏ qua."""
+        cac_phan = [dia_chi.dia_chi_chi_tiet, dia_chi.phuong_xa, dia_chi.quan_huyen]
+        return ", ".join(phan.strip() for phan in cac_phan if phan and phan.strip())
+
+    # ---------- Tạo bản ghi thanh toán đi kèm đơn (M3-BR16) ----------
+    @staticmethod
+    def tao_giao_dich_thanh_toan(don, thoi_diem):
+        return GiaoDichThanhToan.objects.create(
+            ma_giao_dich=sinh_ma(GiaoDichThanhToan),
+            don_hang=don,
+            phuong_thuc=don.phuong_thuc_thanh_toan,
+            so_tien_phai_thu=don.tong_thanh_toan,
+            trang_thai=TrangThaiThanhToan.CHUA_THANH_TOAN,
+            thoi_diem_tao=thoi_diem,
+        )
+
+    # ---------- Loại các dòng đã đặt khỏi giỏ (M3-BR03, M3-BR10) ----------
+    @staticmethod
+    def loai_dong_khoi_gio(khach_hang, cac_ma_ctgh):
+        so_dong_da_xoa, _ = ChiTietGioHang.objects.filter(
+            gio_hang__khach_hang=khach_hang, ma_ctgh__in=cac_ma_ctgh
+        ).delete()
+
+        # Ít hơn số dòng cần xóa = có yêu cầu khác vừa đặt hoặc xóa các dòng này
+        # (UC03-E6). Raise để transaction hoàn tác cả đơn vừa tạo.
+        if so_dong_da_xoa != len(cac_ma_ctgh):
+            raise LoiNghiepVuDonHang(
+                "Giỏ hàng vừa thay đổi hoặc đơn hàng đã được đặt. Vui lòng kiểm tra lại."
+            )
+
+        gio = DichVuGioHang.lay_gio_hang(khach_hang)
+        gio.save(update_fields=["ngay_cap_nhat"])
+
+    # ---------- M3-UC03: Đặt hàng ----------
+    @staticmethod
+    def dat_hang(khach_hang, danh_sach_ma_ctgh, ma_dia_chi, ma_pttt):
+        """
+        Trả về DonHang vừa tạo. Mọi bước ghi nằm trong một transaction:
+        lỗi ở bất kỳ bước nào thì không có gì được lưu (M3-BR10, UC03-E5).
+        """
+        phuong_thuc = DichVuDatHang.lay_phuong_thuc(ma_pttt)  # UC03-E1
+
+        try:
+            with transaction.atomic():
+                # Bước 3: kiểm tra và tính lại toàn bộ tiền ở máy chủ
+                # (BR01 khách hoạt động, UC03-E2 dòng ngừng bán, E3, E4, M3-BR24)
+                tinh = DichVuTinhTien.tinh_tong_tien(khach_hang, danh_sach_ma_ctgh, ma_dia_chi)
+                dia_chi = tinh["dia_chi"]
+                bay_gio = timezone.now()  # một mốc chung cho đơn, lịch sử, giao dịch
+
+                # Bước 4a: lưu đơn, chốt loại khách, người nhận, tỉnh, tiền
+                don = DonHang.objects.create(
+                    ma_dh=sinh_ma(DonHang),
+                    khach_hang=khach_hang,
+                    loai_khach_hang_ap_dung_id=khach_hang.loai_khach_hang_id,  # M3-BR02
+                    ho_ten_nguoi_nhan=dia_chi.ten_nguoi_nhan.strip(),
+                    sdt_nguoi_nhan=dia_chi.so_dien_thoai.strip(),
+                    dia_chi_giao_hang=DichVuDatHang.ghep_dia_chi(dia_chi),
+                    tinh_thanh=tinh["tinh_thanh"],
+                    tong_tien_hang=tinh["tong_tien_hang"],
+                    phi_van_chuyen=tinh["phi_van_chuyen"],
+                    tong_thanh_toan=tinh["tong_thanh_toan"],
+                    phuong_thuc_thanh_toan=phuong_thuc,
+                    trang_thai_thanh_toan=TrangThaiThanhToan.CHUA_THANH_TOAN,
+                    trang_thai=TrangThaiDonHang.CHO_XAC_NHAN,
+                    ngay_dat=bay_gio,
+                )
+
+                # Bước 4b: lưu các dòng đơn với giá chốt tại lúc đặt (M3-BR07)
+                for dong in tinh["cac_dong"]:
+                    ChiTietDonHang.objects.create(
+                        ma_ctdh=sinh_ma(ChiTietDonHang),
+                        don_hang=don,
+                        bien_the=dong["bien_the"],
+                        so_luong=dong["so_luong"],
+                        loai_gia_ap_dung=dong["loai_gia"],
+                        don_gia=dong["don_gia"],
+                        thanh_tien=dong["thanh_tien"],
+                    )
+
+                # Bước 4c: dòng lịch sử đầu tiên, chưa có trạng thái cũ (M3-BR15)
+                LichSuTrangThaiDonHang.objects.create(
+                    ma_lstt=sinh_ma(LichSuTrangThaiDonHang),
+                    don_hang=don,
+                    trang_thai_cu=None,
+                    trang_thai=TrangThaiDonHang.CHO_XAC_NHAN,
+                    thoi_diem=bay_gio,
+                    tac_nhan=TacNhan.KHACH_HANG,
+                    ghi_chu="Khách đặt hàng",
+                )
+
+                # Bước 4d: bản ghi thanh toán "Chưa thanh toán" (M3-BR16)
+                DichVuDatHang.tao_giao_dich_thanh_toan(don, bay_gio)
+
+                # Bước 4e: bỏ các dòng đã đặt khỏi giỏ; dòng không chọn vẫn ở lại
+                cac_ma_ctgh = [dong["ma_ctgh"] for dong in tinh["cac_dong"]]
+                DichVuDatHang.loai_dong_khoi_gio(khach_hang, cac_ma_ctgh)
+
+        except DatabaseError as loi:
+            # Lỗi CSDL bất kỳ (khóa CSDL, vi phạm CHECK, trùng mã...): transaction
+            # đã hoàn tác, chỉ đổi thành câu báo cho khách (UC03-E5)
+            raise LoiNghiepVuDonHang("Không thể đặt hàng, vui lòng thử lại.") from loi
+
+        return don

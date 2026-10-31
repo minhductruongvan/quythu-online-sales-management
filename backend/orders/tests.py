@@ -15,8 +15,21 @@ from django.utils import timezone
 from customers.models import DiaChiKH, KhachHang, LoaiKhachHang, TaiKhoan
 from products.models import BienTheSanPham, DanhMucSanPham, SanPham
 
-from .models import ChiTietGioHang, DonHang, GioHang, LoaiGia, TinhThanh
+from .models import (
+    ChiTietGioHang,
+    DonHang,
+    GiaoDichThanhToan,
+    GioHang,
+    LichSuTrangThaiDonHang,
+    LoaiGia,
+    PhuongThucThanhToan,
+    TacNhan,
+    TinhThanh,
+    TrangThaiDonHang,
+    TrangThaiThanhToan,
+)
 from .services import (
+    DichVuDatHang,
     DichVuDiaChiGiaoHang,
     DichVuGioHang,
     DichVuTinhTien,
@@ -355,3 +368,109 @@ class KiemThuTinhGia(TestCase):
         self.assertEqual(ket_qua["phi_van_chuyen"], Decimal("35000"))
         self.assertEqual(ket_qua["tong_thanh_toan"], Decimal("495000"))
         self.assertEqual(ket_qua["tinh_thanh"].ma_tinh, "TT020")
+
+
+# ==========================================================
+# Phần 4: đặt hàng (M3-UC03)
+# ==========================================================
+class DuLieuDatHang:
+    """
+    Dữ liệu chung cho các lớp test đặt hàng. Không kế thừa TestCase nên
+    Django không tự chạy lớp này; lớp test nào cần thì kế thừa nó cùng TestCase.
+    """
+
+    def setUp(self):
+        self.kh = tao_khach_hang("KH_DH", "dh@test.vn", ma_loai="LKH002")  # khách sỉ
+        danh_muc = DanhMucSanPham.objects.create(ma_dm="DM_D", ten_dm="Bánh test")
+        self.san_pham = SanPham.objects.create(
+            ma_sp="SP_D", danh_muc=danh_muc, ten_sp="Bánh dừa đặt hàng"
+        )
+        self.bt_si = tao_bien_the("BT_D1", self.san_pham, gia_le=50000, gia_si=40000)  # mức sỉ 10
+        self.bt_le = tao_bien_the("BT_D2", self.san_pham, gia_le=30000)
+        self.bt_khac = tao_bien_the("BT_D3", self.san_pham, gia_le=20000)
+
+        self.d1 = DichVuGioHang.them_vao_gio(self.kh, self.bt_si, 10)   # sỉ: 10 x 40.000
+        self.d2 = DichVuGioHang.them_vao_gio(self.kh, self.bt_le, 2)    # lẻ:  2 x 30.000
+        self.d3 = DichVuGioHang.them_vao_gio(self.kh, self.bt_khac, 1)  # không chọn mua
+
+        self.dia_chi = tao_dia_chi("DC_D1", self.kh, tinh_thanh="Huế")  # phí 35.000
+        DiaChiKH.objects.filter(ma_dia_chi="DC_D1").update(phuong_xa="Phường Thuận Hòa")
+
+    def dat(self, ma_pttt=PhuongThucThanhToan.MA_COD):
+        """Đặt hai dòng d1, d2 về địa chỉ DC_D1."""
+        return DichVuDatHang.dat_hang(
+            self.kh, [self.d1.ma_ctgh, self.d2.ma_ctgh], "DC_D1", ma_pttt
+        )
+
+
+class KiemThuDatHang(DuLieuDatHang, TestCase):
+
+    def test_tao_don_cho_xac_nhan_voi_tien_va_nguoi_nhan_chot_luc_dat(self):  # UC03 bước 4
+        don = self.dat()
+
+        self.assertEqual(don.ma_dh, "DH001")
+        self.assertEqual(don.trang_thai, TrangThaiDonHang.CHO_XAC_NHAN)
+        self.assertEqual(don.trang_thai_thanh_toan, TrangThaiThanhToan.CHUA_THANH_TOAN)
+        self.assertEqual(don.loai_khach_hang_ap_dung_id, "LKH002")          # M3-BR02
+        self.assertEqual(don.phuong_thuc_thanh_toan_id, PhuongThucThanhToan.MA_COD)
+        self.assertEqual(don.ho_ten_nguoi_nhan, "Người nhận test")          # M3-BR08
+        self.assertEqual(don.dia_chi_giao_hang, "12 Lê Lợi, Phường Thuận Hòa")
+        self.assertEqual(don.tinh_thanh_id, "TT020")
+        self.assertEqual(don.tong_tien_hang, Decimal("460000"))             # M3-BR06
+        self.assertEqual(don.phi_van_chuyen, Decimal("35000"))
+        self.assertEqual(don.tong_thanh_toan, Decimal("495000"))
+
+    def test_dong_don_luu_dung_loai_gia(self):  # M3-BR04, M3-BR07
+        don = self.dat()
+        cac_dong = {d.bien_the_id: d for d in don.chi_tiet.all()}
+
+        self.assertEqual(len(cac_dong), 2)
+        self.assertEqual(cac_dong["BT_D1"].loai_gia_ap_dung, LoaiGia.GIA_SI)
+        self.assertEqual(cac_dong["BT_D1"].don_gia, Decimal("40000"))
+        self.assertEqual(cac_dong["BT_D1"].thanh_tien, Decimal("400000"))
+        self.assertEqual(cac_dong["BT_D2"].loai_gia_ap_dung, LoaiGia.GIA_LE)
+        self.assertEqual(cac_dong["BT_D2"].thanh_tien, Decimal("60000"))
+
+    def test_ghi_dong_lich_su_dau_tien(self):  # M3-BR15
+        don = self.dat()
+        lich_su = LichSuTrangThaiDonHang.objects.filter(don_hang=don)
+
+        self.assertEqual(lich_su.count(), 1)
+        dong = lich_su.first()
+        self.assertIsNone(dong.trang_thai_cu)
+        self.assertEqual(dong.trang_thai, TrangThaiDonHang.CHO_XAC_NHAN)
+        self.assertEqual(dong.tac_nhan, TacNhan.KHACH_HANG)
+        self.assertIsNone(dong.nhan_vien)
+        self.assertEqual(dong.thoi_diem, don.ngay_dat)
+
+    def test_tao_giao_dich_chua_thanh_toan(self):  # M3-BR16
+        don = self.dat(ma_pttt=PhuongThucThanhToan.MA_CHUYEN_KHOAN)
+        giao_dich = GiaoDichThanhToan.objects.filter(don_hang=don)
+
+        self.assertEqual(giao_dich.count(), 1)
+        gd = giao_dich.first()
+        self.assertEqual(gd.phuong_thuc_id, PhuongThucThanhToan.MA_CHUYEN_KHOAN)
+        self.assertEqual(gd.so_tien_phai_thu, Decimal("495000"))
+        self.assertEqual(gd.trang_thai, TrangThaiThanhToan.CHUA_THANH_TOAN)
+        self.assertIsNone(gd.so_tien_thuc_nhan)
+
+    def test_gio_chi_con_dong_khong_chon(self):  # M3-BR03
+        self.dat()
+        con_lai = list(
+            ChiTietGioHang.objects.filter(gio_hang__khach_hang=self.kh)
+            .values_list("ma_ctgh", flat=True)
+        )
+        self.assertEqual(con_lai, [self.d3.ma_ctgh])
+
+    def test_chua_chon_phuong_thuc_thanh_toan(self):  # UC03-E1
+        for ma in ("", None):
+            with self.assertRaisesMessage(LoiNghiepVuDonHang, "Vui lòng chọn phương thức thanh toán"):
+                self.dat(ma_pttt=ma)
+
+        self.assertEqual(DonHang.objects.count(), 0)
+        self.assertEqual(DichVuGioHang.dem_so_dong(self.kh), 3)  # giỏ giữ nguyên
+
+    def test_phuong_thuc_khong_ton_tai(self):  # UC03-E1
+        with self.assertRaises(LoiNghiepVuDonHang):
+            self.dat(ma_pttt="PT999")
+        self.assertEqual(DonHang.objects.count(), 0)
