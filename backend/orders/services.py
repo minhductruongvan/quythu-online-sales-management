@@ -1,6 +1,8 @@
 # File: backend/orders/services.py
 # Module 3 – Nghiệp vụ giỏ hàng, đặt hàng, xử lý đơn hàng
-# Phần 1/4: lỗi nghiệp vụ, sinh mã, tra tỉnh/thành từ địa chỉ của khách
+# Nội dung đã có:
+#   1. Lỗi nghiệp vụ          2. Sinh mã khóa chính
+#   3. Tra tỉnh/thành         4. Giỏ hàng (M3-UC01, M3-UC02)
 #
 # Quy ước (theo M1 – customers/services.py):
 # - View không tự xử lý nghiệp vụ, chỉ gọi hàm ở file này.
@@ -8,6 +10,8 @@
 #   tiếng Việt; view bắt lỗi này và trả câu báo về cho người dùng.
 
 import unicodedata
+
+from django.db import transaction
 
 from .models import (
     ChiTietDonHang,
@@ -130,3 +134,142 @@ def tim_tinh_thanh(ten_tinh):
         f"Tỉnh/Thành phố \"{ten_tinh}\" chưa có trong bảng phí giao hàng, "
         "không tính được phí. Vui lòng chọn địa chỉ khác."
     )
+
+# ==========================================================
+# 4. GIỎ HÀNG – M3-UC01 (thêm vào giỏ), M3-UC02 (sửa số lượng, xóa dòng)
+#    Quy tắc: M3-BR01 (khách đang hoạt động), M3-BR03 (biến thể đang bán,
+#    số lượng nguyên > 0, cộng dồn), M3-BR11 (hết hàng không chặn),
+#    M3-BR24 (chỉ thao tác trên giỏ của chính mình).
+# ==========================================================
+TRANG_THAI_DANG_BAN = "ACTIVE"  # giá trị trang_thai của M1, M2 khi đang dùng
+
+
+class DichVuGioHang:
+
+    # ---------- Các hàm kiểm tra điều kiện ----------
+    @staticmethod
+    def kiem_tra_khach_hang(khach_hang):
+        """M3-BR01: hồ sơ khách phải đang hoạt động."""
+        if khach_hang.trang_thai != TRANG_THAI_DANG_BAN:
+            raise LoiQuyenDonHang(
+                "Tài khoản khách hàng đang ngừng hoạt động, không thể dùng giỏ hàng."
+            )
+
+    @staticmethod
+    def bien_the_con_ban(bien_the):
+        """True nếu cả biến thể lẫn sản phẩm cha đều đang bán (M2-BR09)."""
+        return (
+            bien_the.trang_thai == TRANG_THAI_DANG_BAN
+            and bien_the.san_pham.trang_thai == TRANG_THAI_DANG_BAN
+        )
+
+    @staticmethod
+    def kiem_tra_so_luong(so_luong):
+        """M3-BR03: số lượng phải là số nguyên lớn hơn 0 (UC01-E2, UC02-E2)."""
+        # bool là lớp con của int trong Python (True == 1) nên phải loại riêng
+        if isinstance(so_luong, bool) or not isinstance(so_luong, int) or so_luong <= 0:
+            raise LoiNghiepVuDonHang("Số lượng phải là số nguyên lớn hơn 0.")
+
+    # ---------- Lấy giỏ và dòng giỏ ----------
+    @staticmethod
+    def lay_gio_hang(khach_hang, tao_neu_chua_co=False):
+        """
+        Trả về giỏ của khách. Khách chưa có giỏ:
+        - tao_neu_chua_co=True  -> tạo giỏ mới (dùng khi thêm vào giỏ)
+        - tao_neu_chua_co=False -> trả None (dùng khi chỉ xem)
+        """
+        gio = GioHang.objects.filter(khach_hang=khach_hang).first()
+
+        if gio is None and tao_neu_chua_co:
+            gio = GioHang.objects.create(
+                ma_gio_hang=sinh_ma(GioHang),
+                khach_hang=khach_hang,
+            )
+
+        return gio
+
+    @staticmethod
+    def lay_dong_cua_khach(khach_hang, ma_ctgh):
+        """M3-BR24: chỉ trả dòng giỏ thuộc giỏ của chính khách này."""
+        dong = (
+            ChiTietGioHang.objects
+            .select_related("gio_hang", "bien_the__san_pham")
+            .filter(ma_ctgh=ma_ctgh)
+            .first()
+        )
+
+        if dong is None:
+            raise LoiNghiepVuDonHang("Không tìm thấy dòng hàng trong giỏ.")
+
+        if dong.gio_hang.khach_hang_id != khach_hang.ma_kh:
+            raise LoiQuyenDonHang("Bạn không có quyền thao tác trên giỏ hàng này.")
+
+        return dong
+
+    @staticmethod
+    def dem_so_dong(khach_hang):
+        """Số dòng trong giỏ, hiển thị trên biểu tượng giỏ hàng (UC01 bước 3)."""
+        return ChiTietGioHang.objects.filter(gio_hang__khach_hang=khach_hang).count()
+
+    # ---------- M3-UC01: Thêm vào giỏ ----------
+    @staticmethod
+    def them_vao_gio(khach_hang, bien_the, so_luong):
+        DichVuGioHang.kiem_tra_khach_hang(khach_hang)
+        DichVuGioHang.kiem_tra_so_luong(so_luong)
+
+        if not DichVuGioHang.bien_the_con_ban(bien_the):
+            raise LoiNghiepVuDonHang("Sản phẩm hiện không được bán.")  # UC01-E1
+
+        # Tạo giỏ (nếu chưa có) và thêm/cộng dồn dòng: thành công cả hai hoặc không gì cả
+        with transaction.atomic():
+            gio = DichVuGioHang.lay_gio_hang(khach_hang, tao_neu_chua_co=True)
+
+            dong = ChiTietGioHang.objects.filter(gio_hang=gio, bien_the=bien_the).first()
+
+            if dong is None:
+                dong = ChiTietGioHang.objects.create(
+                    ma_ctgh=sinh_ma(ChiTietGioHang),
+                    gio_hang=gio,
+                    bien_the=bien_the,
+                    so_luong=so_luong,
+                )
+            else:
+                dong.so_luong += so_luong  # cộng dồn (M3-BR03)
+                dong.save()
+
+            gio.save(update_fields=["ngay_cap_nhat"])  # ghi thời điểm cập nhật giỏ
+
+        return dong
+
+    # ---------- M3-UC02: Sửa số lượng ----------
+    @staticmethod
+    def cap_nhat_so_luong(khach_hang, ma_ctgh, so_luong_moi):
+        DichVuGioHang.kiem_tra_khach_hang(khach_hang)
+        DichVuGioHang.kiem_tra_so_luong(so_luong_moi)
+
+        dong = DichVuGioHang.lay_dong_cua_khach(khach_hang, ma_ctgh)
+
+        if not DichVuGioHang.bien_the_con_ban(dong.bien_the):
+            # UC02-E3: dòng hàng ngừng bán chỉ được xóa, không được sửa
+            raise LoiNghiepVuDonHang(
+                "Sản phẩm này hiện không được bán. Vui lòng xóa khỏi giỏ hàng."
+            )
+
+        with transaction.atomic():
+            dong.so_luong = so_luong_moi
+            dong.save()
+            dong.gio_hang.save(update_fields=["ngay_cap_nhat"])
+
+        return dong
+
+    # ---------- M3-UC02: Xóa dòng ----------
+    @staticmethod
+    def xoa_dong(khach_hang, ma_ctgh):
+        DichVuGioHang.kiem_tra_khach_hang(khach_hang)
+
+        dong = DichVuGioHang.lay_dong_cua_khach(khach_hang, ma_ctgh)
+        gio = dong.gio_hang
+
+        with transaction.atomic():
+            dong.delete()
+            gio.save(update_fields=["ngay_cap_nhat"])
