@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ san_pham.ten_sp }} - Chi tiết sản phẩm</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+</head>
+<body class="bg-light">
+
+    <div class="bg-success text-white py-3 mb-4">
+        <div class="container">
+            <a href="/products/" class="btn btn-sm btn-light fw-bold">← Quay lại danh sách sản phẩm</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card p-4 shadow-sm border-0">
+            <div class="row">
+                <!-- Cột hiển thị ảnh -->
+                <div class="col-md-5">
+                    <img src="{{ san_pham.lay_anh_dai_dien }}" class="img-fluid rounded shadow-sm w-100 mb-3">
+                </div>
+
+                <!-- Cột hiển thị thông tin & bảng giá các gói -->
+                <div class="col-md-7">
+                    <span class="badge bg-secondary mb-2">{{ san_pham.danh_muc.ten_dm }}</span>
+                    <h2 class="fw-bold text-success">{{ san_pham.ten_sp }}</h2>
+                    <p class="text-muted">{{ san_pham.mo_ta }}</p>
+
+                    <h5 class="fw-bold mt-4 mb-3">Bảng giá các loại quy cách đóng gói & hương vị:</h5>
+
+                    <table class="table table-bordered table-striped">
+                        <thead class="table-success">
+                            <tr>
+                                <th>Hương vị</th>
+                                <th>Quy cách</th>
+                                <th>Mã vạch (Barcode)</th>
+                                <th>Giá bán lẻ</th>
+                                <th>Giá bán sỉ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for bt in danh_sach_bien_the %}
+                            <tr>
+                                <td><strong>{{ bt.huong_vi }}</strong></td>
+                                <td>{{ bt.quy_cach }}</td>
+                                <td><code>{{ bt.barcode }}</code></td>
+                                <td class="text-danger fw-bold">{{ bt.gia_ban_le }} đ</td>
+                                <td class="text-primary">{{ bt.gia_ban_si }} đ (từ {{ bt.so_luong_toi_thieu_si }} gói)</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">Chưa có thông tin biến thể nào.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

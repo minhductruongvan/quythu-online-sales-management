@@ -1,0 +1,166 @@
+<!-- File: backend/products/templates/products/danh_sach_bien_the.html -->
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Danh sách biến thể - {{ san_pham.ten_sp }}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FFF8EC; /* Màu kem Rustic Modern */
+            color: #3E3028;
+        }
+        .header-top {
+            background-color: #6F452B; /* Màu nâu đậm */
+            color: #FFFFFF;
+            padding: 16px 0;
+            margin-bottom: 24px;
+        }
+        .btn-nau {
+            background-color: #8B5E3C; /* Màu nâu dừa chủ đạo */
+            color: #FFFFFF;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        .btn-nau:hover {
+            background-color: #6F452B;
+            color: #FFFFFF;
+        }
+        .card-custom {
+            background: #FFFFFF;
+            border: 1px solid #D9CEC0;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .table-custom thead {
+            background-color: #F3E5D0; /* Màu be nhạt */
+            color: #6F452B;
+        }
+    </style>
+</head>
+<body>
+
+        <!-- Thanh tiêu đề phía trên -->
+    <div class="header-top shadow-sm">
+        <div class="container d-flex justify-content-between align-items-center">
+            <div>
+                <!-- Nút quay lại trang Quản lý sản phẩm -->
+                <a href="{% url 'products:quan_ly' %}" class="btn btn-outline-light btn-sm me-2">
+                    ← Quay lại Quản lý sản phẩm
+                </a>
+                <span class="fs-5 fw-bold">📦 Quản lý biến thể sản phẩm</span>
+            </div>
+
+            <!-- CỤM 4 NÚT QUẢN TRỊ GỌN GÀNG (ĐÃ CÓ ĐẦY ĐỦ NÚT HÌNH ẢNH) -->
+            <div class="d-flex gap-2">
+                <!-- 1. Nút sang Quản lý hình ảnh (Use Case 6) -->
+                <a href="{% url 'products:quan_ly_hinh_anh' san_pham.ma_sp %}" class="btn btn-outline-light btn-sm fw-bold">
+                    🖼️ Hình ảnh
+                </a>
+
+                <!-- 2. Nút sang Quản lý bảng giá (Use Case 5) -->
+                <a href="{% url 'products:quan_ly_gia' san_pham.ma_sp %}" class="btn btn-outline-light btn-sm fw-bold">
+                    💰 Quản lý giá
+                </a>
+
+                <!-- 3. Nút sang Quản lý mã vạch (Use Case 4) -->
+                <a href="{% url 'products:quan_ly_ma_vach' san_pham.ma_sp %}" class="btn btn-outline-light btn-sm fw-bold">
+                    🏷️ Quản lý mã vạch
+                </a>
+
+                <!-- 4. Nút Thêm biến thể mới (Use Case 3) -->
+                <a href="{% url 'products:them_bien_the' san_pham.ma_sp %}" class="btn btn-light btn-sm fw-bold" style="color: #6F452B;">
+                    ➕ Thêm gói bánh mới
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container pb-5">
+        <!-- Khung hiển thị thông báo thành công hoặc lỗi -->
+        {% if messages %}
+            {% for msg in messages %}
+                <div class="alert alert-{% if msg.tags == 'error' %}danger{% else %}{{ msg.tags }}{% endif %} alert-dismissible fade show" role="alert">
+                    {{ msg }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <div class="card card-custom p-4">
+            <!-- Thông tin sản phẩm cha -->
+            <div class="border-bottom pb-3 mb-3">
+                <span class="text-muted">Sản phẩm gốc:</span>
+                <h3 class="fw-bold" style="color: #8B5E3C;">{{ san_pham.ten_sp }} (Mã: {{ san_pham.ma_sp }})</h3>
+                <p class="text-secondary m-0">Danh mục: <strong>{{ san_pham.danh_muc.ten_dm }}</strong> | Tổng số gói hiện có: <strong>{{ danh_sach_cac_goi|length }} biến thể</strong></p>
+            </div>
+
+            <!-- Bảng danh sách các gói bánh (biến thể) -->
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 90px;">Mã BT</th>
+                            <th>Hương vị bánh</th>
+                            <th>Quy cách đóng gói</th>
+                            <th>Mã vạch (EAN-13)</th>
+                            <th>Giá bán lẻ</th>
+                            <th>Giá bán sỉ</th>
+                            <th>SL tối thiểu sỉ</th>
+                            <th style="width: 130px;">Trạng thái</th>
+                            <th style="width: 220px;" class="text-center">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for goi in danh_sach_cac_goi %}
+                        <tr>
+                            <td><strong>{{ goi.ma_bien_the }}</strong></td>
+                            <td><span class="badge" style="background-color: #8B5E3C;">{{ goi.huong_vi }}</span></td>
+                            <td class="fw-semibold">{{ goi.quy_cach }}</td>
+                            <td><code>{{ goi.barcode }}</code></td>
+                            <td class="fw-bold text-danger">{{ goi.gia_ban_le }} đ</td>
+                            <td class="fw-bold text-success">{{ goi.gia_ban_si }} đ</td>
+                            <td>≥ {{ goi.so_luong_toi_thieu_si }} gói</td>
+                            <td>
+                                {% if goi.trang_thai == 'ACTIVE' %}
+                                    <span class="badge bg-success">Đang bán</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Ngừng bán</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <!-- Nút Sửa biến thể -->
+                                <a href="{% url 'products:sua_bien_the' goi.ma_bien_the %}" class="btn btn-sm btn-outline-primary me-1">
+                                    ✏️ Sửa
+                                </a>
+
+                                <!-- Nút Bật/Tắt trạng thái kinh doanh -->
+                                <a href="{% url 'products:doi_trang_thai_bien_the' goi.ma_bien_the %}" class="btn btn-sm {% if goi.trang_thai == 'ACTIVE' %}btn-outline-warning{% else %}btn-outline-success{% endif %} me-1" title="Chuyển trạng thái để bảo toàn lịch sử">
+                                    {% if goi.trang_thai == 'ACTIVE' %}⏸️ Ngừng bán{% else %}▶️ Mở lại{% endif %}
+                                </a>
+
+                                <!-- Nút Xóa biến thể -->
+                                <a href="{% url 'products:xoa_bien_the' goi.ma_bien_the %}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Bạn có chắc chắn muốn xóa gói bánh này không?');">
+                                    🗑️ Xóa
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center py-4 text-muted">
+                                Sản phẩm này chưa có gói bánh nào. Vui lòng nhấn nút <strong>"➕ Thêm gói bánh mới"</strong> ở góc trên!
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
