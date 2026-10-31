@@ -8,7 +8,9 @@
 
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
+from django.db import DatabaseError
 from django.test import TestCase
 from django.utils import timezone
 
@@ -16,6 +18,7 @@ from customers.models import DiaChiKH, KhachHang, LoaiKhachHang, TaiKhoan
 from products.models import BienTheSanPham, DanhMucSanPham, SanPham
 
 from .models import (
+    ChiTietDonHang,
     ChiTietGioHang,
     DonHang,
     GiaoDichThanhToan,
@@ -371,7 +374,7 @@ class KiemThuTinhGia(TestCase):
 
 
 # ==========================================================
-# Phần 4: đặt hàng (M3-UC03)
+# Phần 5: đặt hàng (M3-UC03)
 # ==========================================================
 class DuLieuDatHang:
     """
@@ -474,3 +477,134 @@ class KiemThuDatHang(DuLieuDatHang, TestCase):
         with self.assertRaises(LoiNghiepVuDonHang):
             self.dat(ma_pttt="PT999")
         self.assertEqual(DonHang.objects.count(), 0)
+
+# ==========================================================
+# Phần 6: đặt hàng – các trường hợp ngoại lệ (M3-UC03 E1–E6, M3-BR02, M3-BR07)
+# ==========================================================
+class KiemThuDatHangNgoaiLe(DuLieuDatHang, TestCase):
+
+    def khong_co_gi_duoc_luu(self):
+        """Không có đơn, dòng đơn, lịch sử, giao dịch; giỏ còn đủ 3 dòng."""
+        self.assertEqual(DonHang.objects.count(), 0)
+        self.assertEqual(ChiTietDonHang.objects.count(), 0)
+        self.assertEqual(LichSuTrangThaiDonHang.objects.count(), 0)
+        self.assertEqual(GiaoDichThanhToan.objects.count(), 0)
+        self.assertEqual(DichVuGioHang.dem_so_dong(self.kh), 3)
+
+    # ----- Dữ liệu chốt tại lúc đặt -----
+    def test_doi_gia_va_phi_sau_khi_dat_khong_doi_don(self):  # M3-BR07
+        don = self.dat()
+
+        BienTheSanPham.objects.filter(ma_bien_the="BT_D1").update(gia_ban_le=99000, gia_ban_si=88000)
+        TinhThanh.objects.filter(ma_tinh="TT020").update(phi_van_chuyen=99000)
+
+        don.refresh_from_db()
+        dong_si = don.chi_tiet.get(bien_the_id="BT_D1")
+        self.assertEqual(dong_si.don_gia, Decimal("40000"))
+        self.assertEqual(don.phi_van_chuyen, Decimal("35000"))
+        self.assertEqual(don.tong_thanh_toan, Decimal("495000"))
+
+    def test_doi_loai_khach_sau_khi_dat_khong_doi_don(self):  # M3-BR02
+        don = self.dat()
+
+        self.kh.loai_khach_hang = LoaiKhachHang.objects.get(ma_loai_kh="LKH001")
+        self.kh.save()
+
+        don.refresh_from_db()
+        self.assertEqual(don.loai_khach_hang_ap_dung_id, "LKH002")
+
+    # ----- Kiểm tra trước khi ghi: lỗi thì không lưu gì -----
+    def test_phuong_thuc_da_tat(self):  # UC03-E1
+        PhuongThucThanhToan.objects.filter(
+            ma_pttt=PhuongThucThanhToan.MA_CHUYEN_KHOAN
+        ).update(dang_kich_hoat=False)
+
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "không hợp lệ"):
+            self.dat(ma_pttt=PhuongThucThanhToan.MA_CHUYEN_KHOAN)
+        self.khong_co_gi_duoc_luu()
+
+    def test_co_dong_ngung_ban(self):  # UC03-E2
+        self.bt_le.trang_thai = "INACTIVE"
+        self.bt_le.save()
+
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "không được bán"):
+            self.dat()
+        self.khong_co_gi_duoc_luu()
+
+    def test_tinh_khong_co_trong_bang_phi(self):  # UC03-E4
+        DiaChiKH.objects.filter(ma_dia_chi="DC_D1").update(tinh_thanh="Bình Dương")
+
+        with self.assertRaises(LoiNghiepVuDonHang):
+            self.dat()
+        self.khong_co_gi_duoc_luu()
+
+    def test_dia_chi_cua_khach_khac(self):  # M3-BR24, UC04 NFR
+        kh_khac = tao_khach_hang("KH_KHAC", "khac@test.vn")
+        tao_dia_chi("DC_KHAC", kh_khac)
+
+        with self.assertRaises(LoiQuyenDonHang):
+            DichVuDatHang.dat_hang(
+                self.kh, [self.d1.ma_ctgh], "DC_KHAC", PhuongThucThanhToan.MA_COD
+            )
+        self.khong_co_gi_duoc_luu()
+
+    def test_khach_ngung_hoat_dong(self):  # M3-BR01
+        self.kh.trang_thai = KhachHang.TrangThai.INACTIVE
+        self.kh.save()
+
+        with self.assertRaises(LoiQuyenDonHang):
+            self.dat()
+        self.khong_co_gi_duoc_luu()
+
+    # ----- Lỗi xảy ra giữa lúc ghi: phải hoàn tác toàn bộ -----
+    def test_loi_giua_chung_hoan_tac_toan_bo(self):  # UC03-E5, M3-BR10
+        # Thay tạm hàm tạo giao dịch bằng hàm ném lỗi CSDL. Lúc đó đơn, dòng đơn,
+        # lịch sử đã được tạo trong transaction; tất cả phải bị hoàn tác.
+        with patch.object(
+            DichVuDatHang, "tao_giao_dich_thanh_toan", side_effect=DatabaseError("giả lập")
+        ):
+            with self.assertRaisesMessage(LoiNghiepVuDonHang, "Không thể đặt hàng"):
+                self.dat()
+
+        self.khong_co_gi_duoc_luu()
+
+    def test_bam_dat_hang_lan_hai_bi_tu_choi(self):  # UC03-E6
+        self.dat()
+
+        with self.assertRaises(LoiNghiepVuDonHang):
+            self.dat()  # các dòng d1, d2 đã rời khỏi giỏ
+
+        self.assertEqual(DonHang.objects.count(), 1)
+
+    def test_dong_bi_xoa_giua_chung_thi_hoan_tac(self):  # UC03-E6, chốt chặn ở loai_dong_khoi_gio
+        ham_that = DichVuDatHang.tao_giao_dich_thanh_toan
+
+        def yeu_cau_khac_chen_vao(don, thoi_diem):
+            # Giả lập một yêu cầu khác vừa xóa dòng d2 khỏi giỏ
+            ChiTietGioHang.objects.filter(ma_ctgh=self.d2.ma_ctgh).delete()
+            return ham_that(don, thoi_diem)
+
+        with patch.object(
+            DichVuDatHang, "tao_giao_dich_thanh_toan", side_effect=yeu_cau_khac_chen_vao
+        ):
+            with self.assertRaisesMessage(LoiNghiepVuDonHang, "Giỏ hàng vừa thay đổi"):
+                self.dat()
+
+        # Lệnh xóa d2 cũng nằm trong transaction nên được hoàn tác theo
+        self.khong_co_gi_duoc_luu()
+
+    # ----- Sinh mã khi có nhiều đơn -----
+    def test_hai_don_lien_tiep_co_ma_rieng(self):
+        don_1 = self.dat()
+        d4 = DichVuGioHang.them_vao_gio(self.kh, self.bt_si, 1)
+        don_2 = DichVuDatHang.dat_hang(
+            self.kh, [d4.ma_ctgh, self.d3.ma_ctgh], "DC_D1", PhuongThucThanhToan.MA_COD
+        )
+
+        self.assertEqual((don_1.ma_dh, don_2.ma_dh), ("DH001", "DH002"))
+        self.assertEqual(
+            sorted(ChiTietDonHang.objects.values_list("ma_ctdh", flat=True)),
+            ["CT001", "CT002", "CT003", "CT004"],
+        )
+        self.assertEqual(GiaoDichThanhToan.objects.count(), 2)
+        self.assertEqual(DichVuGioHang.dem_so_dong(self.kh), 0)
