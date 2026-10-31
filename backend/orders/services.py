@@ -3,15 +3,21 @@
 # Nội dung đã có:
 #   1. Lỗi nghiệp vụ          2. Sinh mã khóa chính
 #   3. Tra tỉnh/thành         4. Giỏ hàng (M3-UC01, M3-UC02)
+#   5. Địa chỉ giao hàng (M3-UC04)
+#   6. Tính giá và tính tiền (M3-UC02 phần hiển thị, M3-UC03 bước 1)
 #
 # Quy ước (theo M1 – customers/services.py):
 # - View không tự xử lý nghiệp vụ, chỉ gọi hàm ở file này.
 # - Vi phạm quy tắc nghiệp vụ thì raise LoiNghiepVuDonHang kèm câu báo lỗi
 #   tiếng Việt; view bắt lỗi này và trả câu báo về cho người dùng.
+# - Mọi số tiền dùng Decimal, không dùng float.
 
 import unicodedata
+from decimal import Decimal
 
 from django.db import transaction
+
+from customers.models import DiaChiKH
 
 from .models import (
     ChiTietDonHang,
@@ -20,9 +26,9 @@ from .models import (
     GiaoDichThanhToan,
     GioHang,
     LichSuTrangThaiDonHang,
+    LoaiGia,
     TinhThanh,
 )
-
 
 # ==========================================================
 # 1. LỖI NGHIỆP VỤ
@@ -273,3 +279,222 @@ class DichVuGioHang:
         with transaction.atomic():
             dong.delete()
             gio.save(update_fields=["ngay_cap_nhat"])
+
+
+# ==========================================================
+# 5. ĐỊA CHỈ GIAO HÀNG – M3-UC04
+#    M3 chỉ ĐỌC sổ địa chỉ DiaChiKH của M1, không tạo hay sửa (M3-BR08).
+#    Quy tắc: M3-BR05 (phí theo tỉnh), M3-BR08, M1-BR09 (trường bắt buộc).
+# ==========================================================
+# Các trường DiaChiKH không được để trống -> tên hiển thị trong câu báo lỗi
+TRUONG_DIA_CHI_BAT_BUOC = {
+    "ten_nguoi_nhan": "tên người nhận",
+    "so_dien_thoai": "số điện thoại",
+    "dia_chi_chi_tiet": "địa chỉ chi tiết",
+    "tinh_thanh": "Tỉnh/Thành phố",
+}
+
+
+class DichVuDiaChiGiaoHang:
+
+    @staticmethod
+    def lay_dia_chi_hien_thi_san(khach_hang):
+        """
+        UC04 bước 1: địa chỉ mặc định; không có thì địa chỉ cập nhật gần nhất.
+        Sổ địa chỉ trống -> lỗi (UC04-E1, UC03-E3).
+        """
+        dia_chi = (
+            DiaChiKH.objects
+            .filter(khach_hang=khach_hang)
+            .order_by("-mac_dinh", "-ngay_cap_nhat", "-ma_dia_chi")
+            .first()
+        )
+
+        if dia_chi is None:
+            raise LoiNghiepVuDonHang(
+                "Bạn chưa có địa chỉ giao hàng. "
+                "Vui lòng thêm địa chỉ mới trước khi đặt hàng."
+            )
+
+        return dia_chi
+
+    @staticmethod
+    def chon_dia_chi(khach_hang, ma_dia_chi):
+        """
+        UC04 bước 3: kiểm tra địa chỉ khách chọn, trả về địa chỉ, tỉnh và phí giao.
+        """
+        dia_chi = DiaChiKH.objects.filter(ma_dia_chi=ma_dia_chi).first()
+
+        if dia_chi is None:
+            raise LoiNghiepVuDonHang("Không tìm thấy địa chỉ giao hàng.")
+
+        # UC04 NFR, M3-BR24: chỉ được dùng địa chỉ trong sổ của chính mình
+        if dia_chi.khach_hang_id != khach_hang.ma_kh:
+            raise LoiQuyenDonHang("Bạn không có quyền dùng địa chỉ này.")
+
+        # UC04-E2: thiếu trường bắt buộc (M1-BR09)
+        cac_truong_thieu = []
+        for ten_truong, ten_hien_thi in TRUONG_DIA_CHI_BAT_BUOC.items():
+            gia_tri = getattr(dia_chi, ten_truong) or ""
+            if not gia_tri.strip():
+                cac_truong_thieu.append(ten_hien_thi)
+
+        if cac_truong_thieu:
+            raise LoiNghiepVuDonHang(
+                "Địa chỉ còn thiếu " + ", ".join(cac_truong_thieu)
+                + ". Vui lòng cập nhật địa chỉ."
+            )
+
+        # UC04-E3, UC03-E4: tỉnh không có trong bảng phí thì tim_tinh_thanh báo lỗi
+        tinh = tim_tinh_thanh(dia_chi.tinh_thanh)
+
+        return {
+            "dia_chi": dia_chi,
+            "tinh_thanh": tinh,
+            "phi_van_chuyen": tinh.phi_van_chuyen,
+        }
+
+
+# ==========================================================
+# 6. TÍNH GIÁ VÀ TÍNH TIỀN
+#    M3-UC02 (giá từng dòng, tạm tính, nhấn [Mua hàng]),
+#    M3-UC03 bước 1 (tổng tiền hàng, phí giao, tổng thanh toán).
+#    Quy tắc: M3-BR02 (loại khách), M3-BR04 (giá sỉ theo từng dòng),
+#    M3-BR06 (thành tiền = tiền hàng + phí). Giá luôn tính ở máy chủ.
+# ==========================================================
+MA_LOAI_KHACH_SI = "LKH002"  # mã M1 nạp sẵn (customers/0003_seed_customer_types)
+
+
+class DichVuTinhTien:
+
+    # ---------- Giá của một dòng ----------
+    @staticmethod
+    def la_khach_si(khach_hang):
+        """M3-BR02: M1 chỉ đổi khách sang LKH002 sau khi nhân viên duyệt."""
+        return khach_hang.loai_khach_hang_id == MA_LOAI_KHACH_SI
+
+    @staticmethod
+    def tinh_gia_dong(khach_hang, bien_the, so_luong):
+        """
+        M3-BR04: trả về (loai_gia, don_gia, thanh_tien) cho MỘT dòng.
+        Giá sỉ khi đủ cả ba điều kiện: khách sỉ, biến thể có giá sỉ,
+        số lượng đạt mức tối thiểu của biến thể. Thiếu một điều kiện -> giá lẻ.
+        """
+        dung_gia_si = (
+            DichVuTinhTien.la_khach_si(khach_hang)
+            and bien_the.gia_ban_si is not None
+            and so_luong >= bien_the.so_luong_toi_thieu_si
+        )
+
+        if dung_gia_si:
+            loai_gia = LoaiGia.GIA_SI
+            don_gia = Decimal(bien_the.gia_ban_si)
+        else:
+            loai_gia = LoaiGia.GIA_LE
+            don_gia = Decimal(bien_the.gia_ban_le)
+
+        return loai_gia, don_gia, don_gia * so_luong
+
+    @staticmethod
+    def dong_kem_gia(khach_hang, dong, con_ban, da_chon):
+        """Gói một dòng giỏ cùng giá đã tính thành dict để hiển thị hoặc đặt hàng."""
+        loai_gia, don_gia, thanh_tien = DichVuTinhTien.tinh_gia_dong(
+            khach_hang, dong.bien_the, dong.so_luong
+        )
+        return {
+            "ma_ctgh": dong.ma_ctgh,
+            "bien_the": dong.bien_the,
+            "so_luong": dong.so_luong,
+            "con_ban": con_ban,
+            "da_chon": da_chon,
+            "loai_gia": loai_gia,
+            "don_gia": don_gia,
+            "thanh_tien": thanh_tien,
+        }
+
+    # ---------- M3-UC02: Xem giỏ hàng ----------
+    @staticmethod
+    def xem_gio_hang(khach_hang, ma_ctgh_da_chon=None):
+        """
+        UC02 bước 1–2: mọi dòng trong giỏ kèm giá. Tạm tính chỉ cộng các dòng
+        vừa được tích chọn vừa còn bán. Giỏ trống -> danh sách rỗng (UC02-A2).
+        """
+        DichVuGioHang.kiem_tra_khach_hang(khach_hang)
+        cac_ma_da_chon = set(ma_ctgh_da_chon or [])
+
+        cac_dong = (
+            ChiTietGioHang.objects
+            .select_related("bien_the__san_pham")
+            .filter(gio_hang__khach_hang=khach_hang)
+            .order_by("ma_ctgh")
+        )
+
+        ket_qua = []
+        tam_tinh = Decimal("0")
+
+        for dong in cac_dong:
+            con_ban = DichVuGioHang.bien_the_con_ban(dong.bien_the)
+            # UC02-E3: dòng ngừng bán bị đánh dấu và không được tính là đã chọn
+            da_chon = con_ban and dong.ma_ctgh in cac_ma_da_chon
+
+            dong_gia = DichVuTinhTien.dong_kem_gia(khach_hang, dong, con_ban, da_chon)
+            ket_qua.append(dong_gia)
+
+            if da_chon:
+                tam_tinh += dong_gia["thanh_tien"]
+
+        return {"cac_dong": ket_qua, "tam_tinh": tam_tinh}
+
+    # ---------- M3-UC02 bước 3: nhấn [Mua hàng] ----------
+    @staticmethod
+    def lay_cac_dong_da_chon(khach_hang, danh_sach_ma_ctgh):
+        """
+        Kiểm tra các dòng khách chọn để mua và trả về kèm giá tính lại.
+        Dùng khi nhấn [Mua hàng] (UC02 bước 3), mở trang thanh toán và đặt hàng (UC03).
+        """
+        DichVuGioHang.kiem_tra_khach_hang(khach_hang)
+
+        # dict.fromkeys bỏ mã bị gửi trùng mà vẫn giữ thứ tự
+        cac_ma = list(dict.fromkeys(danh_sach_ma_ctgh or []))
+
+        if not cac_ma:
+            raise LoiNghiepVuDonHang("Vui lòng chọn sản phẩm cần mua.")  # UC02-E1
+
+        ket_qua = []
+        for ma_ctgh in cac_ma:
+            dong = DichVuGioHang.lay_dong_cua_khach(khach_hang, ma_ctgh)  # M3-BR24
+
+            if not DichVuGioHang.bien_the_con_ban(dong.bien_the):  # UC02-E3, UC03-E2
+                raise LoiNghiepVuDonHang(
+                    f"Sản phẩm \"{dong.bien_the.san_pham.ten_sp}\" hiện không được bán. "
+                    "Vui lòng xóa khỏi giỏ hàng."
+                )
+
+            ket_qua.append(DichVuTinhTien.dong_kem_gia(khach_hang, dong, True, True))
+
+        return ket_qua
+
+    # ---------- M3-UC03 bước 1: các khoản tiền trên trang thanh toán ----------
+    @staticmethod
+    def tinh_tong_tien(khach_hang, danh_sach_ma_ctgh, ma_dia_chi):
+        """
+        M3-BR06: tổng thanh toán = tổng tiền hàng các dòng đã chọn + phí giao hàng.
+        Không nhận số tiền nào từ trình duyệt; mọi con số tính lại tại đây.
+        """
+        cac_dong = DichVuTinhTien.lay_cac_dong_da_chon(khach_hang, danh_sach_ma_ctgh)
+        giao_hang = DichVuDiaChiGiaoHang.chon_dia_chi(khach_hang, ma_dia_chi)
+
+        tong_tien_hang = Decimal("0")
+        for dong in cac_dong:
+            tong_tien_hang += dong["thanh_tien"]
+
+        phi_van_chuyen = Decimal(giao_hang["phi_van_chuyen"])
+
+        return {
+            "cac_dong": cac_dong,
+            "dia_chi": giao_hang["dia_chi"],
+            "tinh_thanh": giao_hang["tinh_thanh"],
+            "tong_tien_hang": tong_tien_hang,
+            "phi_van_chuyen": phi_van_chuyen,
+            "tong_thanh_toan": tong_tien_hang + phi_van_chuyen,
+        }
