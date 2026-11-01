@@ -34,6 +34,11 @@ from .models import (
     TrangThaiThanhToan,
 )
 from .permissions import KhachHangCoHoSo
+from .serializers import (
+    CapNhatSoLuongSerializer,
+    GioHangSerializer,
+    ThemVaoGioSerializer,
+)
 from .services import (
     DichVuDatHang,
     DichVuDiaChiGiaoHang,
@@ -645,3 +650,83 @@ class KiemThuPhanQuyen(TestCase):
         tai_khoan = TaiKhoan.objects.create(ma_tk="TK_TRONG", email="trong@test.vn")
         self.assertFalse(self.kiem_tra(tai_khoan))
         self.assertEqual(self.quyen.message, "Tài khoản không có hồ sơ khách hàng.")
+
+# ==========================================================
+# Phần 8: serializer giỏ hàng (orders/serializers.py)
+# ==========================================================
+class KiemThuSerializerGioHang(TestCase):
+
+    def setUp(self):
+        self.kh = tao_khach_hang("KH_SR", "sr@test.vn", ma_loai="LKH002")  # khách sỉ
+        danh_muc = DanhMucSanPham.objects.create(ma_dm="DM_S", ten_dm="Bánh test")
+        self.san_pham = SanPham.objects.create(
+            ma_sp="SP_S", danh_muc=danh_muc, ten_sp="Bánh dừa serializer"
+        )
+        self.bt = tao_bien_the("BT_S1", self.san_pham, gia_le=50000, gia_si=40000)  # mức sỉ 10
+
+    def loi_cua(self, serializer, ten_truong):
+        """Kiểm tra dữ liệu không hợp lệ và trả câu báo lỗi đầu tiên của trường."""
+        self.assertFalse(serializer.is_valid())
+        return str(serializer.errors[ten_truong][0])
+
+    # ---------- Đầu vào: thêm vào giỏ ----------
+    def test_them_hop_le_doi_ma_thanh_doi_tuong(self):
+        sr = ThemVaoGioSerializer(data={"ma_bien_the": "BT_S1", "so_luong": "3"})
+        self.assertTrue(sr.is_valid(), sr.errors)
+        self.assertEqual(sr.validated_data["bien_the"], self.bt)
+        self.assertEqual(sr.validated_data["so_luong"], 3)  # chuỗi "3" -> số 3
+
+    def test_ma_bien_the_khong_ton_tai(self):
+        sr = ThemVaoGioSerializer(data={"ma_bien_the": "BT_KHONG", "so_luong": 1})
+        self.assertEqual(self.loi_cua(sr, "ma_bien_the"), "Không tìm thấy sản phẩm.")
+
+    def test_thieu_ma_bien_the(self):
+        sr = ThemVaoGioSerializer(data={"so_luong": 1})
+        self.assertEqual(self.loi_cua(sr, "ma_bien_the"), "Vui lòng chọn sản phẩm.")
+
+    def test_so_luong_khong_phai_so(self):
+        for gia_tri in ["abc", "1.5", True]:
+            with self.subTest(so_luong=gia_tri):
+                sr = ThemVaoGioSerializer(data={"ma_bien_the": "BT_S1", "so_luong": gia_tri})
+                self.assertEqual(
+                    self.loi_cua(sr, "so_luong"), "Số lượng phải là số nguyên lớn hơn 0."
+                )
+
+    def test_so_luong_0_de_service_bao_loi(self):
+        # Serializer chỉ kiểm định dạng; quy tắc "> 0" do service quyết định
+        sr = ThemVaoGioSerializer(data={"ma_bien_the": "BT_S1", "so_luong": 0})
+        self.assertTrue(sr.is_valid(), sr.errors)
+
+    def test_so_luong_vuot_gioi_han_ky_thuat(self):
+        sr = ThemVaoGioSerializer(data={"ma_bien_the": "BT_S1", "so_luong": 10**12})
+        self.assertEqual(self.loi_cua(sr, "so_luong"), "Số lượng quá lớn.")
+
+    # ---------- Đầu vào: sửa số lượng ----------
+    def test_cap_nhat_thieu_so_luong(self):
+        sr = CapNhatSoLuongSerializer(data={})
+        self.assertEqual(self.loi_cua(sr, "so_luong"), "Vui lòng nhập số lượng.")
+
+    # ---------- Đầu ra: giỏ hàng ----------
+    def test_dau_ra_gio_hang(self):
+        dong = DichVuGioHang.them_vao_gio(self.kh, self.bt, 10)
+        gio = DichVuTinhTien.xem_gio_hang(self.kh, [dong.ma_ctgh])
+
+        du_lieu = GioHangSerializer(gio).data
+
+        self.assertEqual(du_lieu["so_dong"], 1)
+        self.assertEqual(du_lieu["tam_tinh"], 400000)  # số, không phải chuỗi
+        dong_ra = du_lieu["cac_dong"][0]
+        self.assertEqual(dong_ra["ma_ctgh"], dong.ma_ctgh)
+        self.assertEqual(dong_ra["ma_bien_the"], "BT_S1")
+        self.assertEqual(dong_ra["ten_sp"], "Bánh dừa serializer")
+        self.assertEqual(dong_ra["loai_gia"], "GIA_SI")
+        self.assertEqual(dong_ra["ten_loai_gia"], "Giá sỉ")
+        self.assertEqual(dong_ra["don_gia"], 40000)
+        self.assertEqual(dong_ra["thanh_tien"], 400000)
+        self.assertTrue(dong_ra["da_chon"])
+
+    def test_dau_ra_gio_trong(self):
+        du_lieu = GioHangSerializer(DichVuTinhTien.xem_gio_hang(self.kh)).data
+        self.assertEqual(du_lieu["so_dong"], 0)
+        self.assertEqual(du_lieu["cac_dong"], [])
+        self.assertEqual(du_lieu["tam_tinh"], 0)
