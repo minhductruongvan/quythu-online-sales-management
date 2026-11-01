@@ -1,0 +1,74 @@
+from django.urls import path
+
+from .views import (
+    DangKyKhachHangView,
+    DangNhapView,
+    DangXuatView,
+    ThongTinCaNhanView,
+    DanhSachKhachHangView,
+    ChiTietKhachHangView,
+    PhanLoaiKhachHangView,
+    DanhSachDiaChiView,
+    ChiTietDiaChiView,
+    TrangThaiKhachHangView,
+    TrangThaiTaiKhoanView,
+)
+
+urlpatterns = [
+    path(
+        "register/",
+        DangKyKhachHangView.as_view(),
+        name="dang-ky-khach-hang",
+    ),
+    path(
+        "login/",
+        DangNhapView.as_view(),
+        name="dang-nhap",
+    ),
+    path(
+        "logout/",
+        DangXuatView.as_view(),
+        name="dang-xuat",
+    ),
+    path(
+        "profile/",
+        ThongTinCaNhanView.as_view(),
+        name="thong-tin-ca-nhan",
+    ),
+    path(
+        "",
+        DanhSachKhachHangView.as_view(),
+        name="danh-sach-khach-hang",
+    ),
+    path(
+        "<str:ma_kh>/customer-type/",
+        PhanLoaiKhachHangView.as_view(),
+        name="customer-type"
+    ),
+    path(
+        "addresses/",
+        DanhSachDiaChiView.as_view(),
+        name="customer-address-list",
+    ),
+    path(
+        "addresses/<str:ma_dia_chi>/",
+        ChiTietDiaChiView.as_view(),
+        name="customer-address-detail",
+    ),
+    path(
+        "<str:ma_kh>/status/",
+        TrangThaiKhachHangView.as_view(),
+        name="customer-status",
+    ),
+    path(
+        "<str:ma_kh>/account-status/",
+        TrangThaiTaiKhoanView.as_view(),
+        name="customer-account-status",
+    ),
+    path(
+        "<str:ma_kh>/",
+        ChiTietKhachHangView.as_view(),
+        name="chi-tiet-khach-hang",
+    ),
+
+]

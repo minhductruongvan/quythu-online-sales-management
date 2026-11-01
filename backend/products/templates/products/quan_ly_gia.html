@@ -1,0 +1,153 @@
+<!-- File: backend/products/templates/products/quan_ly_gia.html -->
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý bảng giá - {{ san_pham.ten_sp }}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FFF8EC; /* Màu kem Rustic Modern */
+            color: #3E3028;
+        }
+        .header-top {
+            background-color: #6F452B; /* Màu nâu đậm */
+            color: #FFFFFF;
+            padding: 16px 0;
+            margin-bottom: 24px;
+        }
+        .btn-nau {
+            background-color: #8B5E3C;
+            color: #FFFFFF;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        .btn-nau:hover {
+            background-color: #6F452B;
+            color: #FFFFFF;
+        }
+        .card-custom {
+            background: #FFFFFF;
+            border: 1px solid #D9CEC0;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .gia-box {
+            font-weight: 700;
+            font-size: 1.05rem;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header phía trên -->
+    <div class="header-top shadow-sm">
+        <div class="container d-flex justify-content-between align-items-center">
+            <div>
+                <a href="{% url 'products:danh_sach_bien_the' san_pham.ma_sp %}" class="btn btn-outline-light btn-sm me-2">
+                    ← Quay lại Biến thể
+                </a>
+                <span class="fs-5 fw-bold">💰 QUẢN LÝ BẢNG GIÁ BÁN LẺ & GIÁ SỈ</span>
+            </div>
+            <a href="{% url 'products:quan_ly' %}" class="btn btn-outline-light btn-sm">
+                Về Quản lý sản phẩm
+            </a>
+        </div>
+    </div>
+
+    <div class="container pb-5">
+        <!-- Thông báo từ Django Messages -->
+        {% if messages %}
+            {% for msg in messages %}
+                <div class="alert alert-{% if msg.tags == 'error' %}danger{% else %}{{ msg.tags }}{% endif %} alert-dismissible fade show" role="alert">
+                    {{ msg }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <!-- Khung tóm tắt sản phẩm -->
+        <div class="card card-custom p-4 mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h3 class="fw-bold mb-1" style="color: #8B5E3C;">{{ san_pham.ten_sp }}</h3>
+                    <p class="text-muted m-0">Thiết lập giá bán lẻ, giá bán sỉ và số lượng tối thiểu cho từng quy cách gói bánh</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bảng chỉnh sửa giá của từng biến thể (Wireframe M2-WF10) -->
+        <div class="card card-custom p-4">
+            <h5 class="fw-bold mb-3">Bảng giá các biến thể hiện hành:</h5>
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 90px;">Mã BT</th>
+                            <th>Hương vị</th>
+                            <th>Quy cách</th>
+                            <th style="width: 170px;">Giá bán lẻ mới (đ)</th>
+                            <th style="width: 170px;">Giá bán sỉ mới (đ)</th>
+                            <th style="width: 150px;">SL tối thiểu sỉ</th>
+                            <th style="width: 130px;" class="text-center">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for bt in danh_sach_bien_the %}
+                        <tr>
+                            <td><strong>{{ bt.ma_bien_the }}</strong></td>
+                            <td><span class="badge" style="background-color: #8B5E3C;">{{ bt.huong_vi }}</span></td>
+                            <td class="fw-semibold">{{ bt.quy_cach }}</td>
+
+                            <!-- Form sửa giá trực tiếp cho từng gói bánh -->
+                            <form method="POST">
+                                {% csrf_token %}
+                                <input type="hidden" name="ma_bien_the" value="{{ bt.ma_bien_the }}">
+
+                                <!-- Ô nhập giá bán lẻ -->
+                                <td>
+                                    <input type="number" name="gia_ban_le" class="form-control form-control-sm gia-box text-danger" value="{{ bt.gia_ban_le }}" min="0" step="1000" required>
+                                </td>
+
+                                <!-- Ô nhập giá bán sỉ -->
+                                <td>
+                                    <input type="number" name="gia_ban_si" class="form-control form-control-sm gia-box text-success" value="{{ bt.gia_ban_si }}" min="0" step="1000" required>
+                                </td>
+
+                                <!-- Ô nhập số lượng tối thiểu sỉ -->
+                                <td>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">≥</span>
+                                        <input type="number" name="so_luong_toi_thieu_si" class="form-control" value="{{ bt.so_luong_toi_thieu_si }}" min="1" required>
+                                        <span class="input-group-text">gói</span>
+                                    </div>
+                                </td>
+
+                                <!-- Nút lưu giá -->
+                                <td class="text-center">
+                                    <button type="submit" class="btn btn-sm btn-nau">
+                                        💾 Lưu giá
+                                    </button>
+                                </td>
+                            </form>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4 text-muted">
+                                Sản phẩm này chưa có gói bánh nào. Vui lòng thêm biến thể trước!
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

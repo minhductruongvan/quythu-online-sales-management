@@ -42,7 +42,9 @@ INSTALLED_APPS = [
     'orders',
     'after_sales',
     'reports',
+    'rest_framework',
 ]
+AUTH_USER_MODEL = "customers.TaiKhoan"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -130,3 +132,9 @@ MAILERS = {
         "BACKEND": "django.core.mail.backends.console.EmailBackend",
     },
 }
+
+import os
+
+# Cấu hình lưu trữ hình ảnh tải lên từ máy tính (Media files)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
