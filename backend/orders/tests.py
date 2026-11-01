@@ -51,6 +51,7 @@ from .services import (
     TRANG_THAI_CUOI,
     DichVuDatHang,
     DichVuDiaChiGiaoHang,
+    DichVuGiaoHang,
     DichVuGioHang,
     DichVuThanhToan,
     DichVuTinhTien,
@@ -1495,3 +1496,142 @@ class KiemThuThanhToan(DuLieuDatHang, TestCase):
         don.refresh_from_db()
         DichVuThanhToan.ghi_nhan_thu_cod(don, self.nv, Decimal("495000"))
         self.assertEqual(DonHang.objects.get(pk=don.pk).trang_thai, TrangThaiDonHang.GIAO_THANH_CONG)
+
+
+# ==========================================================
+# 15. CHUẨN BỊ VÀ BÀN GIAO HÀNG (giai đoạn 4E) – M3-UC12, BR19, BR20
+# ==========================================================
+class KiemThuChuanBiBanGiao(DuLieuDatHang, TestCase):
+    def setUp(self):
+        super().setUp()
+        self.nv = tao_nhan_vien()
+
+    def don_da_xac_nhan(self, ma_pttt=PhuongThucThanhToan.MA_COD):
+        """Đơn d1 + d2 đã kiểm tra đủ hàng và xác nhận (COD: Đã xác nhận; CK: Chờ thanh toán)."""
+        don = self.dat(ma_pttt=ma_pttt)
+        cac_dong = {ma: 0 for ma in don.chi_tiet.values_list("ma_ctdh", flat=True)}
+        DichVuXuLyDon.kiem_tra_kha_nang_cung_ung(don, self.nv, cac_dong)
+        return DichVuXuLyDon.xac_nhan_don(don, self.nv)
+
+    def don_san_sang_giao(self):
+        don = self.don_da_xac_nhan()
+        DichVuGiaoHang.bat_dau_chuan_bi(don, self.nv)
+        return DichVuGiaoHang.san_sang_giao(don, self.nv)
+
+    def don_dang_giao(self):
+        return DichVuGiaoHang.ban_giao(self.don_san_sang_giao(), self.nv, HinhThucGiao.SHIPPER, "Giao nhanh A")
+
+    def dat_cho_huy(self, don):
+        DonHang.objects.filter(pk=don.pk).update(trang_thai_hau_mai=MA_HAU_MAI_CHO_HUY)
+        don.refresh_from_db()
+
+    # ----- Bước 1: bắt đầu chuẩn bị -----
+    def test_bat_dau_chuan_bi_cod_ghi_moc(self):
+        don = DichVuGiaoHang.bat_dau_chuan_bi(self.don_da_xac_nhan(), self.nv)
+        trong_csdl = DonHang.objects.get(pk=don.pk)
+        self.assertEqual(trong_csdl.trang_thai, TrangThaiDonHang.DANG_CHUAN_BI)
+        self.assertIsNotNone(trong_csdl.thoi_diem_bat_dau_chuan_bi)
+
+    def test_moc_bat_dau_chuan_bi_chi_ghi_mot_lan(self):
+        don = self.don_da_xac_nhan()
+        moc_cu = timezone.now() - timedelta(hours=3)
+        DonHang.objects.filter(pk=don.pk).update(thoi_diem_bat_dau_chuan_bi=moc_cu)
+        don.refresh_from_db()
+        DichVuGiaoHang.bat_dau_chuan_bi(don, self.nv)
+        self.assertEqual(DonHang.objects.get(pk=don.pk).thoi_diem_bat_dau_chuan_bi, moc_cu)
+
+    def test_chuyen_khoan_phai_thanh_toan_truoc(self):
+        # E1
+        don = self.don_da_xac_nhan(ma_pttt=PhuongThucThanhToan.MA_CHUYEN_KHOAN)
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "chưa được thanh toán"):
+            DichVuGiaoHang.bat_dau_chuan_bi(don, self.nv)
+        DichVuThanhToan.thanh_toan_gia_lap(don, self.kh, thanh_cong=True)
+        DichVuGiaoHang.bat_dau_chuan_bi(don, self.nv)
+        self.assertEqual(DonHang.objects.get(pk=don.pk).trang_thai, TrangThaiDonHang.DANG_CHUAN_BI)
+
+    def test_co_yeu_cau_huy_khong_cho_chuan_bi(self):
+        # E2
+        don = self.don_da_xac_nhan()
+        self.dat_cho_huy(don)
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "yêu cầu hủy chờ xử lý"):
+            DichVuGiaoHang.bat_dau_chuan_bi(don, self.nv)
+
+    # ----- Bước 2 -----
+    def test_san_sang_giao_khong_nhay_coc(self):
+        # E4: chưa bắt đầu chuẩn bị thì chưa sẵn sàng giao được
+        don = self.don_da_xac_nhan()
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "Không thể chuyển sẵn sàng giao"):
+            DichVuGiaoHang.san_sang_giao(don, self.nv)
+        DichVuGiaoHang.bat_dau_chuan_bi(don, self.nv)
+        DichVuGiaoHang.san_sang_giao(don, self.nv)
+        self.assertEqual(DonHang.objects.get(pk=don.pk).trang_thai, TrangThaiDonHang.SAN_SANG_GIAO)
+
+    # ----- Bước 3–4: bàn giao -----
+    def test_goi_y_hinh_thuc_theo_loai_khach(self):
+        don = self.dat()  # khách sỉ
+        self.assertEqual(DichVuGiaoHang.goi_y_hinh_thuc_giao(don), HinhThucGiao.XE_TAI)
+        DonHang.objects.filter(pk=don.pk).update(loai_khach_hang_ap_dung_id="LKH001")
+        don.refresh_from_db()
+        self.assertEqual(DichVuGiaoHang.goi_y_hinh_thuc_giao(don), HinhThucGiao.SHIPPER)
+
+    def test_ban_giao_tao_lan_giao_dau_tien(self):
+        don = self.don_dang_giao()
+        trong_csdl = DonHang.objects.get(pk=don.pk)
+        self.assertEqual(trong_csdl.trang_thai, TrangThaiDonHang.DANG_GIAO)
+        self.assertIsNotNone(trong_csdl.thoi_diem_ban_giao)
+        giao = GiaoHang.objects.get(don_hang=don)
+        self.assertEqual((giao.ma_giao_hang, giao.lan_giao), ("GH001", 1))
+        self.assertEqual(giao.ket_qua_giao, KetQuaGiao.DANG_GIAO)
+        self.assertEqual(giao.don_vi_van_chuyen, "Giao nhanh A")
+        self.assertEqual(giao.thoi_diem_ban_giao, trong_csdl.thoi_diem_ban_giao)
+
+    def test_ban_giao_chua_chon_hinh_thuc_va_xe_tai_tu_dien_don_vi(self):
+        don = self.don_san_sang_giao()
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "chọn hình thức giao"):  # E3
+            DichVuGiaoHang.ban_giao(don, self.nv, "")
+        DichVuGiaoHang.ban_giao(don, self.nv, HinhThucGiao.XE_TAI)
+        self.assertEqual(GiaoHang.objects.get(don_hang=don).don_vi_van_chuyen, "Xe nội bộ Quý Thu")
+
+    def test_ban_giao_khi_co_yeu_cau_huy_bi_tu_choi(self):
+        # E2
+        don = self.don_san_sang_giao()
+        self.dat_cho_huy(don)
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "yêu cầu hủy chờ xử lý"):
+            DichVuGiaoHang.ban_giao(don, self.nv, HinhThucGiao.SHIPPER, "Giao nhanh A")
+        self.assertFalse(GiaoHang.objects.filter(don_hang=don).exists())
+
+    def test_loi_luu_ban_giao_hoan_tac_ca_trang_thai(self):
+        # E5: tạo bản ghi giao lỗi thì đơn vẫn "Sẵn sàng giao"
+        don = self.don_san_sang_giao()
+        with patch.object(GiaoHang.objects, "create", side_effect=DatabaseError("giả lập")):
+            with self.assertRaisesMessage(LoiNghiepVuDonHang, "Không thể lưu thao tác"):
+                DichVuGiaoHang.ban_giao(don, self.nv, HinhThucGiao.SHIPPER, "Giao nhanh A")
+        trong_csdl = DonHang.objects.get(pk=don.pk)
+        self.assertEqual(trong_csdl.trang_thai, TrangThaiDonHang.SAN_SANG_GIAO)
+        self.assertIsNone(trong_csdl.thoi_diem_ban_giao)
+
+    # ----- A2: giao lại cho M4 -----
+    def test_giao_lai_dong_lan_cu_tao_lan_moi(self):
+        don = self.don_dang_giao()
+        moc_ban_giao_dau = DonHang.objects.get(pk=don.pk).thoi_diem_ban_giao
+        DichVuGiaoHang.tao_lan_giao_lai(
+            don, self.nv, KetQuaGiao.KHACH_TU_CHOI, "Khách không nghe máy", HinhThucGiao.SHIPPER, "Giao nhanh B"
+        )
+        lan_1, lan_2 = GiaoHang.objects.filter(don_hang=don).order_by("lan_giao")
+        self.assertEqual(lan_1.ket_qua_giao, KetQuaGiao.KHACH_TU_CHOI)
+        self.assertEqual(lan_1.ly_do_that_bai, "Khách không nghe máy")
+        self.assertEqual((lan_2.lan_giao, lan_2.ket_qua_giao), (2, KetQuaGiao.DANG_GIAO))
+        trong_csdl = DonHang.objects.get(pk=don.pk)
+        self.assertEqual(trong_csdl.trang_thai, TrangThaiDonHang.DANG_GIAO)
+        self.assertEqual(trong_csdl.so_lan_giao_lai, 1)
+        self.assertEqual(trong_csdl.thoi_diem_ban_giao, moc_ban_giao_dau)
+
+    def test_giao_lai_toi_da_hai_lan(self):
+        don = self.don_dang_giao()
+        for _ in range(2):
+            DichVuGiaoHang.tao_lan_giao_lai(don, self.nv, KetQuaGiao.THAT_BAI, "Sai địa chỉ",
+                                            HinhThucGiao.SHIPPER, "Giao nhanh A")
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "giao lại tối đa 2 lần"):
+            DichVuGiaoHang.tao_lan_giao_lai(don, self.nv, KetQuaGiao.THAT_BAI, "Sai địa chỉ",
+                                            HinhThucGiao.SHIPPER, "Giao nhanh A")
+        self.assertEqual(GiaoHang.objects.filter(don_hang=don).count(), 3)

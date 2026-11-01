@@ -12,6 +12,7 @@
 #      (M3-UC08), xử lý thiếu hàng (M3-UC10)
 #  11. Thanh toán (M3-UC11): cổng giả lập chuyển khoản, thu tiền COD,
 #      hủy đơn quá hạn thanh toán, xét hoàn thành đơn (M3-BR22)
+#  12. Chuẩn bị và bàn giao hàng (M3-UC12), giao lại cho M4
 #
 # Quy ước (theo M1 – customers/services.py):
 # - View không tự xử lý nghiệp vụ, chỉ gọi hàm ở file này.
@@ -32,7 +33,10 @@ from .models import (
     ChiTietGioHang,
     DonHang,
     GiaoDichThanhToan,
+    GiaoHang,
     GioHang,
+    HinhThucGiao,
+    KetQuaGiao,
     KetQuaKiemTra,
     LichSuTrangThaiDonHang,
     LoaiGia,
@@ -68,6 +72,7 @@ TIEN_TO_MA = {
     ChiTietDonHang: "CT",
     LichSuTrangThaiDonHang: "LT",
     GiaoDichThanhToan: "GD",
+    GiaoHang: "GH",
 }
 
 
@@ -1060,3 +1065,144 @@ class DichVuThanhToan:
             thoi_diem=bay_gio, cap_nhat_them={"thoi_diem_hoan_thanh": bay_gio},
         )
         return True
+
+
+# ==========================================================
+# 12. CHUẨN BỊ VÀ BÀN GIAO HÀNG – M3-UC12 (giai đoạn 4E)
+#     Đã xác nhận / Chờ thanh toán → Đang chuẩn bị hàng → Sẵn sàng giao
+#     → Đang giao (tạo bản ghi GiaoHang lần 1). Giao lại do M4 yêu cầu
+#     tạo bản ghi giao mới trên cùng đơn, đơn vẫn "Đang giao".
+#     Quy tắc: M3-BR15 (mốc bắt đầu chuẩn bị ghi một lần), BR17, BR18,
+#     BR19 (chặn khi có yêu cầu hủy), BR20 (hình thức giao, lần giao).
+# ==========================================================
+DON_VI_XE_NOI_BO = "Xe nội bộ Quý Thu"
+
+
+class DichVuGiaoHang:
+
+    @staticmethod
+    def goi_y_hinh_thuc_giao(don):
+        """BR20: khách sỉ gợi ý xe tải, khách lẻ gợi ý shipper; nhân viên được đổi."""
+        if don.loai_khach_hang_ap_dung_id == MA_LOAI_KHACH_SI:
+            return HinhThucGiao.XE_TAI
+        return HinhThucGiao.SHIPPER
+
+    @staticmethod
+    def kiem_tra_thong_tin_giao(hinh_thuc_giao, don_vi_van_chuyen):
+        """E3: bắt buộc chọn hình thức giao. Trả về tên đơn vị vận chuyển sẽ lưu."""
+        if hinh_thuc_giao not in HinhThucGiao.values:
+            raise LoiNghiepVuDonHang("Vui lòng chọn hình thức giao trước khi bàn giao.")
+        if not don_vi_van_chuyen:
+            if hinh_thuc_giao != HinhThucGiao.XE_TAI:
+                raise LoiNghiepVuDonHang("Vui lòng nhập đơn vị vận chuyển.")
+            don_vi_van_chuyen = DON_VI_XE_NOI_BO
+        return don_vi_van_chuyen
+
+    # ----- Bước 1: bắt đầu chuẩn bị -----
+    @staticmethod
+    def bat_dau_chuan_bi(don, nhan_vien, ghi_chu=""):
+        DichVuXuLyDon.kiem_tra_trang_thai(don, {T.DA_XAC_NHAN, T.CHO_THANH_TOAN}, "bắt đầu chuẩn bị hàng")  # E4
+        if (don.phuong_thuc_thanh_toan_id == PhuongThucThanhToan.MA_CHUYEN_KHOAN
+                and don.trang_thai_thanh_toan != TrangThaiThanhToan.DA_THANH_TOAN):  # E1, BR17
+            raise LoiNghiepVuDonHang("Đơn chuyển khoản chưa được thanh toán, chưa thể bắt đầu chuẩn bị hàng.")
+        DichVuXuLyDon.kiem_tra_khong_cho_huy(don)  # E2, BR19
+
+        cap_nhat = {}
+        if don.thoi_diem_bat_dau_chuan_bi is None:  # BR15: mốc này chỉ ghi một lần
+            cap_nhat["thoi_diem_bat_dau_chuan_bi"] = timezone.now()
+        try:
+            DichVuTrangThai.chuyen_trang_thai(
+                don, T.DANG_CHUAN_BI, TacNhan.NHAN_VIEN, nhan_vien=nhan_vien,
+                ghi_chu=ghi_chu, cap_nhat_them=cap_nhat,
+            )
+        except DatabaseError as loi:
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        return don
+
+    # ----- Bước 2: sẵn sàng giao -----
+    @staticmethod
+    def san_sang_giao(don, nhan_vien, ghi_chu=""):
+        DichVuXuLyDon.kiem_tra_trang_thai(don, {T.DANG_CHUAN_BI}, "chuyển sẵn sàng giao")  # E4
+        try:
+            DichVuTrangThai.chuyen_trang_thai(don, T.SAN_SANG_GIAO, TacNhan.NHAN_VIEN,
+                                              nhan_vien=nhan_vien, ghi_chu=ghi_chu)
+        except DatabaseError as loi:
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        return don
+
+    # ----- Bước 3–4: bàn giao vận chuyển -----
+    @staticmethod
+    def ban_giao(don, nhan_vien, hinh_thuc_giao, don_vi_van_chuyen="", sdt_shipper="",
+                 ma_van_don="", ghi_chu=""):
+        DichVuXuLyDon.kiem_tra_trang_thai(don, {T.SAN_SANG_GIAO}, "bàn giao vận chuyển")  # E4
+        DichVuXuLyDon.kiem_tra_khong_cho_huy(don)  # E2, BR19
+        don_vi_van_chuyen = DichVuGiaoHang.kiem_tra_thong_tin_giao(hinh_thuc_giao, don_vi_van_chuyen)  # E3
+
+        bay_gio = timezone.now()
+        try:
+            with transaction.atomic():
+                DichVuTrangThai.chuyen_trang_thai(
+                    don, T.DANG_GIAO, TacNhan.NHAN_VIEN, nhan_vien=nhan_vien, ghi_chu=ghi_chu,
+                    thoi_diem=bay_gio, cap_nhat_them={"thoi_diem_ban_giao": bay_gio},
+                )
+                GiaoHang.objects.create(
+                    ma_giao_hang=sinh_ma(GiaoHang),
+                    don_hang=don,
+                    lan_giao=1,
+                    hinh_thuc_giao=hinh_thuc_giao,
+                    don_vi_van_chuyen=don_vi_van_chuyen,
+                    sdt_shipper=sdt_shipper or None,
+                    ma_van_don=ma_van_don or None,
+                    thoi_diem_ban_giao=bay_gio,
+                )
+        except DatabaseError as loi:  # E5
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        return don
+
+    @staticmethod
+    def lay_lan_giao_hien_tai(don):
+        """Bản ghi giao có số lần giao lớn nhất của đơn."""
+        return don.giao_hang.order_by("-lan_giao").first()
+
+    # ----- A2: giao lại theo yêu cầu của M4 -----
+    @staticmethod
+    def tao_lan_giao_lai(don, nhan_vien, ket_qua_lan_truoc, ly_do, hinh_thuc_giao,
+                         don_vi_van_chuyen="", sdt_shipper="", ma_van_don=""):
+        """M4 gọi hàm này khi quyết định giao lại.
+
+        Đóng lần giao hiện tại với kết quả THAT_BAI hoặc KHACH_TU_CHOI kèm lý do,
+        rồi tạo lần giao mới. Đơn giữ "Đang giao", số lần giao lại tăng 1 (tối đa 2).
+        """
+        DichVuXuLyDon.kiem_tra_trang_thai(don, {T.DANG_GIAO}, "tạo lần giao lại")
+        if ket_qua_lan_truoc not in (KetQuaGiao.THAT_BAI, KetQuaGiao.KHACH_TU_CHOI):
+            raise LoiNghiepVuDonHang("Kết quả lần giao trước phải là thất bại hoặc khách từ chối nhận.")
+        if don.so_lan_giao_lai >= GiaoHang.SO_LAN_GIAO_TOI_DA - 1:
+            raise LoiNghiepVuDonHang(f"Đơn hàng {don.ma_dh} đã giao lại tối đa {GiaoHang.SO_LAN_GIAO_TOI_DA - 1} lần.")
+        don_vi_van_chuyen = DichVuGiaoHang.kiem_tra_thong_tin_giao(hinh_thuc_giao, don_vi_van_chuyen)
+
+        lan_hien_tai = DichVuGiaoHang.lay_lan_giao_hien_tai(don)
+        bay_gio = timezone.now()
+        try:
+            with transaction.atomic():
+                GiaoHang.objects.filter(ma_giao_hang=lan_hien_tai.ma_giao_hang).update(
+                    ket_qua_giao=ket_qua_lan_truoc,
+                    ly_do_that_bai=ly_do or None,
+                    thoi_diem_giao_xong=bay_gio,
+                    nhan_vien_xac_nhan=nhan_vien,
+                )
+                GiaoHang.objects.create(
+                    ma_giao_hang=sinh_ma(GiaoHang),
+                    don_hang=don,
+                    lan_giao=lan_hien_tai.lan_giao + 1,
+                    hinh_thuc_giao=hinh_thuc_giao,
+                    don_vi_van_chuyen=don_vi_van_chuyen,
+                    sdt_shipper=sdt_shipper or None,
+                    ma_van_don=ma_van_don or None,
+                    thoi_diem_ban_giao=bay_gio,
+                )
+                # Mốc bàn giao trên đơn giữ lần đầu (BR19: M4 dựa vào mốc này để xét hủy)
+                DonHang.objects.filter(ma_dh=don.ma_dh).update(so_lan_giao_lai=don.so_lan_giao_lai + 1)
+        except DatabaseError as loi:
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        don.so_lan_giao_lai += 1
+        return don
