@@ -13,10 +13,12 @@ urlpatterns = [
 
     # M2 - Quản lý sản phẩm và danh mục
     path("products/", include("products.urls")),
-    path("", include("products.urls")),
+
+    # M3 - Quản lý bán hàng và đơn hàng
+    path("api/orders/", include("orders.urls")),
 ]
 
-# Phục vụ file media khi chạy môi trường development
+# Phục vụ file media trong môi trường development
 if settings.DEBUG:
     urlpatterns += static(
         settings.MEDIA_URL,
