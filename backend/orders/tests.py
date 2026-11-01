@@ -46,11 +46,13 @@ from .serializers import (
 )
 from .services import (
     CAC_CANH_HOP_LE,
+    MA_HAU_MAI_CHO_DOI_TRA,
     MA_HAU_MAI_CHO_HUY,
     TRANG_THAI_CUOI,
     DichVuDatHang,
     DichVuDiaChiGiaoHang,
     DichVuGioHang,
+    DichVuThanhToan,
     DichVuTinhTien,
     DichVuTrangThai,
     DichVuXuLyDon,
@@ -88,6 +90,13 @@ def tao_bien_the(ma_bien_the, san_pham, gia_le=50000, gia_si=None, toi_thieu_si=
         gia_ban_si=gia_si,
         so_luong_toi_thieu_si=toi_thieu_si,
     )
+
+
+def tao_nhan_vien(ma_nv="NV_T1"):
+    tai_khoan = TaiKhoan.objects.create(
+        ma_tk=f"TK_{ma_nv}", email=f"{ma_nv.lower()}@test.vn", vai_tro=TaiKhoan.VaiTro.EMPLOYEE
+    )
+    return NhanVien.objects.create(ma_nv=ma_nv, tai_khoan=tai_khoan, ho_ten=f"Nhân viên {ma_nv}")
 
 
 # ==========================================================
@@ -1191,10 +1200,7 @@ class KiemThuMayTrangThai(DuLieuDatHang, TestCase):
 class KiemThuXuLyDonNhanVien(DuLieuDatHang, TestCase):
     def setUp(self):
         super().setUp()
-        tai_khoan = TaiKhoan.objects.create(
-            ma_tk="TK_NV1", email="nv1@test.vn", vai_tro=TaiKhoan.VaiTro.EMPLOYEE
-        )
-        self.nv = NhanVien.objects.create(ma_nv="NV_T1", tai_khoan=tai_khoan, ho_ten="Nhân viên test")
+        self.nv = tao_nhan_vien()
         self.don = self.dat()
         self.dong_1, self.dong_2 = self.don.chi_tiet.order_by("ma_ctdh")
         self.ngay_mai = timezone.now() + timedelta(days=1)
@@ -1336,3 +1342,156 @@ class KiemThuXuLyDonNhanVien(DuLieuDatHang, TestCase):
         self.don.refresh_from_db()
         DichVuXuLyDon.xac_nhan_don(self.don, self.nv)
         self.assertEqual(self.trang_thai_csdl(), TrangThaiDonHang.DA_XAC_NHAN)
+
+
+# ==========================================================
+# 14. THANH TOÁN (giai đoạn 4D) – M3-UC11, M3-BR17, BR18, BR22
+#     Cổng giả lập chuyển khoản, thu tiền COD, hủy đơn quá hạn 24 giờ,
+#     xét hoàn thành đơn.
+# ==========================================================
+class KiemThuThanhToan(DuLieuDatHang, TestCase):
+    def setUp(self):
+        super().setUp()
+        self.nv = tao_nhan_vien()
+
+    def qua_kiem_tra_va_xac_nhan(self, don):
+        cac_dong = {ma: 0 for ma in don.chi_tiet.values_list("ma_ctdh", flat=True)}
+        DichVuXuLyDon.kiem_tra_kha_nang_cung_ung(don, self.nv, cac_dong)
+        return DichVuXuLyDon.xac_nhan_don(don, self.nv)
+
+    def don_cho_thanh_toan(self):
+        """Đơn chuyển khoản d1 + d2 đã xác nhận, đang "Chờ thanh toán"."""
+        return self.qua_kiem_tra_va_xac_nhan(self.dat(ma_pttt=PhuongThucThanhToan.MA_CHUYEN_KHOAN))
+
+    def don_cod_giao_thanh_cong(self, cua_so_da_dong=True):
+        """Đơn COD đặt thẳng về "Giao thành công" để test UC11 phần COD."""
+        don = self.dat()
+        DonHang.objects.filter(pk=don.pk).update(
+            trang_thai=TrangThaiDonHang.GIAO_THANH_CONG,
+            thoi_diem_giao_thanh_cong=timezone.now() - timedelta(days=1),
+            thoi_diem_xac_nhan_nhan_hang=timezone.now() if cua_so_da_dong else None,
+        )
+        don.refresh_from_db()
+        return don
+
+    def lui_gio_xac_nhan(self, don, so_gio):
+        DonHang.objects.filter(pk=don.pk).update(thoi_diem_xac_nhan=timezone.now() - timedelta(hours=so_gio))
+        don.refresh_from_db()
+
+    def so_lich_su(self, don):
+        return LichSuTrangThaiDonHang.objects.filter(don_hang=don).count()
+
+    # ----- Chuyển khoản qua cổng giả lập -----
+    def test_gia_lap_thanh_cong(self):
+        don = self.don_cho_thanh_toan()
+        truoc = self.so_lich_su(don)
+        DichVuThanhToan.thanh_toan_gia_lap(don, self.kh, thanh_cong=True)
+
+        don.refresh_from_db()
+        self.assertEqual(don.trang_thai_thanh_toan, TrangThaiThanhToan.DA_THANH_TOAN)
+        self.assertEqual(don.trang_thai, TrangThaiDonHang.CHO_THANH_TOAN)  # trạng thái xử lý không đổi
+        self.assertEqual(self.so_lich_su(don), truoc)
+        giao_dich = DichVuThanhToan.lay_giao_dich(don)
+        self.assertEqual(giao_dich.trang_thai, TrangThaiThanhToan.DA_THANH_TOAN)
+        self.assertEqual(giao_dich.so_tien_thuc_nhan, Decimal("495000"))
+        self.assertIsNotNone(giao_dich.ma_giao_dich_ngan_hang)
+        self.assertIsNone(giao_dich.nhan_vien_ghi_nhan)
+
+    def test_gia_lap_that_bai_roi_thu_lai(self):
+        don = self.don_cho_thanh_toan()
+        DichVuThanhToan.thanh_toan_gia_lap(don, self.kh, thanh_cong=False)
+        don.refresh_from_db()
+        self.assertEqual(don.trang_thai_thanh_toan, TrangThaiThanhToan.THAT_BAI)
+        self.assertEqual(DichVuThanhToan.lay_giao_dich(don).trang_thai, TrangThaiThanhToan.CHUA_THANH_TOAN)
+
+        DichVuThanhToan.thanh_toan_gia_lap(don, self.kh, thanh_cong=True)
+        don.refresh_from_db()
+        self.assertEqual(don.trang_thai_thanh_toan, TrangThaiThanhToan.DA_THANH_TOAN)
+
+    def test_gia_lap_don_cua_nguoi_khac_bi_chan(self):
+        don = self.don_cho_thanh_toan()
+        khach_khac = tao_khach_hang("KH_KHAC", "khac@test.vn")
+        with self.assertRaises(LoiQuyenDonHang):
+            DichVuThanhToan.thanh_toan_gia_lap(don, khach_khac, thanh_cong=True)
+
+    def test_gia_lap_khong_ghi_trung(self):
+        # E3
+        don = self.don_cho_thanh_toan()
+        DichVuThanhToan.thanh_toan_gia_lap(don, self.kh, thanh_cong=True)
+        self.lui_gio_xac_nhan(don, 25)  # đã trả rồi thì quá 24 giờ cũng không bị hủy
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "đã được thanh toán trước đó"):
+            DichVuThanhToan.thanh_toan_gia_lap(don, self.kh, thanh_cong=True)
+        self.assertEqual(DonHang.objects.get(pk=don.pk).trang_thai, TrangThaiDonHang.CHO_THANH_TOAN)
+
+    def test_gia_lap_qua_han_thi_huy_va_tu_choi(self):
+        don = self.don_cho_thanh_toan()
+        self.lui_gio_xac_nhan(don, 25)
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "quá hạn thanh toán"):
+            DichVuThanhToan.thanh_toan_gia_lap(don, self.kh, thanh_cong=True)
+        self.assertEqual(DonHang.objects.get(pk=don.pk).trang_thai, TrangThaiDonHang.DA_HUY)
+
+    # ----- Hủy đơn quá hạn (tác vụ định kỳ) -----
+    def test_huy_qua_han_chi_huy_don_chua_tra_va_chay_lai_khong_doi(self):
+        don_qua_han = self.don_cho_thanh_toan()  # d1 + d2
+        don_da_tra = self.qua_kiem_tra_va_xac_nhan(DichVuDatHang.dat_hang(
+            self.kh, [self.d3.ma_ctgh], "DC_D1", PhuongThucThanhToan.MA_CHUYEN_KHOAN
+        ))
+        DichVuThanhToan.thanh_toan_gia_lap(don_da_tra, self.kh, thanh_cong=True)
+        self.lui_gio_xac_nhan(don_qua_han, 25)
+        self.lui_gio_xac_nhan(don_da_tra, 25)
+
+        self.assertEqual(DichVuThanhToan.huy_don_qua_han_thanh_toan(), 1)
+        self.assertEqual(DichVuThanhToan.huy_don_qua_han_thanh_toan(), 0)  # chạy lại không đổi
+        self.assertEqual(DonHang.objects.get(pk=don_qua_han.pk).trang_thai, TrangThaiDonHang.DA_HUY)
+        self.assertEqual(DonHang.objects.get(pk=don_da_tra.pk).trang_thai, TrangThaiDonHang.CHO_THANH_TOAN)
+        dong_huy = LichSuTrangThaiDonHang.objects.get(don_hang=don_qua_han, trang_thai=TrangThaiDonHang.DA_HUY)
+        self.assertEqual(dong_huy.tac_nhan, TacNhan.HE_THONG)
+
+    def test_chua_qua_han_khong_huy(self):
+        don = self.don_cho_thanh_toan()
+        self.lui_gio_xac_nhan(don, 23)
+        self.assertEqual(DichVuThanhToan.huy_don_qua_han_thanh_toan(), 0)
+
+    # ----- COD -----
+    def test_cod_thu_du_va_hoan_thanh(self):
+        don = self.don_cod_giao_thanh_cong()
+        DichVuThanhToan.ghi_nhan_thu_cod(don, self.nv, Decimal("495000"))
+
+        don = DonHang.objects.get(pk=don.pk)
+        self.assertEqual(don.trang_thai_thanh_toan, TrangThaiThanhToan.DA_THANH_TOAN)
+        self.assertEqual(don.trang_thai, TrangThaiDonHang.HOAN_THANH)
+        self.assertIsNotNone(don.thoi_diem_hoan_thanh)
+        self.assertEqual(DichVuThanhToan.lay_giao_dich(don).nhan_vien_ghi_nhan, self.nv)
+
+    def test_cod_cua_so_con_mo_thi_chua_hoan_thanh(self):
+        don = self.don_cod_giao_thanh_cong(cua_so_da_dong=False)
+        DichVuThanhToan.ghi_nhan_thu_cod(don, self.nv, Decimal("495000"))
+        don = DonHang.objects.get(pk=don.pk)
+        self.assertEqual(don.trang_thai_thanh_toan, TrangThaiThanhToan.DA_THANH_TOAN)
+        self.assertEqual(don.trang_thai, TrangThaiDonHang.GIAO_THANH_CONG)
+
+    def test_cod_thieu_tien_tu_choi_thua_tien_ghi_chu(self):
+        # E2
+        don = self.don_cod_giao_thanh_cong(cua_so_da_dong=False)
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "ít hơn số tiền phải thu"):
+            DichVuThanhToan.ghi_nhan_thu_cod(don, self.nv, Decimal("490000"))
+        self.assertEqual(DonHang.objects.get(pk=don.pk).trang_thai_thanh_toan, TrangThaiThanhToan.CHUA_THANH_TOAN)
+
+        DichVuThanhToan.ghi_nhan_thu_cod(don, self.nv, Decimal("500000"))
+        giao_dich = DichVuThanhToan.lay_giao_dich(don)
+        self.assertEqual(giao_dich.so_tien_thuc_nhan, Decimal("500000"))
+        self.assertIn("Nhận thừa 5000", giao_dich.ghi_chu)
+
+    def test_cod_khi_chua_giao_thanh_cong_bi_tu_choi(self):
+        # E1, BR18
+        don = self.dat()
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "ghi nhận thu tiền COD"):
+            DichVuThanhToan.ghi_nhan_thu_cod(don, self.nv, Decimal("495000"))
+
+    def test_con_doi_tra_dang_mo_thi_chua_hoan_thanh(self):
+        # BR22: M4 đang xử lý đổi/trả
+        don = self.don_cod_giao_thanh_cong()
+        DonHang.objects.filter(pk=don.pk).update(trang_thai_hau_mai=MA_HAU_MAI_CHO_DOI_TRA)
+        don.refresh_from_db()
+        DichVuThanhToan.ghi_nhan_thu_cod(don, self.nv, Decimal("495000"))
+        self.assertEqual(DonHang.objects.get(pk=don.pk).trang_thai, TrangThaiDonHang.GIAO_THANH_CONG)
