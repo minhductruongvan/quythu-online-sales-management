@@ -15,6 +15,7 @@
 #  12. Chuẩn bị và bàn giao hàng (M3-UC12), giao lại cho M4
 #  13. Giao thành công (M3-UC13), xác nhận đã nhận hàng (M3-UC06),
 #      tự xác nhận sau 7 ngày, hủy đơn cho M4, tác vụ định kỳ
+#  14. Theo dõi đơn của khách (M3-UC05), tra cứu đơn phía nhân viên (M3-UC07)
 #
 # Quy ước (theo M1 – customers/services.py):
 # - View không tự xử lý nghiệp vụ, chỉ gọi hàm ở file này.
@@ -25,7 +26,9 @@
 from datetime import timedelta
 from decimal import Decimal
 
+from django.core.paginator import Paginator
 from django.db import DatabaseError, transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from customers.models import DiaChiKH
@@ -1347,3 +1350,93 @@ class DichVuKetThucDon:
             "so_don_huy_qua_han": DichVuThanhToan.huy_don_qua_han_thanh_toan(),
             "so_don_tu_xac_nhan": DichVuKetThucDon.tu_xac_nhan_nhan_hang(),
         }
+
+
+# ==========================================================
+# 14. THEO DÕI VÀ TRA CỨU ĐƠN HÀNG – giai đoạn 4G
+#     M3-UC05 (khách xem đơn của mình), M3-UC07 (nhân viên tìm, lọc, xem đơn).
+#     Chỉ ĐỌC dữ liệu. Trước khi đọc, chạy tác vụ định kỳ (UC11 A2, UC13 A2)
+#     để trạng thái hiển thị luôn đúng dù lệnh định kỳ chưa chạy theo lịch.
+#     Quy tắc: M3-BR13, BR17 (thông tin chuyển khoản), BR21 (cửa sổ 7 ngày),
+#     BR23 (hai trục trạng thái), BR24 (khách chỉ xem đơn của mình).
+# ==========================================================
+SO_DON_MOI_TRANG = 20  # UC07: danh sách nhân viên có phân trang
+
+
+class DichVuTraCuuDon:
+
+    @staticmethod
+    def lay_don(ma_dh):
+        """Lấy một đơn theo mã sau khi chạy tác vụ định kỳ; không có thì báo lỗi."""
+        DichVuKetThucDon.chay_tac_vu_dinh_ky()
+        don = DonHang.objects.filter(ma_dh=ma_dh).first()
+        if don is None:
+            raise LoiNghiepVuDonHang(f"Không tìm thấy đơn hàng {ma_dh}.")
+        return don
+
+    # ----- M3-UC05: phía khách hàng -----
+    @staticmethod
+    def danh_sach_don_cua_khach(khach_hang, trang_thai=None):
+        """Bước 1–2: các đơn của khách, mới nhất trước; lọc theo trạng thái nếu có."""
+        DichVuKetThucDon.chay_tac_vu_dinh_ky()
+        cac_don = DonHang.objects.filter(khach_hang=khach_hang)
+        if trang_thai:
+            cac_don = cac_don.filter(trang_thai=trang_thai)
+        return cac_don.order_by("-ngay_dat", "-ma_dh")
+
+    @staticmethod
+    def chi_tiet_don_cua_khach(khach_hang, ma_dh):
+        """Bước 3. E2: đơn không thuộc khách thì từ chối (BR24)."""
+        don = DichVuTraCuuDon.lay_don(ma_dh)
+        if don.khach_hang_id != khach_hang.ma_kh:
+            raise LoiQuyenDonHang("Bạn không có quyền xem đơn hàng này.")
+        return don
+
+    @staticmethod
+    def thong_tin_chuyen_khoan(don):
+        """BR17: thông tin để hiện mã QR, chỉ có khi đơn chuyển khoản đang chờ khách trả tiền."""
+        if not (don.phuong_thuc_thanh_toan_id == PhuongThucThanhToan.MA_CHUYEN_KHOAN
+                and don.trang_thai == T.CHO_THANH_TOAN
+                and don.trang_thai_thanh_toan in CHUA_TRA_TIEN):
+            return None
+        return {
+            "so_tien": don.tong_thanh_toan,
+            "noi_dung": don.ma_dh,
+            "tai_khoan": don.phuong_thuc_thanh_toan.thong_tin_tai_khoan,
+            "han_thanh_toan": don.thoi_diem_xac_nhan + THOI_HAN_THANH_TOAN,
+        }
+
+    @staticmethod
+    def han_cua_so_doi_tra(don):
+        """BR21: cửa sổ đang mở thì trả thời điểm hết hạn (giao diện hiện [Đã nhận hàng]
+        và [Yêu cầu đổi/trả]); cửa sổ chưa mở hoặc đã đóng thì trả None."""
+        if don.trang_thai == T.GIAO_THANH_CONG and don.thoi_diem_xac_nhan_nhan_hang is None:
+            return don.thoi_diem_giao_thanh_cong + CUA_SO_DOI_TRA
+        return None
+
+    # ----- M3-UC07: phía nhân viên -----
+    @staticmethod
+    def tra_cuu_don(tu_khoa="", trang_thai=None, tu_ngay=None, den_ngay=None, ma_loai_kh=None, trang=1):
+        """Tìm theo mã đơn, tên khách, tên người nhận, số điện thoại; lọc theo trạng thái,
+        khoảng ngày đặt, loại khách áp dụng. Trả về một trang kết quả (Page của Django)."""
+        DichVuKetThucDon.chay_tac_vu_dinh_ky()
+        cac_don = DonHang.objects.select_related("khach_hang")
+        tu_khoa = (tu_khoa or "").strip()
+        if tu_khoa:
+            cac_don = cac_don.filter(
+                Q(ma_dh__icontains=tu_khoa)
+                | Q(khach_hang__ho_ten__icontains=tu_khoa)
+                | Q(ho_ten_nguoi_nhan__icontains=tu_khoa)
+                | Q(sdt_nguoi_nhan__icontains=tu_khoa)
+                | Q(khach_hang__so_dien_thoai__icontains=tu_khoa)
+            )
+        if trang_thai:
+            cac_don = cac_don.filter(trang_thai=trang_thai)
+        if tu_ngay:
+            cac_don = cac_don.filter(ngay_dat__date__gte=tu_ngay)
+        if den_ngay:
+            cac_don = cac_don.filter(ngay_dat__date__lte=den_ngay)
+        if ma_loai_kh:
+            cac_don = cac_don.filter(loai_khach_hang_ap_dung_id=ma_loai_kh)
+        # get_page: số trang sai hoặc vượt quá thì trả trang gần nhất, không báo lỗi
+        return Paginator(cac_don.order_by("-ngay_dat", "-ma_dh"), SO_DON_MOI_TRANG).get_page(trang)
