@@ -10,6 +10,7 @@ from .models import (
     ChiTietGioHang,
     DonHang,
     GiaoDichThanhToan,
+    GiaoHang,
     GioHang,
     LichSuTrangThaiDonHang,
     PhuongThucThanhToan,
@@ -89,6 +90,11 @@ class GiaoDichThanhToanInline(ChiXemMixin, admin.TabularInline):
     extra = 0
 
 
+class GiaoHangInline(ChiXemMixin, admin.TabularInline):
+    model = GiaoHang
+    extra = 0
+
+
 @admin.register(DonHang)
 class DonHangAdmin(admin.ModelAdmin):
     list_display = (
@@ -141,7 +147,7 @@ class DonHangAdmin(admin.ModelAdmin):
         }),
     )
 
-    inlines = [ChiTietDonHangInline, GiaoDichThanhToanInline, LichSuTrangThaiInline]
+    inlines = [ChiTietDonHangInline, GiaoDichThanhToanInline, GiaoHangInline, LichSuTrangThaiInline]
 
 
 # ==========================================================
@@ -160,3 +166,12 @@ class GiaoDichThanhToanAdmin(ChiXemMixin, admin.ModelAdmin):
                     "so_tien_thuc_nhan", "trang_thai", "thoi_diem_thanh_toan")
     list_filter = ("trang_thai", "phuong_thuc")
     search_fields = ("don_hang__ma_dh", "ma_giao_dich_ngan_hang")
+
+
+# Bản ghi giao chỉ tạo qua services.py (bàn giao, giao lại), nên trang này chỉ xem
+@admin.register(GiaoHang)
+class GiaoHangAdmin(ChiXemMixin, admin.ModelAdmin):
+    list_display = ("ma_giao_hang", "don_hang", "lan_giao", "hinh_thuc_giao", "don_vi_van_chuyen",
+                    "ket_qua_giao", "thoi_diem_ban_giao", "thoi_diem_giao_xong")
+    list_filter = ("hinh_thuc_giao", "ket_qua_giao")
+    search_fields = ("don_hang__ma_dh", "ma_van_don")

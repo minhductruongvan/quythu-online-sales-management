@@ -568,3 +568,89 @@ class GiaoDichThanhToan(models.Model):
 
     def __str__(self):
         return f"{self.ma_giao_dich} - {self.don_hang_id} - {self.get_trang_thai_display()}"
+
+# ==========================================================
+# 9. GIAO HÀNG (GIAOHANG) – giai đoạn 4, M3-UC12, M3-UC13, M3-BR20
+#    Mỗi lần bàn giao cho vận chuyển là một dòng; giao lại (theo yêu cầu
+#    của M4) tạo dòng mới trên cùng đơn với lan_giao tăng dần (1, 2, 3).
+#    Chỉ M3 ghi bảng này; M4 chỉ đọc (Thảo đã chốt 01/11).
+# ==========================================================
+class HinhThucGiao(models.TextChoices):
+    XE_TAI = "XE_TAI", "Xe tải nội bộ"
+    SHIPPER = "SHIPPER", "Shipper giao nhanh"
+    DVVC = "DVVC", "ĐVVC TMĐT"
+
+
+class KetQuaGiao(models.TextChoices):
+    DANG_GIAO = "DANG_GIAO", "Đang giao"
+    THANH_CONG = "THANH_CONG", "Thành công"
+    THAT_BAI = "THAT_BAI", "Thất bại"
+    KHACH_TU_CHOI = "KHACH_TU_CHOI", "Khách từ chối nhận"
+
+
+class GiaoHang(models.Model):
+    SO_LAN_GIAO_TOI_DA = 3  # 1 lần đầu + tối đa 2 lần giao lại (khớp so_lan_giao_lai <= 2)
+
+    ma_giao_hang = models.CharField(max_length=10, primary_key=True, verbose_name="Mã giao hàng")
+    don_hang = models.ForeignKey(
+        DonHang,
+        on_delete=models.CASCADE,
+        related_name="giao_hang",
+        verbose_name="Đơn hàng",
+    )
+    lan_giao = models.PositiveSmallIntegerField(default=1, verbose_name="Lần giao")
+    hinh_thuc_giao = models.CharField(
+        max_length=20,
+        choices=HinhThucGiao.choices,
+        verbose_name="Hình thức giao",
+    )
+    don_vi_van_chuyen = models.CharField(max_length=100, verbose_name="Đơn vị vận chuyển")
+    sdt_shipper = models.CharField(max_length=15, null=True, blank=True, verbose_name="SĐT shipper")
+    ma_van_don = models.CharField(max_length=50, null=True, blank=True, verbose_name="Mã vận đơn")
+    thoi_diem_ban_giao = models.DateTimeField(default=timezone.now, verbose_name="Thời điểm bàn giao")
+    ket_qua_giao = models.CharField(
+        max_length=20,
+        choices=KetQuaGiao.choices,
+        default=KetQuaGiao.DANG_GIAO,
+        verbose_name="Kết quả giao",
+    )
+    thoi_diem_giao_xong = models.DateTimeField(null=True, blank=True, verbose_name="Thời điểm giao xong")
+    ly_do_that_bai = models.CharField(max_length=255, null=True, blank=True, verbose_name="Lý do thất bại")
+    phi_phat_sinh = models.DecimalField(
+        max_digits=15, decimal_places=0, default=0, verbose_name="Phí phát sinh"
+    )
+    nhan_vien_xac_nhan = models.ForeignKey(
+        "customers.NhanVien",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="giao_hang_da_xac_nhan",
+        verbose_name="Nhân viên xác nhận",
+    )
+
+    class Meta:
+        db_table = "GIAOHANG"
+        verbose_name = "Giao hàng"
+        verbose_name_plural = "Giao hàng"
+        ordering = ["don_hang", "lan_giao"]
+        constraints = [
+            # UNIQUE (MaDH, LanGiao): một đơn không có hai "lần 2"
+            models.UniqueConstraint(fields=["don_hang", "lan_giao"], name="uq_giaohang_don_lan_giao"),
+            # CHECK (LanGiao BETWEEN 1 AND 3)
+            models.CheckConstraint(
+                condition=models.Q(lan_giao__gte=1) & models.Q(lan_giao__lte=3),
+                name="ck_giaohang_lan_giao",
+            ),
+            models.CheckConstraint(condition=models.Q(phi_phat_sinh__gte=0), name="ck_giaohang_phi_khong_am"),
+            models.CheckConstraint(
+                condition=models.Q(hinh_thuc_giao__in=HinhThucGiao.values),
+                name="ck_giaohang_hinh_thuc_hop_le",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(ket_qua_giao__in=KetQuaGiao.values),
+                name="ck_giaohang_ket_qua_hop_le",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.ma_giao_hang} - {self.don_hang_id} - lần {self.lan_giao}"

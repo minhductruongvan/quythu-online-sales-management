@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth.models import AnonymousUser
-from django.db import DatabaseError
+from django.db import DatabaseError, IntegrityError, transaction
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -25,7 +25,10 @@ from .models import (
     ChiTietGioHang,
     DonHang,
     GiaoDichThanhToan,
+    GiaoHang,
     GioHang,
+    HinhThucGiao,
+    KetQuaGiao,
     LichSuTrangThaiDonHang,
     LoaiGia,
     PhuongThucThanhToan,
@@ -51,6 +54,7 @@ from .services import (
     sinh_ma,
     tim_tinh_thanh,
 )
+
 
 # ==========================================================
 # Hàm tạo dữ liệu mẫu dùng chung
@@ -996,3 +1000,58 @@ class KiemThuApiThanhToanDatHang(DuLieuDatHang, TestCase):
         lan_hai = self.dat_qua_api()
         self.assertEqual(lan_hai.status_code, 400)
         self.assertEqual(DonHang.objects.count(), 1)
+
+# ==========================================================
+# 11. MODEL GIAOHANG (giai đoạn 4A) – ràng buộc ở mức CSDL
+#     Service chưa có; test tạo thẳng bằng objects.create để chứng minh
+#     CSDL tự chặn dữ liệu sai dù code service sau này có lỗi.
+# ==========================================================
+class KiemThuModelGiaoHang(DuLieuDatHang, TestCase):
+    def setUp(self):
+        super().setUp()
+        self.don = self.dat()
+
+    def tao_giao(self, ma, **thay_doi):
+        du_lieu = {
+            "ma_giao_hang": ma,
+            "don_hang": self.don,
+            "lan_giao": 1,
+            "hinh_thuc_giao": HinhThucGiao.SHIPPER,
+            "don_vi_van_chuyen": "Giao Hàng Nhanh",
+        }
+        du_lieu.update(thay_doi)
+        return GiaoHang.objects.create(**du_lieu)
+
+    def test_gia_tri_mac_dinh(self):
+        giao = self.tao_giao("GH001")
+        giao.refresh_from_db()
+        self.assertEqual(giao.ket_qua_giao, KetQuaGiao.DANG_GIAO)
+        self.assertEqual(giao.phi_phat_sinh, Decimal("0"))
+        self.assertIsNotNone(giao.thoi_diem_ban_giao)
+        self.assertEqual(list(self.don.giao_hang.all()), [giao])  # related_name="giao_hang"
+
+    def test_ba_lan_giao_tren_cung_don(self):
+        for lan in (1, 2, 3):
+            self.tao_giao(f"GH00{lan}", lan_giao=lan)
+        self.assertEqual(self.don.giao_hang.count(), 3)
+
+    def test_trung_lan_giao_tren_cung_don_bi_chan(self):
+        self.tao_giao("GH001", lan_giao=1)
+        with self.assertRaises(IntegrityError):
+            self.tao_giao("GH002", lan_giao=1)
+
+    def test_ca_gia_tri_sai_bi_chan(self):
+        cac_truong_hop = [
+            {"lan_giao": 0},
+            {"lan_giao": 4},
+            {"phi_phat_sinh": Decimal("-1")},
+            {"hinh_thuc_giao": "XE_MAY"},
+            {"ket_qua_giao": "MAT_HANG"},
+        ]
+        for thay_doi in cac_truong_hop:
+            with self.subTest(thay_doi=thay_doi):
+                # Mỗi lần lỗi CSDL làm hỏng transaction hiện tại; bọc atomic
+                # để lỗi chỉ hoàn tác lần thử này, test vẫn chạy tiếp được
+                with self.assertRaises(IntegrityError), transaction.atomic():
+                    self.tao_giao("GH009", **thay_doi)
+        self.assertEqual(GiaoHang.objects.count(), 0)
