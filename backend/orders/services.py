@@ -13,7 +13,6 @@
 #   tiếng Việt; view bắt lỗi này và trả câu báo về cho người dùng.
 # - Mọi số tiền dùng Decimal, không dùng float.
 
-import unicodedata
 from decimal import Decimal
 
 from django.db import DatabaseError, transaction
@@ -81,46 +80,14 @@ def sinh_ma(model):
 
 
 # ==========================================================
-# 3. TRA TỈNH/THÀNH TỪ ĐỊA CHỈ CỦA KHÁCH
+# 3. TRA TỈNH/THÀNH TỪ ĐỊA CHỈ CỦA KHÁCH – M3-UC03 E4, M3-UC04, M3-BR05
 #    DiaChiKH.tinh_thanh (M1) là ô chữ tự do, còn bảng phí là TinhThanh (M3).
-#    Phải chuẩn hóa hai bên về cùng một dạng rồi mới so được.
-#    Phục vụ M3-UC03 E4, M3-UC04, M3-BR05.
+#    So hai bên sau khi bỏ khoảng trắng thừa và đổi về chữ thường, nên địa chỉ
+#    phải ghi đúng tên tỉnh như trong bảng ("Đà Nẵng", "TP. Hồ Chí Minh").
 # ==========================================================
-TIEN_TO_TEN_TINH = ("thanh pho ", "tp. ", "tp.", "tp ", "tinh ")
-
-# Tên gọi khác hay gặp -> tên đã chuẩn hóa trong bảng TinhThanh
-TEN_GOI_KHAC = {
-    "hcm": "ho chi minh",
-    "tphcm": "ho chi minh",
-    "sai gon": "ho chi minh",
-    "thua thien hue": "hue",
-}
-
-
 def chuan_hoa_ten_tinh(ten_tinh):
-    """
-    Đưa tên tỉnh về dạng so sánh được:
-    "  Thành phố  Đà Nẵng " -> "da nang"; "Khánh Hoà" và "Khánh Hòa" -> "khanh hoa".
-    """
-    if not ten_tinh:
-        return ""
-
-    # Bước 1: chữ thường, tách dấu khỏi chữ cái rồi bỏ phần dấu
-    chuoi = unicodedata.normalize("NFD", ten_tinh.strip().lower())
-    chuoi = "".join(ky_tu for ky_tu in chuoi if unicodedata.category(ky_tu) != "Mn")
-    chuoi = chuoi.replace("đ", "d")
-
-    # Bước 2: gộp nhiều khoảng trắng liên tiếp thành một
-    chuoi = " ".join(chuoi.split())
-
-    # Bước 3: bỏ tiền tố hành chính ở đầu
-    for tien_to in TIEN_TO_TEN_TINH:
-        if chuoi.startswith(tien_to):
-            chuoi = chuoi[len(tien_to):].strip()
-            break
-
-    # Bước 4: đổi tên gọi khác về tên chuẩn
-    return TEN_GOI_KHAC.get(chuoi, chuoi)
+    """Ví dụ: "  ĐÀ   Nẵng " -> "đà nẵng"."""
+    return " ".join((ten_tinh or "").split()).lower()
 
 
 def tim_tinh_thanh(ten_tinh):
@@ -178,8 +145,8 @@ class DichVuGioHang:
     @staticmethod
     def kiem_tra_so_luong(so_luong):
         """M3-BR03: số lượng phải là số nguyên lớn hơn 0 (UC01-E2, UC02-E2)."""
-        # bool là lớp con của int trong Python (True == 1) nên phải loại riêng
-        if isinstance(so_luong, bool) or not isinstance(so_luong, int) or so_luong <= 0:
+        # Serializer đã bảo đảm là số nguyên; ở đây chỉ còn quy tắc "> 0"
+        if so_luong <= 0:
             raise LoiNghiepVuDonHang("Số lượng phải là số nguyên lớn hơn 0.")
 
     # ---------- Lấy giỏ và dòng giỏ ----------
@@ -460,8 +427,7 @@ class DichVuTinhTien:
         """
         DichVuGioHang.kiem_tra_khach_hang(khach_hang)
 
-        # dict.fromkeys bỏ mã bị gửi trùng mà vẫn giữ thứ tự
-        cac_ma = list(dict.fromkeys(danh_sach_ma_ctgh or []))
+        cac_ma = list(danh_sach_ma_ctgh or [])
 
         if not cac_ma:
             raise LoiNghiepVuDonHang("Vui lòng chọn sản phẩm cần mua.")  # UC02-E1

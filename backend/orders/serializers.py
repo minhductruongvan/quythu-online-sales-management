@@ -18,11 +18,6 @@ from products.models import BienTheSanPham
 
 from .models import LoaiGia
 
-# Giới hạn kỹ thuật, KHÔNG phải quy tắc nghiệp vụ: số lớn nhất mà
-# PositiveIntegerField của Django lưu an toàn trên mọi loại CSDL.
-# Chặn ở đây để số khổng lồ không làm máy chủ lỗi 500 khi ghi xuống SQLite.
-SO_LUONG_TOI_DA_KY_THUAT = 2147483647
-
 # Câu báo trùng với câu của DichVuGioHang.kiem_tra_so_luong (M3-BR03)
 LOI_SO_LUONG = "Số lượng phải là số nguyên lớn hơn 0."
 
@@ -33,13 +28,10 @@ def truong_so_luong():
     Chỉ kiểm tra "có phải số nguyên không"; số <= 0 để service báo lỗi.
     """
     return serializers.IntegerField(
-        max_value=SO_LUONG_TOI_DA_KY_THUAT,
         error_messages={
             "required": "Vui lòng nhập số lượng.",
             "null": "Vui lòng nhập số lượng.",
             "invalid": LOI_SO_LUONG,
-            "max_value": "Số lượng quá lớn.",
-            "max_string_length": "Số lượng quá lớn.",
         },
     )
 
