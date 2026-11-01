@@ -10,22 +10,27 @@
 # Phần 1: giỏ hàng – M3-UC01, M3-UC02.
 # Phần 2: trang thanh toán, đặt hàng – M3-UC03, M3-UC04.
 # Phần 3: đơn hàng phía khách – M3-UC05, M3-UC06, cổng thanh toán giả lập (M3-UC11).
+# Phần 4: phía nhân viên – M3-UC07 tra cứu và chi tiết đơn.
+#         View phía nhân viên lấy NHÂN VIÊN ở bước 1 (request.user.nhan_vien).
 
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import PhuongThucThanhToan
-from .permissions import KhachHangCoHoSo
+from .permissions import KhachHangCoHoSo, NhanVienCoHoSo
 from .serializers import (
     CapNhatSoLuongSerializer,
     ChiTietDonKhachSerializer,
+    ChiTietDonNhanVienSerializer,
     DatHangSerializer,
     DonHangSerializer,
+    DonNhanVienSerializer,
     GioHangSerializer,
     LocDonCuaToiSerializer,
     ThanhToanGiaLapSerializer,
     ThemVaoGioSerializer,
+    TraCuuDonSerializer,
     TrangThanhToanSerializer,
 )
 from .services import (
@@ -315,3 +320,70 @@ class ThanhToanGiaLapView(APIView):
         else:
             message = "Thanh toán không thành công. Bạn có thể thử lại trước hạn thanh toán."
         return phan_hoi_chi_tiet_don(don, message)
+
+
+# ==========================================================
+# PHÍA NHÂN VIÊN – M3-UC07 xem và tra cứu đơn hàng
+# Đường dẫn bắt đầu bằng "staff/" để tách hẳn khỏi API của khách.
+# ==========================================================
+class DanhSachDonNhanVienView(APIView):
+    """
+    URL: /api/orders/staff/?tu_khoa=&trang_thai=&tu_ngay=&den_ngay=&loai_khach=&trang=
+    GET – danh sách đơn có tìm kiếm, lọc, phân trang 20 đơn/trang (UC07 bước 1–2).
+    Tiếp nhận đơn mới (A1): ?trang_thai=CHO_XAC_NHAN
+    """
+
+    permission_classes = [NhanVienCoHoSo]
+
+    def get(self, request):
+        serializer = TraCuuDonSerializer(data=request.query_params)
+        if not serializer.is_valid():
+            return phan_hoi_du_lieu_sai(serializer)
+
+        loc = serializer.validated_data
+        trang = DichVuTraCuuDon.tra_cuu_don(
+            tu_khoa=loc["tu_khoa"],
+            trang_thai=loc.get("trang_thai"),
+            tu_ngay=loc.get("tu_ngay"),
+            den_ngay=loc.get("den_ngay"),
+            ma_loai_kh=loc.get("loai_khach"),
+            trang=loc["trang"],
+        )
+        tong_so_don = trang.paginator.count
+        if tong_so_don == 0:
+            message = "Không tìm thấy đơn phù hợp."  # E2
+        else:
+            message = "Lấy danh sách đơn hàng thành công."
+
+        return Response(
+            {
+                "message": message,
+                "data": DonNhanVienSerializer(trang.object_list, many=True).data,
+                "tong_so_don": tong_so_don,
+                "so_trang": trang.paginator.num_pages,
+                "trang_hien_tai": trang.number,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class ChiTietDonNhanVienView(APIView):
+    """
+    URL: /api/orders/staff/<ma_dh>/
+    GET – chi tiết đơn cho nhân viên (UC07 bước 3): dòng hàng kèm kết quả kiểm tra,
+    lịch sử có tên người thao tác, các lần giao, bản ghi thanh toán, gợi ý hình thức giao.
+    """
+
+    permission_classes = [NhanVienCoHoSo]
+
+    def get(self, request, ma_dh):
+        try:
+            don = DichVuTraCuuDon.lay_don(ma_dh)
+        except LoiNghiepVuDonHang as loi:
+            return phan_hoi_loi_nghiep_vu(loi)
+
+        return Response(
+            {"message": "Lấy chi tiết đơn hàng thành công.",
+             "data": ChiTietDonNhanVienSerializer(don).data},
+            status=status.HTTP_200_OK,
+        )

@@ -12,13 +12,14 @@
 # Phần 1: giỏ hàng – M3-UC01, M3-UC02.
 # Phần 2: trang thanh toán, đặt hàng – M3-UC03, M3-UC04.
 # Phần 3: đơn hàng phía khách – M3-UC05, M3-UC06, cổng thanh toán giả lập (M3-UC11).
+# Phần 4: tra cứu và chi tiết đơn phía nhân viên – M3-UC07.
 
 from rest_framework import serializers
 
 from products.models import BienTheSanPham
 
-from .models import LoaiGia, TrangThaiDonHang
-from .services import DichVuTraCuuDon
+from .models import HinhThucGiao, LoaiGia, TrangThaiDonHang
+from .services import DichVuGiaoHang, DichVuThanhToan, DichVuTraCuuDon
 
 # Câu báo trùng với câu của DichVuGioHang.kiem_tra_so_luong (M3-BR03)
 LOI_SO_LUONG = "Số lượng phải là số nguyên lớn hơn 0."
@@ -266,6 +267,13 @@ NHAN_HAU_MAI = {
 }
 
 
+def ten_hau_mai(don):
+    """Nhãn tiếng Việt của trạng thái hậu mãi; đơn không có việc hậu mãi thì None."""
+    if not don.trang_thai_hau_mai:
+        return None
+    return NHAN_HAU_MAI.get(don.trang_thai_hau_mai, don.trang_thai_hau_mai)
+
+
 class LichSuTrangThaiSerializer(serializers.Serializer):
     """Một dòng lịch sử (M3-BR15). trang_thai_cu = None ở dòng đầu tiên (lúc đặt hàng)."""
 
@@ -304,9 +312,7 @@ class ChiTietDonKhachSerializer(DonHangSerializer):
     lich_su_trang_thai = serializers.SerializerMethodField()
 
     def get_ten_trang_thai_hau_mai(self, don):
-        if not don.trang_thai_hau_mai:
-            return None
-        return NHAN_HAU_MAI.get(don.trang_thai_hau_mai, don.trang_thai_hau_mai)
+        return ten_hau_mai(don)
 
     def get_thong_tin_chuyen_khoan(self, don):
         thong_tin = DichVuTraCuuDon.thong_tin_chuyen_khoan(don)
@@ -325,3 +331,143 @@ class ChiTietDonKhachSerializer(DonHangSerializer):
         # có cùng thời điểm, mã lịch sử giữ đúng thứ tự đã ghi.
         cac_dong = don.lich_su_trang_thai.order_by("thoi_diem", "ma_lstt")
         return LichSuTrangThaiSerializer(cac_dong, many=True).data
+
+
+# ==========================================================
+# PHẦN 4: PHÍA NHÂN VIÊN – M3-UC07 (tra cứu, chi tiết đơn)
+# ==========================================================
+
+# ---------- H. ĐẦU VÀO: bộ lọc tra cứu ----------
+LOI_NGAY = "Ngày không hợp lệ, nhập theo dạng YYYY-MM-DD."
+
+
+class TraCuuDonSerializer(serializers.Serializer):
+    """
+    M3-UC07 bước 2. Đọc từ URL:
+    /api/orders/staff/?tu_khoa=0905&trang_thai=CHO_XAC_NHAN&tu_ngay=2026-11-01&den_ngay=2026-11-07&loai_khach=LKH002&trang=2
+    Mọi tham số đều không bắt buộc; không gửi thì không lọc theo điều kiện đó.
+    """
+
+    tu_khoa = serializers.CharField(required=False, allow_blank=True, default="")
+    trang_thai = serializers.ChoiceField(
+        choices=TrangThaiDonHang.choices,
+        required=False,
+        allow_blank=True,
+        error_messages={"invalid_choice": "Trạng thái đơn hàng không hợp lệ."},
+    )
+    tu_ngay = serializers.DateField(required=False, error_messages={"invalid": LOI_NGAY})
+    den_ngay = serializers.DateField(required=False, error_messages={"invalid": LOI_NGAY})
+    loai_khach = serializers.CharField(required=False, allow_blank=True)
+    trang = serializers.IntegerField(
+        required=False,
+        default=1,
+        min_value=1,
+        error_messages={
+            "invalid": "Số trang phải là số nguyên lớn hơn 0.",
+            "min_value": "Số trang phải là số nguyên lớn hơn 0.",
+        },
+    )
+
+
+# ---------- I. ĐẦU RA: danh sách đơn cho nhân viên ----------
+class DonNhanVienSerializer(DonHangSerializer):
+    """Một đơn trong danh sách UC07: thêm khách, loại khách và trạng thái hậu mãi."""
+
+    ma_kh = serializers.CharField(source="khach_hang_id")
+    ten_khach_hang = serializers.CharField(source="khach_hang.ho_ten")
+    ma_loai_khach = serializers.CharField(source="loai_khach_hang_ap_dung_id")
+    ten_loai_khach = serializers.CharField(source="loai_khach_hang_ap_dung.ten_loai_kh")
+    trang_thai_hau_mai = serializers.CharField()
+    ten_trang_thai_hau_mai = serializers.SerializerMethodField()
+
+    def get_ten_trang_thai_hau_mai(self, don):
+        return ten_hau_mai(don)
+
+
+# ---------- J. ĐẦU RA: chi tiết đơn cho nhân viên ----------
+class DongDonNhanVienSerializer(ChiTietDonHangSerializer):
+    """Dòng đơn kèm kết quả kiểm tra hàng (UC09), để nhân viên biết đã đủ điều kiện xác nhận chưa."""
+
+    ket_qua_kiem_tra = serializers.CharField()
+    ten_ket_qua_kiem_tra = serializers.CharField(source="get_ket_qua_kiem_tra_display")
+    so_luong_thieu = serializers.IntegerField()
+
+
+class LichSuNhanVienSerializer(LichSuTrangThaiSerializer):
+    """Lịch sử phía nhân viên có thêm tên người thao tác (khách không thấy cột này).
+    allow_null=True: dòng do khách hoặc hệ thống ghi không có nhân viên -> trả null
+    thay vì báo lỗi khi đi qua nhan_vien.ho_ten."""
+
+    ma_nv = serializers.CharField(source="nhan_vien_id")
+    ten_nhan_vien = serializers.CharField(source="nhan_vien.ho_ten", allow_null=True)
+
+
+class LanGiaoSerializer(serializers.Serializer):
+    """Một lần giao (bảng GIAOHANG, M3-BR20)."""
+
+    ma_giao_hang = serializers.CharField()
+    lan_giao = serializers.IntegerField()
+    hinh_thuc_giao = serializers.CharField()
+    ten_hinh_thuc_giao = serializers.CharField(source="get_hinh_thuc_giao_display")
+    don_vi_van_chuyen = serializers.CharField()
+    sdt_shipper = serializers.CharField()
+    ma_van_don = serializers.CharField()
+    thoi_diem_ban_giao = serializers.DateTimeField()
+    ket_qua_giao = serializers.CharField()
+    ten_ket_qua_giao = serializers.CharField(source="get_ket_qua_giao_display")
+    thoi_diem_giao_xong = serializers.DateTimeField()
+    ly_do_that_bai = serializers.CharField()
+
+
+class GiaoDichSerializer(serializers.Serializer):
+    """Bản ghi thanh toán của đơn (bảng GIAODICH_THANHTOAN, M3-BR16)."""
+
+    ma_giao_dich = serializers.CharField()
+    so_tien_phai_thu = serializers.IntegerField()
+    so_tien_thuc_nhan = serializers.IntegerField()
+    trang_thai = serializers.CharField()
+    ten_trang_thai = serializers.CharField(source="get_trang_thai_display")
+    ma_giao_dich_ngan_hang = serializers.CharField()
+    thoi_diem_thanh_toan = serializers.DateTimeField()
+    ten_nhan_vien_ghi_nhan = serializers.CharField(source="nhan_vien_ghi_nhan.ho_ten", allow_null=True)
+    ghi_chu = serializers.CharField()
+
+
+class ChiTietDonNhanVienSerializer(ChiTietDonKhachSerializer):
+    """
+    M3-UC07 bước 3. Kế thừa toàn bộ chi tiết phía khách, thêm phần nhân viên cần
+    để xử lý đơn ở UC08–UC13: khách, loại khách, các mốc xử lý, kết quả kiểm tra
+    từng dòng, các lần giao, bản ghi thanh toán, gợi ý hình thức giao.
+    """
+
+    ma_kh = serializers.CharField(source="khach_hang_id")
+    ten_khach_hang = serializers.CharField(source="khach_hang.ho_ten")
+    ma_loai_khach = serializers.CharField(source="loai_khach_hang_ap_dung_id")
+    ten_loai_khach = serializers.CharField(source="loai_khach_hang_ap_dung.ten_loai_kh")
+    ghi_chu = serializers.CharField()
+    ten_nhan_vien_xac_nhan = serializers.CharField(source="nhan_vien_xac_nhan.ho_ten", allow_null=True)
+    thoi_diem_xac_nhan = serializers.DateTimeField()
+    thoi_diem_bat_dau_chuan_bi = serializers.DateTimeField()
+    thoi_diem_ban_giao = serializers.DateTimeField()
+    thoi_diem_hoan_thanh = serializers.DateTimeField()
+    so_lan_giao_lai = serializers.IntegerField()
+    xac_nhan_tu_dong = serializers.BooleanField()
+    chi_tiet = DongDonNhanVienSerializer(many=True)  # ghi đè: dòng đơn có kết quả kiểm tra
+    cac_lan_giao = serializers.SerializerMethodField()
+    giao_dich = serializers.SerializerMethodField()
+    goi_y_hinh_thuc_giao = serializers.SerializerMethodField()
+
+    def get_lich_su_trang_thai(self, don):
+        # Ghi đè hàm của lớp cha để dùng serializer lịch sử có tên nhân viên
+        cac_dong = don.lich_su_trang_thai.order_by("thoi_diem", "ma_lstt")
+        return LichSuNhanVienSerializer(cac_dong, many=True).data
+
+    def get_cac_lan_giao(self, don):
+        return LanGiaoSerializer(don.giao_hang.order_by("lan_giao"), many=True).data
+
+    def get_giao_dich(self, don):
+        return GiaoDichSerializer(DichVuThanhToan.lay_giao_dich(don)).data
+
+    def get_goi_y_hinh_thuc_giao(self, don):
+        ma = DichVuGiaoHang.goi_y_hinh_thuc_giao(don)
+        return {"ma": ma, "ten": HinhThucGiao(ma).label}

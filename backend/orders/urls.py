@@ -5,6 +5,8 @@
 #   /api/orders/cart/                   -> GioHangView         (GET xem, POST thêm)
 #   /api/orders/cart/CG001/             -> DongGioHangView     (PATCH sửa, DELETE xóa)
 #   /api/orders/checkout/               -> TrangThanhToanView  (GET trang thanh toán)
+#   /api/orders/staff/                  -> DanhSachDonNhanVienView (GET tra cứu đơn, nhân viên)
+#   /api/orders/staff/DH001/            -> ChiTietDonNhanVienView  (GET chi tiết đơn, nhân viên)
 #   /api/orders/DH001/                  -> ChiTietDonView      (GET chi tiết đơn của tôi)
 #   /api/orders/DH001/da-nhan-hang/     -> DaNhanHangView      (POST đã nhận hàng)
 #   /api/orders/DH001/payment/          -> ThanhToanGiaLapView (POST cổng thanh toán giả lập)
@@ -16,8 +18,10 @@
 from django.urls import path
 
 from .views import (
+    ChiTietDonNhanVienView,
     ChiTietDonView,
     DaNhanHangView,
+    DanhSachDonNhanVienView,
     DongGioHangView,
     DonHangView,
     GioHangView,
@@ -34,6 +38,9 @@ urlpatterns = [
     path("cart/", GioHangView.as_view(), name="gio-hang"),
     path("cart/<str:ma_ctgh>/", DongGioHangView.as_view(), name="dong-gio-hang"),
     path("checkout/", TrangThanhToanView.as_view(), name="thanh-toan"),
+    # ----- Phía nhân viên (bước 8B) – đường dẫn cố định "staff/" nên đứng trên "<str:ma_dh>/" -----
+    path("staff/", DanhSachDonNhanVienView.as_view(), name="nv-danh-sach-don"),
+    path("staff/<str:ma_dh>/", ChiTietDonNhanVienView.as_view(), name="nv-chi-tiet-don"),
     # ----- Đơn hàng phía khách (giai đoạn 4, bước 8A) – luôn để cuối danh sách -----
     path("<str:ma_dh>/", ChiTietDonView.as_view(), name="chi-tiet-don"),
     path("<str:ma_dh>/da-nhan-hang/", DaNhanHangView.as_view(), name="da-nhan-hang"),

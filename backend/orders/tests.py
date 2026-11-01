@@ -40,7 +40,7 @@ from .models import (
     TrangThaiDonHang,
     TrangThaiThanhToan,
 )
-from .permissions import KhachHangCoHoSo
+from .permissions import KhachHangCoHoSo, NhanVienCoHoSo
 from .serializers import (
     CapNhatSoLuongSerializer,
     GioHangSerializer,
@@ -2105,3 +2105,125 @@ class KiemThuApiDonHangKhach(DuLieuDatHang, TestCase):
         phan_hoi = self.client.post(self.url_don(don, "da-nhan-hang/"))  # E1
         self.assertEqual(phan_hoi.status_code, 400)
         self.assertEqual(phan_hoi.data["message"], "Đơn đã được xác nhận nhận hàng.")
+
+
+# ==========================================================
+# 19. PHÂN QUYỀN NHÂN VIÊN VÀ API TRA CỨU ĐƠN (giai đoạn 4, bước 8B) – M3-UC07
+# ==========================================================
+URL_NHAN_VIEN = "/api/orders/staff/"
+
+
+class KiemThuPhanQuyenNhanVien(TestCase):
+    def setUp(self):
+        self.nv = tao_nhan_vien()
+
+    def kiem_tra(self, nguoi_dung):
+        quyen = NhanVienCoHoSo()
+        return quyen.has_permission(SimpleNamespace(user=nguoi_dung), None), quyen.message
+
+    def test_nhan_vien_va_quan_ly_duoc_phep(self):
+        self.assertTrue(self.kiem_tra(self.nv.tai_khoan)[0])
+        tai_khoan = self.nv.tai_khoan
+        tai_khoan.vai_tro = TaiKhoan.VaiTro.MANAGER
+        tai_khoan.save()
+        self.assertTrue(self.kiem_tra(tai_khoan)[0])
+
+    def test_sai_vai_tro_bi_chan_du_co_ho_so_nhan_vien(self):
+        # Còn hồ sơ NhanVien nên chỉ bước kiểm tra vai trò mới chặn được (E1)
+        tai_khoan = self.nv.tai_khoan
+        tai_khoan.vai_tro = TaiKhoan.VaiTro.CUSTOMER
+        tai_khoan.save()
+        self.assertEqual(self.kiem_tra(tai_khoan), (False, "Bạn không đủ quyền truy cập."))
+        self.assertFalse(self.kiem_tra(AnonymousUser())[0])
+
+    def test_thieu_ho_so_va_ngung_hoat_dong_bi_chan(self):
+        tai_khoan = TaiKhoan.objects.create(
+            ma_tk="TK_NV_TRONG", email="nvtrong@test.vn", vai_tro=TaiKhoan.VaiTro.EMPLOYEE
+        )
+        self.assertEqual(self.kiem_tra(tai_khoan), (False, "Tài khoản không có hồ sơ nhân viên."))
+
+        self.nv.trang_thai = NhanVien.TrangThai.INACTIVE
+        self.nv.save()
+        self.assertEqual(self.kiem_tra(self.nv.tai_khoan), (False, "Hồ sơ nhân viên đang ngừng hoạt động."))
+
+
+class KiemThuApiTraCuuDon(DuLieuDatHang, TestCase):
+    def setUp(self):
+        super().setUp()
+        self.nv = tao_nhan_vien()
+        # Hai đơn của khách sỉ KH_DH và một đơn của khách lẻ KH_B (giống phần 17)
+        self.don_1 = self.dat()
+        self.don_2 = DichVuDatHang.dat_hang(self.kh, [self.d3.ma_ctgh], "DC_D1", PhuongThucThanhToan.MA_COD)
+        self.kh_b = tao_khach_hang("KH_B", "b@test.vn")
+        tao_dia_chi("DC_B", self.kh_b, so_dien_thoai="0912000111")
+        dong = DichVuGioHang.them_vao_gio(self.kh_b, self.bt_le, 1)
+        self.don_3 = DichVuDatHang.dat_hang(self.kh_b, [dong.ma_ctgh], "DC_B", PhuongThucThanhToan.MA_COD)
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.nv.tai_khoan)
+
+    def ma_cac_don(self, phan_hoi):
+        return [don["ma_dh"] for don in phan_hoi.data["data"]]
+
+    def test_khach_hang_khong_vao_duoc_api_nhan_vien(self):
+        self.client.force_authenticate(user=self.kh.tai_khoan)
+        phan_hoi = self.client.get(URL_NHAN_VIEN)
+        self.assertEqual(phan_hoi.status_code, 403)
+        self.assertEqual(phan_hoi.data["detail"], "Bạn không đủ quyền truy cập.")
+        self.assertEqual(self.client.get(f"{URL_NHAN_VIEN}{self.don_1.ma_dh}/").status_code, 403)
+
+    def test_danh_sach_tim_kiem_va_loc(self):
+        phan_hoi = self.client.get(URL_NHAN_VIEN)
+        self.assertEqual(phan_hoi.status_code, 200)
+        self.assertEqual(self.ma_cac_don(phan_hoi), [self.don_3.ma_dh, self.don_2.ma_dh, self.don_1.ma_dh])
+        self.assertEqual(phan_hoi.data["tong_so_don"], 3)
+        self.assertEqual(phan_hoi.data["data"][0]["ten_khach_hang"], "Khách KH_B")
+        self.assertEqual(phan_hoi.data["data"][1]["ma_loai_khach"], "LKH002")
+
+        theo_sdt = self.client.get(URL_NHAN_VIEN + "?tu_khoa=0912000")
+        self.assertEqual(self.ma_cac_don(theo_sdt), [self.don_3.ma_dh])
+        khach_si_cho_xac_nhan = self.client.get(URL_NHAN_VIEN + "?trang_thai=CHO_XAC_NHAN&loai_khach=LKH002")
+        self.assertEqual(self.ma_cac_don(khach_si_cho_xac_nhan), [self.don_2.ma_dh, self.don_1.ma_dh])
+
+        khong_co = self.client.get(URL_NHAN_VIEN + "?tu_khoa=khongco")  # E2
+        self.assertEqual(khong_co.status_code, 200)
+        self.assertEqual(khong_co.data["data"], [])
+        self.assertEqual(khong_co.data["message"], "Không tìm thấy đơn phù hợp.")
+
+    def test_bo_loc_sai_dinh_dang(self):
+        phan_hoi = self.client.get(URL_NHAN_VIEN + "?tu_ngay=01/11/2026&trang=0&trang_thai=ABC")
+        self.assertEqual(phan_hoi.status_code, 400)
+        self.assertEqual(set(phan_hoi.data["errors"]), {"tu_ngay", "trang", "trang_thai"})
+
+    def test_phan_trang(self):
+        with patch("orders.services.SO_DON_MOI_TRANG", 2):
+            phan_hoi = self.client.get(URL_NHAN_VIEN + "?trang=2")
+        self.assertEqual(self.ma_cac_don(phan_hoi), [self.don_1.ma_dh])
+        self.assertEqual((phan_hoi.data["so_trang"], phan_hoi.data["trang_hien_tai"]), (2, 2))
+
+    def test_chi_tiet_don_cho_nhan_vien(self):
+        don = self.don_1
+        cac_dong = {ma: 0 for ma in don.chi_tiet.values_list("ma_ctdh", flat=True)}
+        DichVuXuLyDon.kiem_tra_kha_nang_cung_ung(don, self.nv, cac_dong)
+        DichVuXuLyDon.xac_nhan_don(don, self.nv)
+        DichVuGiaoHang.bat_dau_chuan_bi(don, self.nv)
+        DichVuGiaoHang.san_sang_giao(don, self.nv)
+        DichVuGiaoHang.ban_giao(don, self.nv, HinhThucGiao.XE_TAI)
+
+        phan_hoi = self.client.get(f"{URL_NHAN_VIEN}{don.ma_dh}/")
+        self.assertEqual(phan_hoi.status_code, 200)
+        du_lieu = phan_hoi.data["data"]
+        self.assertEqual(du_lieu["trang_thai"], T.DANG_GIAO)
+        self.assertEqual(du_lieu["ten_nhan_vien_xac_nhan"], "Nhân viên NV_T1")
+        self.assertEqual([dong["ket_qua_kiem_tra"] for dong in du_lieu["chi_tiet"]], [KetQuaKiemTra.DU] * 2)
+        self.assertIsNone(du_lieu["lich_su_trang_thai"][0]["ten_nhan_vien"])  # khách đặt hàng
+        self.assertEqual(du_lieu["lich_su_trang_thai"][-1]["ten_nhan_vien"], "Nhân viên NV_T1")
+        self.assertEqual(len(du_lieu["cac_lan_giao"]), 1)
+        self.assertEqual(du_lieu["cac_lan_giao"][0]["don_vi_van_chuyen"], "Xe nội bộ Quý Thu")
+        self.assertEqual(du_lieu["giao_dich"]["so_tien_phai_thu"], 495000)
+        self.assertEqual(du_lieu["giao_dich"]["trang_thai"], TrangThaiThanhToan.CHUA_THANH_TOAN)
+        self.assertEqual(du_lieu["goi_y_hinh_thuc_giao"]["ma"], HinhThucGiao.XE_TAI)  # khách sỉ
+
+    def test_chi_tiet_ma_la(self):
+        phan_hoi = self.client.get(f"{URL_NHAN_VIEN}DH999/")
+        self.assertEqual(phan_hoi.status_code, 400)
+        self.assertEqual(phan_hoi.data["message"], "Không tìm thấy đơn hàng DH999.")
