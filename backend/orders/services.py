@@ -635,3 +635,34 @@ class DichVuDatHang:
             raise LoiNghiepVuDonHang("Không thể đặt hàng, vui lòng thử lại.") from loi
 
         return don
+
+# ==========================================================
+# 8. TRANG THANH TOÁN – M3-UC02 bước 3, M3-UC03 bước 1, M3-UC04
+#    Chỉ ĐỌC và TÍNH, không ghi gì vào CSDL (nhấn [Mua hàng] chưa làm đổi giỏ).
+#    Địa chỉ đang chọn do trình duyệt gửi kèm mỗi lần gọi; không gửi thì dùng
+#    địa chỉ hiển thị sẵn (UC04 bước 1). Không có API lưu "địa chỉ đã chọn".
+# ==========================================================
+class DichVuTrangThanhToan:
+
+    @staticmethod
+    def xem_trang_thanh_toan(khach_hang, danh_sach_ma_ctgh, ma_dia_chi=None):
+        """
+        Trả về dict của tinh_tong_tien, thêm khóa "cac_phuong_thuc"
+        (các phương thức thanh toán đang kích hoạt để khách chọn ở bước 2).
+        """
+        # Bước 1: kiểm tra các dòng chọn mua TRƯỚC địa chỉ, để khách chưa chọn
+        # dòng nào nhận đúng câu "Vui lòng chọn sản phẩm cần mua" (UC02-E1, E3)
+        DichVuTinhTien.lay_cac_dong_da_chon(khach_hang, danh_sach_ma_ctgh)
+
+        # Bước 2: chưa chọn địa chỉ -> địa chỉ hiển thị sẵn (UC04 bước 1, UC04-E1)
+        if not ma_dia_chi:
+            ma_dia_chi = DichVuDiaChiGiaoHang.lay_dia_chi_hien_thi_san(khach_hang).ma_dia_chi
+
+        # Bước 3: tính tiền hàng, phí giao theo tỉnh, tổng thanh toán (UC03 bước 1)
+        trang = DichVuTinhTien.tinh_tong_tien(khach_hang, danh_sach_ma_ctgh, ma_dia_chi)
+
+        # Bước 4: danh sách phương thức thanh toán đang dùng được (M3-BR09)
+        trang["cac_phuong_thuc"] = list(
+            PhuongThucThanhToan.objects.filter(dang_kich_hoat=True).order_by("ma_pttt")
+        )
+        return trang

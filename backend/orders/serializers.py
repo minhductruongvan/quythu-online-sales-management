@@ -121,3 +121,103 @@ class GioHangSerializer(serializers.Serializer):
 
     def get_so_dong(self, gio):
         return len(gio["cac_dong"])
+
+# ==========================================================
+# PHẦN 2: TRANG THANH TOÁN, ĐẶT HÀNG – M3-UC03, M3-UC04
+# ==========================================================
+
+# ---------- C. ĐẦU VÀO: đặt hàng ----------
+class DatHangSerializer(serializers.Serializer):
+    """
+    M3-UC03 bước 3. Trình duyệt gửi:
+    {"chon": ["CG001", "CG002"], "ma_dia_chi": "DC001", "ma_pttt": "PT002"}
+    Chỉ gửi MÃ; tiền hàng, phí, tổng đều do service tính lại.
+    "chon" rỗng và "ma_pttt" rỗng vẫn cho qua để service báo đúng câu của UC
+    (UC02-E1, UC03-E1).
+    """
+
+    chon = serializers.ListField(
+        child=serializers.CharField(),
+        default=list,
+        error_messages={"not_a_list": "Danh sách sản phẩm chọn mua không hợp lệ."},
+    )
+    ma_dia_chi = serializers.CharField(
+        error_messages={
+            "required": "Vui lòng chọn địa chỉ giao hàng.",
+            "blank": "Vui lòng chọn địa chỉ giao hàng.",
+            "null": "Vui lòng chọn địa chỉ giao hàng.",
+        },
+    )
+    ma_pttt = serializers.CharField(allow_blank=True, allow_null=True, default="")
+
+
+# ---------- D. ĐẦU RA: trang thanh toán ----------
+class DiaChiGiaoHangSerializer(serializers.Serializer):
+    """Một địa chỉ trong sổ địa chỉ DiaChiKH của M1 (M3 chỉ đọc)."""
+
+    ma_dia_chi = serializers.CharField()
+    ten_nguoi_nhan = serializers.CharField()
+    so_dien_thoai = serializers.CharField()
+    dia_chi_chi_tiet = serializers.CharField()
+    phuong_xa = serializers.CharField()   # có thể null -> JSON ra null
+    quan_huyen = serializers.CharField()  # có thể null -> JSON ra null
+    tinh_thanh = serializers.CharField()
+    mac_dinh = serializers.BooleanField()
+
+
+class PhuongThucThanhToanSerializer(serializers.Serializer):
+    ma_pttt = serializers.CharField()
+    ten_pttt = serializers.CharField()
+
+
+class TrangThanhToanSerializer(serializers.Serializer):
+    """
+    Đầu vào là dict do DichVuTrangThanhToan.xem_trang_thanh_toan trả về:
+    {"cac_dong", "dia_chi", "tinh_thanh", "tong_tien_hang", "phi_van_chuyen",
+     "tong_thanh_toan", "cac_phuong_thuc"}
+    """
+
+    cac_dong = DongGioHangSerializer(many=True)
+    dia_chi = DiaChiGiaoHangSerializer()
+    ma_tinh = serializers.CharField(source="tinh_thanh.ma_tinh")
+    ten_tinh = serializers.CharField(source="tinh_thanh.ten_tinh")
+    tong_tien_hang = serializers.IntegerField()
+    phi_van_chuyen = serializers.IntegerField()
+    tong_thanh_toan = serializers.IntegerField()
+    cac_phuong_thuc = PhuongThucThanhToanSerializer(many=True)
+
+
+# ---------- E. ĐẦU RA: đơn hàng ----------
+# Dùng cho đơn vừa đặt (UC03); giai đoạn 4 dùng lại cho chi tiết đơn (UC05, UC07).
+# source="get_trang_thai_display": gọi hàm Django tự sinh cho trường có choices,
+# trả nhãn tiếng Việt ("Chờ xác nhận") của mã đang lưu ("CHO_XAC_NHAN").
+class ChiTietDonHangSerializer(serializers.Serializer):
+    ma_ctdh = serializers.CharField()
+    ma_bien_the = serializers.CharField(source="bien_the_id")
+    ten_sp = serializers.CharField(source="bien_the.san_pham.ten_sp")
+    huong_vi = serializers.CharField(source="bien_the.huong_vi")
+    quy_cach = serializers.CharField(source="bien_the.quy_cach")
+    so_luong = serializers.IntegerField()
+    loai_gia = serializers.CharField(source="loai_gia_ap_dung")
+    ten_loai_gia = serializers.CharField(source="get_loai_gia_ap_dung_display")
+    don_gia = serializers.IntegerField()
+    thanh_tien = serializers.IntegerField()
+
+
+class DonHangSerializer(serializers.Serializer):
+    ma_dh = serializers.CharField()
+    ngay_dat = serializers.DateTimeField()
+    trang_thai = serializers.CharField()
+    ten_trang_thai = serializers.CharField(source="get_trang_thai_display")
+    trang_thai_thanh_toan = serializers.CharField()
+    ten_trang_thai_thanh_toan = serializers.CharField(source="get_trang_thai_thanh_toan_display")
+    ma_pttt = serializers.CharField(source="phuong_thuc_thanh_toan_id")
+    ten_pttt = serializers.CharField(source="phuong_thuc_thanh_toan.ten_pttt")
+    ho_ten_nguoi_nhan = serializers.CharField()
+    sdt_nguoi_nhan = serializers.CharField()
+    dia_chi_giao_hang = serializers.CharField()
+    ten_tinh = serializers.CharField(source="tinh_thanh.ten_tinh")
+    tong_tien_hang = serializers.IntegerField()
+    phi_van_chuyen = serializers.IntegerField()
+    tong_thanh_toan = serializers.IntegerField()
+    chi_tiet = ChiTietDonHangSerializer(many=True)  # don.chi_tiet.all()

@@ -853,3 +853,146 @@ class KiemThuApiGioHang(TestCase):
         phan_hoi = self.client.delete(self.url_dong("CG999"))
         self.assertEqual(phan_hoi.status_code, 400)
         self.assertEqual(phan_hoi.data["message"], "Không tìm thấy dòng hàng trong giỏ.")
+
+# ==========================================================
+# Phần 10: API trang thanh toán và đặt hàng (M3-UC03, M3-UC04)
+# Dùng lại DuLieuDatHang (phần 5): khách sỉ KH_DH; giỏ d1 BT_D1 x10 (sỉ 40.000),
+# d2 BT_D2 x2 (lẻ 30.000), d3 BT_D3 x1 (không chọn); địa chỉ DC_D1 ở Huế (phí 35.000).
+# Chọn d1, d2: tiền hàng 460.000 + phí 35.000 = 495.000.
+# ==========================================================
+URL_THANH_TOAN = "/api/orders/checkout/"
+URL_DON_HANG = "/api/orders/"
+
+
+class KiemThuApiThanhToanDatHang(DuLieuDatHang, TestCase):
+
+    def setUp(self):
+        super().setUp()  # chạy setUp của DuLieuDatHang để có khách, giỏ, địa chỉ
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.kh.tai_khoan)
+
+    def url_thanh_toan(self, *cac_ma, ma_dia_chi=None):
+        url = URL_THANH_TOAN + "?" + "&".join(f"chon={ma}" for ma in cac_ma)
+        if ma_dia_chi:
+            url += f"&ma_dia_chi={ma_dia_chi}"
+        return url
+
+    def dat_qua_api(self, **thay_doi):
+        du_lieu = {
+            "chon": [self.d1.ma_ctgh, self.d2.ma_ctgh],
+            "ma_dia_chi": "DC_D1",
+            "ma_pttt": PhuongThucThanhToan.MA_COD,
+        }
+        du_lieu.update(thay_doi)
+        return self.client.post(URL_DON_HANG, du_lieu, format="json")
+
+    # ---------- Phân quyền ----------
+    def test_chua_dang_nhap_bi_403(self):
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.client.get(self.url_thanh_toan(self.d1.ma_ctgh)).status_code, 403)
+        self.assertEqual(self.dat_qua_api().status_code, 403)
+
+    # ---------- Trang thanh toán (GET checkout/) ----------
+    def test_thanh_toan_dung_dia_chi_hien_thi_san(self):
+        phan_hoi = self.client.get(self.url_thanh_toan(self.d1.ma_ctgh, self.d2.ma_ctgh))
+
+        self.assertEqual(phan_hoi.status_code, 200)
+        trang = phan_hoi.data["data"]
+        self.assertEqual(trang["dia_chi"]["ma_dia_chi"], "DC_D1")
+        self.assertEqual(trang["ten_tinh"], "Huế")
+        self.assertEqual(len(trang["cac_dong"]), 2)
+        self.assertEqual(trang["tong_tien_hang"], 460000)
+        self.assertEqual(trang["phi_van_chuyen"], 35000)
+        self.assertEqual(trang["tong_thanh_toan"], 495000)
+        self.assertEqual(
+            [pt["ma_pttt"] for pt in trang["cac_phuong_thuc"]],
+            [PhuongThucThanhToan.MA_CHUYEN_KHOAN, PhuongThucThanhToan.MA_COD],
+        )
+
+    def test_doi_dia_chi_tinh_lai_phi(self):
+        tao_dia_chi("DC_D2", self.kh, tinh_thanh="Đà Nẵng")  # phí 30.000
+        phan_hoi = self.client.get(
+            self.url_thanh_toan(self.d1.ma_ctgh, self.d2.ma_ctgh, ma_dia_chi="DC_D2")
+        )
+        self.assertEqual(phan_hoi.data["data"]["phi_van_chuyen"], 30000)
+        self.assertEqual(phan_hoi.data["data"]["tong_thanh_toan"], 490000)
+
+    def test_thanh_toan_khong_doi_gio(self):
+        self.client.get(self.url_thanh_toan(self.d1.ma_ctgh, self.d2.ma_ctgh))
+        self.assertEqual(DichVuGioHang.dem_so_dong(self.kh), 3)
+        self.assertEqual(DonHang.objects.count(), 0)
+
+    def test_chua_chon_dong_bao_truoc_ca_khi_chua_co_dia_chi(self):
+        DiaChiKH.objects.filter(khach_hang=self.kh).delete()
+        phan_hoi = self.client.get(URL_THANH_TOAN)
+        self.assertEqual(phan_hoi.status_code, 400)
+        self.assertEqual(phan_hoi.data["message"], "Vui lòng chọn sản phẩm cần mua.")
+
+    def test_so_dia_chi_trong(self):
+        DiaChiKH.objects.filter(khach_hang=self.kh).delete()
+        phan_hoi = self.client.get(self.url_thanh_toan(self.d1.ma_ctgh))
+        self.assertEqual(phan_hoi.status_code, 400)
+        self.assertIn("chưa có địa chỉ giao hàng", phan_hoi.data["message"])
+
+    def test_dia_chi_cua_khach_khac_403(self):
+        khach_khac = tao_khach_hang("KH_KHAC", "khac@test.vn")
+        tao_dia_chi("DC_KHAC", khach_khac)
+        phan_hoi = self.client.get(self.url_thanh_toan(self.d1.ma_ctgh, ma_dia_chi="DC_KHAC"))
+        self.assertEqual(phan_hoi.status_code, 403)
+
+    def test_pttt_ngung_kich_hoat_khong_hien(self):
+        PhuongThucThanhToan.objects.filter(
+            ma_pttt=PhuongThucThanhToan.MA_CHUYEN_KHOAN
+        ).update(dang_kich_hoat=False)
+        phan_hoi = self.client.get(self.url_thanh_toan(self.d1.ma_ctgh))
+        self.assertEqual(
+            [pt["ma_pttt"] for pt in phan_hoi.data["data"]["cac_phuong_thuc"]],
+            [PhuongThucThanhToan.MA_COD],
+        )
+
+    # ---------- Đặt hàng (POST /api/orders/) ----------
+    def test_dat_hang_cod_thanh_cong(self):
+        phan_hoi = self.dat_qua_api()
+
+        self.assertEqual(phan_hoi.status_code, 201)
+        don = phan_hoi.data["data"]
+        self.assertEqual(phan_hoi.data["message"], f"Đặt hàng thành công. Mã đơn hàng: {don['ma_dh']}.")
+        self.assertEqual(don["trang_thai"], "CHO_XAC_NHAN")
+        self.assertEqual(don["ten_trang_thai"], "Chờ xác nhận")
+        self.assertEqual(don["ten_trang_thai_thanh_toan"], "Chưa thanh toán")
+        self.assertEqual(don["tong_thanh_toan"], 495000)
+        self.assertEqual(don["ten_tinh"], "Huế")
+        self.assertEqual(len(don["chi_tiet"]), 2)
+        dong_si = next(d for d in don["chi_tiet"] if d["ma_bien_the"] == "BT_D1")
+        self.assertEqual(dong_si["ten_loai_gia"], "Giá sỉ")
+        self.assertEqual(dong_si["thanh_tien"], 400000)
+        # Dòng d3 không chọn vẫn còn trong giỏ
+        self.assertEqual(DichVuGioHang.dem_so_dong(self.kh), 1)
+
+    def test_dat_hang_chuyen_khoan_bao_thanh_toan_sau(self):
+        phan_hoi = self.dat_qua_api(ma_pttt=PhuongThucThanhToan.MA_CHUYEN_KHOAN)
+        self.assertEqual(phan_hoi.status_code, 201)
+        self.assertIn("sau khi đơn hàng được nhân viên xác nhận", phan_hoi.data["message"])
+
+    def test_thieu_dia_chi_400_tu_serializer(self):
+        phan_hoi = self.dat_qua_api(ma_dia_chi="")
+        self.assertEqual(phan_hoi.status_code, 400)
+        self.assertEqual(str(phan_hoi.data["errors"]["ma_dia_chi"][0]), "Vui lòng chọn địa chỉ giao hàng.")
+        self.assertEqual(DonHang.objects.count(), 0)
+
+    def test_thieu_pttt_400_tu_service(self):
+        phan_hoi = self.dat_qua_api(ma_pttt="")
+        self.assertEqual(phan_hoi.status_code, 400)
+        self.assertEqual(phan_hoi.data["message"], "Vui lòng chọn phương thức thanh toán.")
+        self.assertEqual(DonHang.objects.count(), 0)
+
+    def test_chon_khong_phai_danh_sach(self):
+        phan_hoi = self.dat_qua_api(chon=self.d1.ma_ctgh)  # chuỗi, không phải danh sách
+        self.assertEqual(phan_hoi.status_code, 400)
+        self.assertIn("chon", phan_hoi.data["errors"])
+
+    def test_bam_dat_hang_hai_lan_chi_mot_don(self):
+        self.assertEqual(self.dat_qua_api().status_code, 201)
+        lan_hai = self.dat_qua_api()
+        self.assertEqual(lan_hai.status_code, 400)
+        self.assertEqual(DonHang.objects.count(), 1)

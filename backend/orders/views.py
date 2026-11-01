@@ -7,22 +7,28 @@
 #   3. Gọi hàm trong services.py (nghiệp vụ nằm hết ở đó).
 #   4. Trả Response {"message": ..., "data": ...} kèm mã trạng thái HTTP.
 #
-# Phần 1 (file này): giỏ hàng – M3-UC01, M3-UC02.
-# Phần 2 (bước sau): trang thanh toán, đặt hàng – M3-UC03, M3-UC04.
+# Phần 1: giỏ hàng – M3-UC01, M3-UC02.
+# Phần 2: trang thanh toán, đặt hàng – M3-UC03, M3-UC04.
 
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .models import PhuongThucThanhToan
 from .permissions import KhachHangCoHoSo
 from .serializers import (
     CapNhatSoLuongSerializer,
+    DatHangSerializer,
+    DonHangSerializer,
     GioHangSerializer,
     ThemVaoGioSerializer,
+    TrangThanhToanSerializer,
 )
 from .services import (
+    DichVuDatHang,
     DichVuGioHang,
     DichVuTinhTien,
+    DichVuTrangThanhToan,
     LoiNghiepVuDonHang,
     LoiQuyenDonHang,
 )
@@ -137,3 +143,69 @@ class DongGioHangView(APIView):
             return phan_hoi_gio_hang(request, khach_hang, "Đã xóa sản phẩm khỏi giỏ hàng.")
         except LoiNghiepVuDonHang as loi:
             return phan_hoi_loi_nghiep_vu(loi)
+
+# ==========================================================
+# TRANG THANH TOÁN, ĐẶT HÀNG – M3-UC03, M3-UC04
+# ==========================================================
+class TrangThanhToanView(APIView):
+    """
+    URL: /api/orders/checkout/?chon=CG001&chon=CG002&ma_dia_chi=DC001
+    GET – mở trang thanh toán (UC02 bước 3, UC03 bước 1) và đổi địa chỉ (UC04).
+    Không gửi ma_dia_chi -> dùng địa chỉ hiển thị sẵn. Chỉ đọc, không ghi CSDL.
+    """
+
+    permission_classes = [KhachHangCoHoSo]
+
+    def get(self, request):
+        khach_hang = request.user.khach_hang
+        cac_ma_chon = request.query_params.getlist("chon")
+        ma_dia_chi = request.query_params.get("ma_dia_chi")  # không có -> None
+
+        try:
+            trang = DichVuTrangThanhToan.xem_trang_thanh_toan(
+                khach_hang, cac_ma_chon, ma_dia_chi
+            )
+        except LoiNghiepVuDonHang as loi:
+            return phan_hoi_loi_nghiep_vu(loi)
+
+        return Response(
+            {"message": "Lấy thông tin thanh toán thành công.",
+             "data": TrangThanhToanSerializer(trang).data},
+            status=status.HTTP_200_OK,
+        )
+
+
+class DonHangView(APIView):
+    """
+    URL: /api/orders/
+    POST – đặt hàng (UC03 bước 3–4),
+           body {"chon": ["CG001"], "ma_dia_chi": "DC001", "ma_pttt": "PT002"}
+    (Giai đoạn 4 thêm GET – danh sách đơn của tôi, UC05.)
+    """
+
+    permission_classes = [KhachHangCoHoSo]
+
+    def post(self, request):
+        khach_hang = request.user.khach_hang
+
+        serializer = DatHangSerializer(data=request.data)
+        if not serializer.is_valid():
+            return phan_hoi_du_lieu_sai(serializer)
+
+        du_lieu = serializer.validated_data
+        try:
+            don = DichVuDatHang.dat_hang(
+                khach_hang, du_lieu["chon"], du_lieu["ma_dia_chi"], du_lieu["ma_pttt"]
+            )
+        except LoiNghiepVuDonHang as loi:
+            return phan_hoi_loi_nghiep_vu(loi)
+
+        message = f"Đặt hàng thành công. Mã đơn hàng: {don.ma_dh}."
+        if don.phuong_thuc_thanh_toan_id == PhuongThucThanhToan.MA_CHUYEN_KHOAN:
+            # UC03-A2: chuyển khoản thì thanh toán sau khi nhân viên xác nhận đơn
+            message += " Bạn sẽ thanh toán sau khi đơn hàng được nhân viên xác nhận."
+
+        return Response(
+            {"message": message, "data": DonHangSerializer(don).data},
+            status=status.HTTP_201_CREATED,
+        )
