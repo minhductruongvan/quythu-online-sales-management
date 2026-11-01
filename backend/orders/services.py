@@ -6,6 +6,10 @@
 #   5. Địa chỉ giao hàng (M3-UC04)
 #   6. Tính giá và tính tiền (M3-UC02 phần hiển thị, M3-UC03 bước 1)
 #   7. Đặt hàng (M3-UC03 bước 3–4)
+#   8. Trang thanh toán (M3-UC02 bước 3, M3-UC03 bước 1, M3-UC04)
+#   9. Máy trạng thái đơn hàng (M3-BR14, M3-BR15, M3-BR22)
+#  10. Xử lý đơn phía nhân viên: kiểm tra hàng (M3-UC09), xác nhận đơn
+#      (M3-UC08), xử lý thiếu hàng (M3-UC10)
 #
 # Quy ước (theo M1 – customers/services.py):
 # - View không tự xử lý nghiệp vụ, chỉ gọi hàm ở file này.
@@ -13,6 +17,7 @@
 #   tiếng Việt; view bắt lỗi này và trả câu báo về cho người dùng.
 # - Mọi số tiền dùng Decimal, không dùng float.
 
+from datetime import timedelta
 from decimal import Decimal
 
 from django.db import DatabaseError, transaction
@@ -26,6 +31,7 @@ from .models import (
     DonHang,
     GiaoDichThanhToan,
     GioHang,
+    KetQuaKiemTra,
     LichSuTrangThaiDonHang,
     LoaiGia,
     PhuongThucThanhToan,
@@ -734,4 +740,166 @@ class DichVuTrangThai:
         # gán lại để hàm gọi tiếp (ví dụ chuyển tiếp sang Chờ thanh toán) thấy giá trị mới
         for ten_cot, gia_tri in cac_cot.items():
             setattr(don, ten_cot, gia_tri)
+        return don
+
+
+# ==========================================================
+# 10. XỬ LÝ ĐƠN PHÍA NHÂN VIÊN – giai đoạn 4C
+#     M3-UC09 kiểm tra khả năng cung ứng, M3-UC08 xác nhận đơn,
+#     M3-UC10 xử lý thiếu hàng (chờ bổ sung, gia hạn, đã đủ hàng).
+#     Quy tắc: M3-BR11, BR12, BR13, BR14, BR15, BR19.
+#     Mọi thao tác theo cùng một khuôn: kiểm tra điều kiện trước,
+#     rồi ghi trong transaction.atomic(); lỗi CSDL thì báo và giữ nguyên đơn.
+# ==========================================================
+GOI_Y_HEN_CUNG_CAP = timedelta(days=1)  # BR13: hẹn 1–2 ngày; giao diện đặt sẵn bây giờ + 1 ngày
+MA_HAU_MAI_CHO_HUY = "CHO_HUY"          # M4 ghi vào trang_thai_hau_mai khi khách gửi yêu cầu hủy
+CAU_LOI_LUU = "Không thể lưu thao tác, vui lòng thử lại."
+
+
+class DichVuXuLyDon:
+
+    # ----- Các bước kiểm tra dùng chung -----
+    @staticmethod
+    def kiem_tra_trang_thai(don, cac_trang_thai, thao_tac):
+        """Đơn phải đang ở một trong các trạng thái cho phép thao tác này."""
+        if don.trang_thai not in cac_trang_thai:
+            raise LoiNghiepVuDonHang(
+                f"Không thể {thao_tac} khi đơn hàng đang ở trạng thái \"{ten_trang_thai(don.trang_thai)}\"."
+            )
+
+    @staticmethod
+    def kiem_tra_khong_cho_huy(don):
+        """M3-BR19: đơn có yêu cầu hủy đang chờ M4 xử lý thì không xác nhận, chuẩn bị, bàn giao."""
+        if don.trang_thai_hau_mai == MA_HAU_MAI_CHO_HUY:
+            raise LoiNghiepVuDonHang("Đơn hàng đang có yêu cầu hủy chờ xử lý, không thể thực hiện thao tác này.")
+
+    @staticmethod
+    def kiem_tra_hen_tuong_lai(thoi_diem_hen):
+        """M3-UC10 E1: thời điểm hẹn cung cấp phải ở tương lai."""
+        if thoi_diem_hen <= timezone.now():
+            raise LoiNghiepVuDonHang("Thời điểm hẹn cung cấp phải ở tương lai.")
+
+    # ----- M3-UC09: kiểm tra khả năng cung ứng -----
+    @staticmethod
+    def kiem_tra_kha_nang_cung_ung(don, nhan_vien, ket_qua, ghi_chu=""):
+        """Ghi kết quả kiểm tra hàng thực tế cho từng dòng của đơn.
+
+        ket_qua: dict {ma_ctdh: so_luong_thieu}. 0 là đủ hàng; lớn hơn 0 là thiếu
+        (A1: thiếu một phần số lượng vẫn tính là thiếu). Trả về True nếu mọi dòng đủ.
+        """
+        DichVuXuLyDon.kiem_tra_trang_thai(
+            don, {T.CHO_XAC_NHAN, T.DANG_CHUAN_BI}, "kiểm tra khả năng cung ứng"
+        )
+        cac_ma_dong = set(don.chi_tiet.values_list("ma_ctdh", flat=True))
+        if set(ket_qua) - cac_ma_dong:
+            raise LoiNghiepVuDonHang(f"Có dòng hàng không thuộc đơn {don.ma_dh}.")
+        if cac_ma_dong - set(ket_qua):  # E1
+            raise LoiNghiepVuDonHang("Còn dòng hàng chưa được đánh dấu, vui lòng hoàn tất kiểm tra.")
+
+        so_dong_thieu = sum(1 for so_thieu in ket_qua.values() if so_thieu > 0)
+        ket_luan = "đủ hàng" if so_dong_thieu == 0 else f"thiếu hàng ở {so_dong_thieu} dòng"
+        try:
+            with transaction.atomic():
+                for ma_ctdh, so_thieu in ket_qua.items():
+                    ChiTietDonHang.objects.filter(ma_ctdh=ma_ctdh).update(
+                        ket_qua_kiem_tra=KetQuaKiemTra.THIEU if so_thieu > 0 else KetQuaKiemTra.DU,
+                        so_luong_thieu=so_thieu,
+                    )
+                # Dòng lịch sử giữ nguyên trạng thái: ghi người và thời điểm kiểm tra
+                DichVuTrangThai.ghi_lich_su(
+                    don, don.trang_thai, don.trang_thai, TacNhan.NHAN_VIEN,
+                    nhan_vien=nhan_vien, ghi_chu=f"Kiểm tra hàng: {ket_luan}. {ghi_chu}".strip(),
+                )
+        except DatabaseError as loi:  # E2 (kể cả số lượng thiếu lớn hơn số lượng đặt)
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        return so_dong_thieu == 0
+
+    # ----- M3-UC08: xác nhận đơn -----
+    @staticmethod
+    def xac_nhan_don(don, nhan_vien, ghi_chu=""):
+        DichVuXuLyDon.kiem_tra_trang_thai(don, {T.CHO_XAC_NHAN}, "xác nhận đơn")
+        DichVuXuLyDon.kiem_tra_khong_cho_huy(don)  # E2
+        # BR12: chỉ xác nhận sau khi đã kiểm tra và mọi dòng đều đủ hàng
+        if don.chi_tiet.exclude(ket_qua_kiem_tra=KetQuaKiemTra.DU).exists():
+            raise LoiNghiepVuDonHang("Chỉ xác nhận được đơn đã kiểm tra và đủ hàng ở mọi dòng.")
+
+        bay_gio = timezone.now()
+        try:
+            with transaction.atomic():
+                DichVuTrangThai.chuyen_trang_thai(
+                    don, T.DA_XAC_NHAN, TacNhan.NHAN_VIEN, nhan_vien=nhan_vien,
+                    ghi_chu=ghi_chu, thoi_diem=bay_gio,
+                    cap_nhat_them={"nhan_vien_xac_nhan": nhan_vien, "thoi_diem_xac_nhan": bay_gio},
+                )
+                # Chuyển khoản: hệ thống chuyển tiếp sang Chờ thanh toán trong cùng transaction.
+                # COD dừng ở Đã xác nhận, chờ nhân viên bấm [Bắt đầu chuẩn bị] (UC12).
+                if don.phuong_thuc_thanh_toan_id == PhuongThucThanhToan.MA_CHUYEN_KHOAN:
+                    DichVuTrangThai.chuyen_trang_thai(
+                        don, T.CHO_THANH_TOAN, TacNhan.HE_THONG,
+                        ghi_chu="Chờ khách thanh toán chuyển khoản.", thoi_diem=bay_gio,
+                    )
+        except DatabaseError as loi:  # E4
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        return don
+
+    # ----- M3-UC10: xử lý thiếu hàng -----
+    @staticmethod
+    def chuyen_cho_bo_sung(don, nhan_vien, thoi_diem_hen, ghi_chu=""):
+        DichVuXuLyDon.kiem_tra_trang_thai(
+            don, {T.CHO_XAC_NHAN, T.DANG_CHUAN_BI}, "chuyển chờ bổ sung hàng"
+        )  # E2
+        if not don.chi_tiet.filter(ket_qua_kiem_tra=KetQuaKiemTra.THIEU).exists():
+            raise LoiNghiepVuDonHang("Chỉ chuyển chờ bổ sung hàng khi kết quả kiểm tra có dòng thiếu hàng.")
+        DichVuXuLyDon.kiem_tra_hen_tuong_lai(thoi_diem_hen)  # E1
+
+        try:
+            # Lưu trạng thái hiện tại để [Đã đủ hàng] đưa đơn quay lại đúng bước
+            DichVuTrangThai.chuyen_trang_thai(
+                don, T.CHO_BO_SUNG, TacNhan.NHAN_VIEN, nhan_vien=nhan_vien, ghi_chu=ghi_chu,
+                cap_nhat_them={
+                    "thoi_diem_hen_cung_cap": thoi_diem_hen,
+                    "trang_thai_truoc_cho_bo_sung": don.trang_thai,
+                },
+            )
+        except DatabaseError as loi:  # E3
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        return don
+
+    @staticmethod
+    def gia_han_hen(don, nhan_vien, thoi_diem_hen_moi, ghi_chu=""):
+        """A1: đổi thời điểm hẹn, trạng thái giữ nguyên Chờ bổ sung hàng, ghi lịch sử."""
+        DichVuXuLyDon.kiem_tra_trang_thai(don, {T.CHO_BO_SUNG}, "gia hạn hẹn cung cấp")
+        DichVuXuLyDon.kiem_tra_hen_tuong_lai(thoi_diem_hen_moi)
+
+        hen_moi = timezone.localtime(thoi_diem_hen_moi).strftime("%d/%m/%Y %H:%M")
+        try:
+            with transaction.atomic():
+                DonHang.objects.filter(ma_dh=don.ma_dh).update(thoi_diem_hen_cung_cap=thoi_diem_hen_moi)
+                DichVuTrangThai.ghi_lich_su(
+                    don, T.CHO_BO_SUNG, T.CHO_BO_SUNG, TacNhan.NHAN_VIEN, nhan_vien=nhan_vien,
+                    ghi_chu=f"Gia hạn hẹn cung cấp đến {hen_moi}. {ghi_chu}".strip(),
+                )
+        except DatabaseError as loi:
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        don.thoi_diem_hen_cung_cap = thoi_diem_hen_moi
+        return don
+
+    @staticmethod
+    def da_du_hang(don, nhan_vien, ghi_chu=""):
+        """Bước 4: hàng đã về, đơn quay về trạng thái trước khi chờ bổ sung."""
+        DichVuXuLyDon.kiem_tra_trang_thai(don, {T.CHO_BO_SUNG}, "xác nhận đã đủ hàng")
+
+        try:
+            with transaction.atomic():
+                # Các dòng thiếu nay đã đủ, để bước sau (xác nhận, chuẩn bị) không bị chặn
+                don.chi_tiet.filter(ket_qua_kiem_tra=KetQuaKiemTra.THIEU).update(
+                    ket_qua_kiem_tra=KetQuaKiemTra.DU, so_luong_thieu=0
+                )
+                DichVuTrangThai.chuyen_trang_thai(
+                    don, don.trang_thai_truoc_cho_bo_sung, TacNhan.NHAN_VIEN,
+                    nhan_vien=nhan_vien, ghi_chu=ghi_chu or "Đã đủ hàng.",
+                    cap_nhat_them={"trang_thai_truoc_cho_bo_sung": None},
+                )
+        except DatabaseError as loi:  # E3
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
         return don

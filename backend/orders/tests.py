@@ -17,7 +17,7 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from customers.models import DiaChiKH, KhachHang, LoaiKhachHang, TaiKhoan
+from customers.models import DiaChiKH, KhachHang, LoaiKhachHang, NhanVien, TaiKhoan
 from products.models import BienTheSanPham, DanhMucSanPham, SanPham
 
 from .models import (
@@ -29,6 +29,7 @@ from .models import (
     GioHang,
     HinhThucGiao,
     KetQuaGiao,
+    KetQuaKiemTra,
     LichSuTrangThaiDonHang,
     LoaiGia,
     PhuongThucThanhToan,
@@ -45,12 +46,14 @@ from .serializers import (
 )
 from .services import (
     CAC_CANH_HOP_LE,
+    MA_HAU_MAI_CHO_HUY,
     TRANG_THAI_CUOI,
     DichVuDatHang,
     DichVuDiaChiGiaoHang,
     DichVuGioHang,
     DichVuTinhTien,
     DichVuTrangThai,
+    DichVuXuLyDon,
     LoiNghiepVuDonHang,
     LoiQuyenDonHang,
     chuan_hoa_ten_tinh,
@@ -1178,3 +1181,158 @@ class KiemThuMayTrangThai(DuLieuDatHang, TestCase):
                 DichVuTrangThai.chuyen_trang_thai(self.don, TrangThaiDonHang.DA_XAC_NHAN, TacNhan.NHAN_VIEN)
         self.assertEqual(DonHang.objects.get(pk=self.don.pk).trang_thai, TrangThaiDonHang.CHO_XAC_NHAN)
         self.assertEqual(self.so_lich_su(), 1)
+
+
+# ==========================================================
+# 13. XỬ LÝ ĐƠN PHÍA NHÂN VIÊN (giai đoạn 4C)
+#     M3-UC09 kiểm tra hàng, M3-UC08 xác nhận đơn, M3-UC10 thiếu hàng.
+#     Đơn mẫu: d1 (10 cái) và d2 (2 cái), COD, đang "Chờ xác nhận".
+# ==========================================================
+class KiemThuXuLyDonNhanVien(DuLieuDatHang, TestCase):
+    def setUp(self):
+        super().setUp()
+        tai_khoan = TaiKhoan.objects.create(
+            ma_tk="TK_NV1", email="nv1@test.vn", vai_tro=TaiKhoan.VaiTro.EMPLOYEE
+        )
+        self.nv = NhanVien.objects.create(ma_nv="NV_T1", tai_khoan=tai_khoan, ho_ten="Nhân viên test")
+        self.don = self.dat()
+        self.dong_1, self.dong_2 = self.don.chi_tiet.order_by("ma_ctdh")
+        self.ngay_mai = timezone.now() + timedelta(days=1)
+
+    def kiem_tra(self, thieu_dong_1=0, thieu_dong_2=0):
+        return DichVuXuLyDon.kiem_tra_kha_nang_cung_ung(
+            self.don, self.nv, {self.dong_1.ma_ctdh: thieu_dong_1, self.dong_2.ma_ctdh: thieu_dong_2}
+        )
+
+    def trang_thai_csdl(self):
+        return DonHang.objects.get(pk=self.don.pk).trang_thai
+
+    def so_lich_su(self):
+        return LichSuTrangThaiDonHang.objects.filter(don_hang=self.don).count()
+
+    # ----- UC09 -----
+    def test_kiem_tra_du_hang_ghi_tung_dong_va_lich_su(self):
+        self.assertTrue(self.kiem_tra())
+        self.dong_1.refresh_from_db()
+        self.assertEqual(self.dong_1.ket_qua_kiem_tra, KetQuaKiemTra.DU)
+        dong_ls = LichSuTrangThaiDonHang.objects.filter(don_hang=self.don).order_by("-ma_lstt").first()
+        self.assertEqual(dong_ls.trang_thai_cu, dong_ls.trang_thai)  # giữ nguyên trạng thái
+        self.assertEqual(dong_ls.nhan_vien, self.nv)
+        self.assertIn("đủ hàng", dong_ls.ghi_chu)
+
+    def test_kiem_tra_thieu_mot_phan_so_luong(self):
+        # A1: thiếu 3 trên 10 cái vẫn tính là thiếu hàng
+        self.assertFalse(self.kiem_tra(thieu_dong_1=3))
+        self.dong_1.refresh_from_db()
+        self.assertEqual(self.dong_1.ket_qua_kiem_tra, KetQuaKiemTra.THIEU)
+        self.assertEqual(self.dong_1.so_luong_thieu, 3)
+
+    def test_kiem_tra_con_dong_chua_danh_dau(self):
+        # E1: chỉ gửi kết quả một dòng
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "Còn dòng hàng chưa được đánh dấu"):
+            DichVuXuLyDon.kiem_tra_kha_nang_cung_ung(self.don, self.nv, {self.dong_1.ma_ctdh: 0})
+        self.dong_1.refresh_from_db()
+        self.assertEqual(self.dong_1.ket_qua_kiem_tra, KetQuaKiemTra.CHUA_KIEM_TRA)
+        self.assertEqual(self.so_lich_su(), 1)
+
+    # ----- UC08 -----
+    def test_xac_nhan_don_cod_dung_o_da_xac_nhan(self):
+        self.kiem_tra()
+        DichVuXuLyDon.xac_nhan_don(self.don, self.nv)
+        don = DonHang.objects.get(pk=self.don.pk)
+        self.assertEqual(don.trang_thai, TrangThaiDonHang.DA_XAC_NHAN)
+        self.assertEqual(don.nhan_vien_xac_nhan, self.nv)
+        self.assertIsNotNone(don.thoi_diem_xac_nhan)
+        self.assertEqual(self.so_lich_su(), 3)  # đặt hàng + kiểm tra + xác nhận
+
+    def test_xac_nhan_don_chuyen_khoan_sang_cho_thanh_toan(self):
+        DonHang.objects.filter(pk=self.don.pk).update(
+            phuong_thuc_thanh_toan_id=PhuongThucThanhToan.MA_CHUYEN_KHOAN
+        )
+        self.don.refresh_from_db()
+        self.kiem_tra()
+        DichVuXuLyDon.xac_nhan_don(self.don, self.nv)
+        self.assertEqual(self.trang_thai_csdl(), TrangThaiDonHang.CHO_THANH_TOAN)
+        hai_dong_cuoi = LichSuTrangThaiDonHang.objects.filter(don_hang=self.don).order_by("-ma_lstt")[:2]
+        self.assertEqual(
+            [(d.trang_thai, d.tac_nhan) for d in hai_dong_cuoi],
+            [(TrangThaiDonHang.CHO_THANH_TOAN, TacNhan.HE_THONG),
+             (TrangThaiDonHang.DA_XAC_NHAN, TacNhan.NHAN_VIEN)],
+        )
+
+    def test_xac_nhan_khi_chua_kiem_tra_hoac_thieu_bi_tu_choi(self):
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "đủ hàng ở mọi dòng"):
+            DichVuXuLyDon.xac_nhan_don(self.don, self.nv)
+        self.kiem_tra(thieu_dong_2=1)
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "đủ hàng ở mọi dòng"):
+            DichVuXuLyDon.xac_nhan_don(self.don, self.nv)
+        self.assertEqual(self.trang_thai_csdl(), TrangThaiDonHang.CHO_XAC_NHAN)
+
+    def test_xac_nhan_khi_co_yeu_cau_huy_bi_tu_choi(self):
+        # E2 / BR19: M4 đã ghi CHO_HUY
+        self.kiem_tra()
+        DonHang.objects.filter(pk=self.don.pk).update(trang_thai_hau_mai=MA_HAU_MAI_CHO_HUY)
+        self.don.refresh_from_db()
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "yêu cầu hủy chờ xử lý"):
+            DichVuXuLyDon.xac_nhan_don(self.don, self.nv)
+        self.assertEqual(self.trang_thai_csdl(), TrangThaiDonHang.CHO_XAC_NHAN)
+
+    def test_loi_khi_luu_bao_loi_va_giu_nguyen(self):
+        # E4: lỗi CSDL giữa chừng -> báo câu tiếng Việt, đơn không đổi
+        self.kiem_tra()
+        with patch.object(DichVuTrangThai, "ghi_lich_su", side_effect=DatabaseError("giả lập")):
+            with self.assertRaisesMessage(LoiNghiepVuDonHang, "Không thể lưu thao tác"):
+                DichVuXuLyDon.xac_nhan_don(self.don, self.nv)
+        don = DonHang.objects.get(pk=self.don.pk)
+        self.assertEqual(don.trang_thai, TrangThaiDonHang.CHO_XAC_NHAN)
+        self.assertIsNone(don.nhan_vien_xac_nhan)
+
+    # ----- UC10 -----
+    def test_chuyen_cho_bo_sung_luu_buoc_truoc_va_hen(self):
+        self.kiem_tra(thieu_dong_1=3)
+        DichVuXuLyDon.chuyen_cho_bo_sung(self.don, self.nv, self.ngay_mai, "Chờ lô mới")
+        don = DonHang.objects.get(pk=self.don.pk)
+        self.assertEqual(don.trang_thai, TrangThaiDonHang.CHO_BO_SUNG)
+        self.assertEqual(don.trang_thai_truoc_cho_bo_sung, TrangThaiDonHang.CHO_XAC_NHAN)
+        self.assertEqual(don.thoi_diem_hen_cung_cap, self.ngay_mai)
+
+    def test_hen_o_qua_khu_bi_tu_choi(self):
+        # E1
+        self.kiem_tra(thieu_dong_1=3)
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "phải ở tương lai"):
+            DichVuXuLyDon.chuyen_cho_bo_sung(self.don, self.nv, timezone.now() - timedelta(hours=1))
+        self.assertEqual(self.trang_thai_csdl(), TrangThaiDonHang.CHO_XAC_NHAN)
+
+    def test_gia_han_doi_hen_giu_nguyen_trang_thai(self):
+        # A1
+        self.kiem_tra(thieu_dong_1=3)
+        DichVuXuLyDon.chuyen_cho_bo_sung(self.don, self.nv, self.ngay_mai)
+        hen_moi = self.ngay_mai + timedelta(days=1)
+        truoc = self.so_lich_su()
+        DichVuXuLyDon.gia_han_hen(self.don, self.nv, hen_moi)
+        don = DonHang.objects.get(pk=self.don.pk)
+        self.assertEqual(don.trang_thai, TrangThaiDonHang.CHO_BO_SUNG)
+        self.assertEqual(don.thoi_diem_hen_cung_cap, hen_moi)
+        self.assertEqual(self.so_lich_su(), truoc + 1)
+
+    def test_da_du_hang_quay_ve_dung_buoc_truoc(self):
+        for buoc_truoc in (TrangThaiDonHang.CHO_XAC_NHAN, TrangThaiDonHang.DANG_CHUAN_BI):
+            with self.subTest(buoc_truoc=buoc_truoc):
+                DonHang.objects.filter(pk=self.don.pk).update(trang_thai=buoc_truoc)
+                self.don.refresh_from_db()
+                self.kiem_tra(thieu_dong_1=3)
+                DichVuXuLyDon.chuyen_cho_bo_sung(self.don, self.nv, self.ngay_mai)
+                DichVuXuLyDon.da_du_hang(self.don, self.nv)
+
+                don = DonHang.objects.get(pk=self.don.pk)
+                self.assertEqual(don.trang_thai, buoc_truoc)
+                self.assertIsNone(don.trang_thai_truoc_cho_bo_sung)
+                self.dong_1.refresh_from_db()
+                self.assertEqual(self.dong_1.ket_qua_kiem_tra, KetQuaKiemTra.DU)
+                self.assertEqual(self.dong_1.so_luong_thieu, 0)
+
+        # Quay về Chờ xác nhận với mọi dòng đủ thì xác nhận được ngay
+        DonHang.objects.filter(pk=self.don.pk).update(trang_thai=TrangThaiDonHang.CHO_XAC_NHAN)
+        self.don.refresh_from_db()
+        DichVuXuLyDon.xac_nhan_don(self.don, self.nv)
+        self.assertEqual(self.trang_thai_csdl(), TrangThaiDonHang.DA_XAC_NHAN)
