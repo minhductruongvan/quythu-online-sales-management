@@ -666,3 +666,106 @@ class DichVuTrangThanhToan:
             PhuongThucThanhToan.objects.filter(dang_kich_hoat=True).order_by("ma_pttt")
         )
         return trang
+
+# ==========================================================
+# 9. MÁY TRẠNG THÁI ĐƠN HÀNG (M3-BR14, M3-BR15, M3-BR22) – giai đoạn 4B
+#    Bảng cạnh là nơi DUY NHẤT định nghĩa trạng thái nào được đi tới
+#    trạng thái nào. Mọi hàm xử lý đơn ở giai đoạn 4 (xác nhận, chuẩn bị,
+#    bàn giao, hủy...) đều đổi trạng thái qua DichVuTrangThai.chuyen_trang_thai.
+#    Bảng cạnh trả lời "có đường này không"; điều kiện riêng của từng
+#    thao tác (đã thanh toán chưa, có yêu cầu hủy không...) nằm ở hàm gọi.
+# ==========================================================
+T = TrangThaiDonHang
+
+CAC_CANH_HOP_LE = {
+    T.CHO_XAC_NHAN: {T.DA_XAC_NHAN, T.CHO_BO_SUNG, T.DA_HUY},
+    T.DA_XAC_NHAN: {T.CHO_THANH_TOAN, T.DANG_CHUAN_BI, T.DA_HUY},
+    T.CHO_THANH_TOAN: {T.DANG_CHUAN_BI, T.DA_HUY},
+    T.DANG_CHUAN_BI: {T.SAN_SANG_GIAO, T.CHO_BO_SUNG, T.DA_HUY},
+    T.CHO_BO_SUNG: {T.CHO_XAC_NHAN, T.DANG_CHUAN_BI, T.DA_HUY},
+    T.SAN_SANG_GIAO: {T.DANG_GIAO, T.DA_HUY},
+    T.DANG_GIAO: {T.GIAO_THANH_CONG, T.DA_HUY},
+    T.GIAO_THANH_CONG: {T.HOAN_THANH},
+    T.HOAN_THANH: set(),  # tập rỗng: trạng thái cuối, không đi đâu được nữa
+    T.DA_HUY: set(),
+}
+
+TRANG_THAI_CUOI = {T.HOAN_THANH, T.DA_HUY}
+
+
+def ten_trang_thai(ma):
+    """Đổi mã sang nhãn tiếng Việt; mã lạ thì trả nguyên mã (để câu báo lỗi không tự gây lỗi)."""
+    return dict(TrangThaiDonHang.choices).get(ma, ma)
+
+
+class DichVuTrangThai:
+
+    @staticmethod
+    def co_the_chuyen(trang_thai_cu, trang_thai_moi):
+        return trang_thai_moi in CAC_CANH_HOP_LE.get(trang_thai_cu, set())
+
+    @staticmethod
+    def ghi_lich_su(don, trang_thai_cu, trang_thai_moi, tac_nhan, nhan_vien=None, ghi_chu="", thoi_diem=None):
+        """Thêm một dòng lịch sử (M3-BR15). Lịch sử chỉ được thêm, không có hàm sửa hay xóa.
+
+        Gọi thẳng hàm này (không qua chuyen_trang_thai) chỉ khi thao tác không đổi
+        trạng thái nhưng tài liệu yêu cầu ghi lịch sử: kiểm tra hàng (UC09),
+        gia hạn hẹn (UC10-A1). Khi đó trang_thai_cu = trang_thai_moi.
+        """
+        return LichSuTrangThaiDonHang.objects.create(
+            ma_lstt=sinh_ma(LichSuTrangThaiDonHang),
+            don_hang=don,
+            trang_thai_cu=trang_thai_cu,
+            trang_thai=trang_thai_moi,
+            thoi_diem=thoi_diem or timezone.now(),
+            tac_nhan=tac_nhan,
+            nhan_vien=nhan_vien,
+            ghi_chu=ghi_chu or None,
+        )
+
+    @staticmethod
+    def chuyen_trang_thai(don, trang_thai_moi, tac_nhan, nhan_vien=None, ghi_chu="",
+                          thoi_diem=None, cap_nhat_them=None):
+        """Chuyển đơn sang trạng thái mới và ghi lịch sử trong cùng một transaction.
+
+        cap_nhat_them: dict các cột khác của đơn cần ghi cùng lúc, ví dụ
+        {"thoi_diem_xac_nhan": bay_gio}. Ghi chung một lệnh UPDATE với trạng thái
+        nên không có lúc nào đơn đổi trạng thái mà thiếu mốc thời gian.
+        """
+        trang_thai_cu = don.trang_thai
+
+        # BR22: Hoàn thành, Đã hủy là trạng thái cuối
+        if trang_thai_cu in TRANG_THAI_CUOI:
+            raise LoiNghiepVuDonHang(
+                f"Đơn hàng {don.ma_dh} đã ở trạng thái \"{ten_trang_thai(trang_thai_cu)}\", "
+                "không thể xử lý thêm."
+            )
+        # BR14: chỉ đi theo cạnh có trong bảng, không nhảy cóc
+        if not DichVuTrangThai.co_the_chuyen(trang_thai_cu, trang_thai_moi):
+            raise LoiNghiepVuDonHang(
+                f"Không thể chuyển đơn hàng từ \"{ten_trang_thai(trang_thai_cu)}\" "
+                f"sang \"{ten_trang_thai(trang_thai_moi)}\"."
+            )
+
+        thoi_diem = thoi_diem or timezone.now()
+        cac_cot = {"trang_thai": trang_thai_moi}
+        cac_cot.update(cap_nhat_them or {})
+
+        with transaction.atomic():
+            # Compare-and-set: chỉ cập nhật nếu trạng thái trong CSDL vẫn là trạng thái
+            # mình đã đọc. Hai nhân viên bấm cùng lúc thì người sau nhận 0 dòng (UC08 E1).
+            so_dong = DonHang.objects.filter(ma_dh=don.ma_dh, trang_thai=trang_thai_cu).update(**cac_cot)
+            if so_dong == 0:
+                raise LoiNghiepVuDonHang(
+                    "Đơn hàng vừa được người khác xử lý, vui lòng tải lại đơn."
+                )
+            DichVuTrangThai.ghi_lich_su(
+                don, trang_thai_cu, trang_thai_moi, tac_nhan,
+                nhan_vien=nhan_vien, ghi_chu=ghi_chu, thoi_diem=thoi_diem,
+            )
+
+        # .update() ghi thẳng xuống CSDL, không đụng tới đối tượng `don` trong bộ nhớ;
+        # gán lại để hàm gọi tiếp (ví dụ chuyển tiếp sang Chờ thanh toán) thấy giá trị mới
+        for ten_cot, gia_tri in cac_cot.items():
+            setattr(don, ten_cot, gia_tri)
+        return don

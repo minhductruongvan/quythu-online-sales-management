@@ -44,10 +44,13 @@ from .serializers import (
     ThemVaoGioSerializer,
 )
 from .services import (
+    CAC_CANH_HOP_LE,
+    TRANG_THAI_CUOI,
     DichVuDatHang,
     DichVuDiaChiGiaoHang,
     DichVuGioHang,
     DichVuTinhTien,
+    DichVuTrangThai,
     LoiNghiepVuDonHang,
     LoiQuyenDonHang,
     chuan_hoa_ten_tinh,
@@ -1055,3 +1058,129 @@ class KiemThuModelGiaoHang(DuLieuDatHang, TestCase):
                 with self.assertRaises(IntegrityError), transaction.atomic():
                     self.tao_giao("GH009", **thay_doi)
         self.assertEqual(GiaoHang.objects.count(), 0)
+
+# ==========================================================
+# 12. MÁY TRẠNG THÁI (giai đoạn 4B) – M3-BR14, BR15, BR22, UC08 E1
+#     Kiểm tra trên toàn bộ 10 x 10 cặp trạng thái: cạnh có trong bảng
+#     thì đi được và ghi đúng một dòng lịch sử; cặp nào không có thì bị
+#     từ chối và không để lại dấu vết.
+# ==========================================================
+class KiemThuMayTrangThai(DuLieuDatHang, TestCase):
+    def setUp(self):
+        super().setUp()
+        self.don = self.dat()  # đơn COD ở "Chờ xác nhận", đã có 1 dòng lịch sử
+
+    def dat_trang_thai(self, trang_thai):
+        """Đặt thẳng trạng thái trong CSDL (bỏ qua máy trạng thái) để dựng tình huống test."""
+        DonHang.objects.filter(pk=self.don.pk).update(trang_thai=trang_thai)
+        self.don.refresh_from_db()
+
+    def so_lich_su(self):
+        return LichSuTrangThaiDonHang.objects.filter(don_hang=self.don).count()
+
+    # ----- Bảng cạnh -----
+    def test_bang_canh_co_du_10_trang_thai(self):
+        # Thêm trạng thái mới vào models.py mà quên khai báo cạnh thì test này báo
+        self.assertEqual(set(CAC_CANH_HOP_LE), set(TrangThaiDonHang.values))
+        for dich in CAC_CANH_HOP_LE.values():
+            self.assertTrue(dich <= set(TrangThaiDonHang.values))
+
+    def test_trang_thai_cuoi_khong_co_canh_ra(self):
+        self.assertEqual(TRANG_THAI_CUOI, {TrangThaiDonHang.HOAN_THANH, TrangThaiDonHang.DA_HUY})
+        for trang_thai in TRANG_THAI_CUOI:
+            self.assertEqual(CAC_CANH_HOP_LE[trang_thai], set())
+
+    # ----- chuyen_trang_thai: cạnh hợp lệ -----
+    def test_moi_canh_hop_le_deu_di_duoc_va_ghi_lich_su(self):
+        for cu, cac_moi in CAC_CANH_HOP_LE.items():
+            for moi in cac_moi:
+                with self.subTest(canh=f"{cu} -> {moi}"):
+                    self.dat_trang_thai(cu)
+                    truoc = self.so_lich_su()
+                    DichVuTrangThai.chuyen_trang_thai(self.don, moi, TacNhan.HE_THONG)
+                    self.assertEqual(DonHang.objects.get(pk=self.don.pk).trang_thai, moi)
+                    self.assertEqual(self.so_lich_su(), truoc + 1)
+                    # Mỗi cạnh chỉ đi một lần trong vòng lặp nên đúng một dòng khớp
+                    self.assertTrue(LichSuTrangThaiDonHang.objects.filter(
+                        don_hang=self.don, trang_thai_cu=cu, trang_thai=moi
+                    ).exists())
+
+    # ----- chuyen_trang_thai: mọi cặp ngoài bảng bị từ chối -----
+    def test_moi_cap_ngoai_bang_bi_tu_choi(self):
+        for cu in TrangThaiDonHang.values:
+            for moi in TrangThaiDonHang.values:
+                if moi in CAC_CANH_HOP_LE[cu]:
+                    continue
+                with self.subTest(cap=f"{cu} -> {moi}"):
+                    self.dat_trang_thai(cu)
+                    truoc = self.so_lich_su()
+                    with self.assertRaises(LoiNghiepVuDonHang):
+                        DichVuTrangThai.chuyen_trang_thai(self.don, moi, TacNhan.HE_THONG)
+                    self.assertEqual(DonHang.objects.get(pk=self.don.pk).trang_thai, cu)
+                    self.assertEqual(self.so_lich_su(), truoc)
+
+    def test_cau_bao_nhay_coc_va_trang_thai_cuoi(self):
+        with self.assertRaisesMessage(
+            LoiNghiepVuDonHang, 'Không thể chuyển đơn hàng từ "Chờ xác nhận" sang "Hoàn thành".'
+        ):
+            DichVuTrangThai.chuyen_trang_thai(self.don, TrangThaiDonHang.HOAN_THANH, TacNhan.NHAN_VIEN)
+
+        self.dat_trang_thai(TrangThaiDonHang.DA_HUY)
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, 'đã ở trạng thái "Đã hủy"'):
+            DichVuTrangThai.chuyen_trang_thai(self.don, TrangThaiDonHang.CHO_XAC_NHAN, TacNhan.NHAN_VIEN)
+
+    # ----- Ghi lịch sử và cột đi kèm -----
+    def test_ghi_lich_su_day_du_va_cot_di_kem(self):
+        moc = timezone.now() - timedelta(minutes=5)
+        DichVuTrangThai.chuyen_trang_thai(
+            self.don, TrangThaiDonHang.DA_XAC_NHAN, TacNhan.NHAN_VIEN,
+            ghi_chu="Đủ hàng", thoi_diem=moc,
+            cap_nhat_them={"thoi_diem_xac_nhan": moc},
+        )
+        # Đối tượng trong bộ nhớ đã được gán lại
+        self.assertEqual(self.don.trang_thai, TrangThaiDonHang.DA_XAC_NHAN)
+        self.assertEqual(self.don.thoi_diem_xac_nhan, moc)
+        # CSDL cũng đúng
+        trong_csdl = DonHang.objects.get(pk=self.don.pk)
+        self.assertEqual(trong_csdl.thoi_diem_xac_nhan, moc)
+        dong = LichSuTrangThaiDonHang.objects.filter(
+            don_hang=self.don, trang_thai=TrangThaiDonHang.DA_XAC_NHAN
+        ).get()
+        self.assertEqual(dong.trang_thai_cu, TrangThaiDonHang.CHO_XAC_NHAN)
+        self.assertEqual(dong.tac_nhan, TacNhan.NHAN_VIEN)
+        self.assertEqual(dong.thoi_diem, moc)
+        self.assertEqual(dong.ghi_chu, "Đủ hàng")
+
+    def test_hai_buoc_lien_tiep_tren_cung_doi_tuong(self):
+        # Kiểu xác nhận đơn chuyển khoản ở bước 4C: hai lần chuyển liền nhau
+        DichVuTrangThai.chuyen_trang_thai(self.don, TrangThaiDonHang.DA_XAC_NHAN, TacNhan.NHAN_VIEN)
+        DichVuTrangThai.chuyen_trang_thai(self.don, TrangThaiDonHang.CHO_THANH_TOAN, TacNhan.HE_THONG)
+        self.assertEqual(DonHang.objects.get(pk=self.don.pk).trang_thai, TrangThaiDonHang.CHO_THANH_TOAN)
+        self.assertEqual(self.so_lich_su(), 3)  # đặt hàng + 2 lần chuyển
+
+    def test_dong_lich_su_giu_nguyen_trang_thai(self):
+        # UC09, UC10-A1: ghi lịch sử mà không đổi trạng thái
+        DichVuTrangThai.ghi_lich_su(
+            self.don, TrangThaiDonHang.CHO_XAC_NHAN, TrangThaiDonHang.CHO_XAC_NHAN,
+            TacNhan.NHAN_VIEN, ghi_chu="Kiểm tra hàng: đủ",
+        )
+        self.assertEqual(self.so_lich_su(), 2)
+        self.assertEqual(DonHang.objects.get(pk=self.don.pk).trang_thai, TrangThaiDonHang.CHO_XAC_NHAN)
+
+    # ----- Compare-and-set: hai người cùng thao tác (UC08 E1) -----
+    def test_nguoi_thu_hai_bi_tu_choi_khi_don_vua_doi(self):
+        ban_cua_a = DonHang.objects.get(pk=self.don.pk)
+        ban_cua_b = DonHang.objects.get(pk=self.don.pk)  # cả hai cùng đọc "Chờ xác nhận"
+        DichVuTrangThai.chuyen_trang_thai(ban_cua_a, TrangThaiDonHang.DA_XAC_NHAN, TacNhan.NHAN_VIEN)
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "vừa được người khác xử lý"):
+            DichVuTrangThai.chuyen_trang_thai(ban_cua_b, TrangThaiDonHang.CHO_BO_SUNG, TacNhan.NHAN_VIEN)
+        self.assertEqual(DonHang.objects.get(pk=self.don.pk).trang_thai, TrangThaiDonHang.DA_XAC_NHAN)
+        self.assertEqual(self.so_lich_su(), 2)
+
+    # ----- Transaction: lỗi khi ghi lịch sử thì trạng thái cũng hoàn tác -----
+    def test_loi_ghi_lich_su_hoan_tac_trang_thai(self):
+        with patch.object(DichVuTrangThai, "ghi_lich_su", side_effect=DatabaseError("giả lập")):
+            with self.assertRaises(DatabaseError):
+                DichVuTrangThai.chuyen_trang_thai(self.don, TrangThaiDonHang.DA_XAC_NHAN, TacNhan.NHAN_VIEN)
+        self.assertEqual(DonHang.objects.get(pk=self.don.pk).trang_thai, TrangThaiDonHang.CHO_XAC_NHAN)
+        self.assertEqual(self.so_lich_su(), 1)
