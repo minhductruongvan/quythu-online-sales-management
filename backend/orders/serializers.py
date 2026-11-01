@@ -9,14 +9,16 @@
 # Quy tắc NGHIỆP VỤ (số lượng > 0, biến thể còn bán, giá sỉ/lẻ...) vẫn nằm
 # trong services.py để test, API và giao diện HTML sau này dùng chung một chỗ.
 #
-# Phần 1 (file này): giỏ hàng – M3-UC01, M3-UC02.
-# Phần 2 (bước sau): trang thanh toán, đặt hàng – M3-UC03, M3-UC04.
+# Phần 1: giỏ hàng – M3-UC01, M3-UC02.
+# Phần 2: trang thanh toán, đặt hàng – M3-UC03, M3-UC04.
+# Phần 3: đơn hàng phía khách – M3-UC05, M3-UC06, cổng thanh toán giả lập (M3-UC11).
 
 from rest_framework import serializers
 
 from products.models import BienTheSanPham
 
-from .models import LoaiGia
+from .models import LoaiGia, TrangThaiDonHang
+from .services import DichVuTraCuuDon
 
 # Câu báo trùng với câu của DichVuGioHang.kiem_tra_so_luong (M3-BR03)
 LOI_SO_LUONG = "Số lượng phải là số nguyên lớn hơn 0."
@@ -213,3 +215,113 @@ class DonHangSerializer(serializers.Serializer):
     phi_van_chuyen = serializers.IntegerField()
     tong_thanh_toan = serializers.IntegerField()
     chi_tiet = ChiTietDonHangSerializer(many=True)  # don.chi_tiet.all()
+
+
+# ==========================================================
+# PHẦN 3: ĐƠN HÀNG PHÍA KHÁCH – M3-UC05, M3-UC06, cổng giả lập M3-UC11
+# ==========================================================
+
+# ---------- F. ĐẦU VÀO ----------
+class LocDonCuaToiSerializer(serializers.Serializer):
+    """
+    M3-UC05 bước 2. Đọc từ URL: /api/orders/?trang_thai=DANG_GIAO
+    Không gửi hoặc gửi rỗng -> lấy mọi trạng thái.
+    """
+
+    trang_thai = serializers.ChoiceField(
+        choices=TrangThaiDonHang.choices,
+        required=False,
+        allow_blank=True,
+        error_messages={"invalid_choice": "Trạng thái đơn hàng không hợp lệ."},
+    )
+
+
+class ThanhToanGiaLapSerializer(serializers.Serializer):
+    """
+    Cổng thanh toán giả lập. Trình duyệt gửi: {"ket_qua": "THANH_CONG"} hoặc {"ket_qua": "THAT_BAI"}
+    (THAT_BAI giả lập ngân hàng từ chối giao dịch).
+    """
+
+    ket_qua = serializers.ChoiceField(
+        choices=["THANH_CONG", "THAT_BAI"],
+        error_messages={
+            "required": "Vui lòng chọn kết quả thanh toán.",
+            "invalid_choice": "Kết quả thanh toán không hợp lệ.",
+        },
+    )
+
+
+# ---------- G. ĐẦU RA: chi tiết đơn của khách ----------
+# Trạng thái hậu mãi do M4 ghi vào DonHang.trang_thai_hau_mai (cột không có choices),
+# nên M3 tự giữ bảng mã -> nhãn để hiển thị (M3-BR23).
+NHAN_HAU_MAI = {
+    "CHO_HUY": "Chờ hủy",
+    "GIAO_KHONG_THANH_CONG": "Giao không thành công",
+    "CHO_GIAO_LAI": "Chờ giao lại",
+    "DANG_HOAN_VE_KHO": "Đang hoàn về kho",
+    "DA_HOAN_HANG": "Đã hoàn hàng",
+    "CHO_DOI_TRA": "Chờ đổi/trả",
+    "DA_DOI_TRA": "Đã đổi/trả",
+    "DA_HOAN_TIEN": "Đã hoàn tiền",
+}
+
+
+class LichSuTrangThaiSerializer(serializers.Serializer):
+    """Một dòng lịch sử (M3-BR15). trang_thai_cu = None ở dòng đầu tiên (lúc đặt hàng)."""
+
+    trang_thai_cu = serializers.CharField()
+    ten_trang_thai_cu = serializers.CharField(source="get_trang_thai_cu_display")
+    trang_thai = serializers.CharField()
+    ten_trang_thai = serializers.CharField(source="get_trang_thai_display")
+    thoi_diem = serializers.DateTimeField()
+    tac_nhan = serializers.CharField()
+    ten_tac_nhan = serializers.CharField(source="get_tac_nhan_display")
+    ghi_chu = serializers.CharField()
+
+
+class ThongTinChuyenKhoanSerializer(serializers.Serializer):
+    """Dict do DichVuTraCuuDon.thong_tin_chuyen_khoan trả về, để giao diện vẽ mã QR (BR17)."""
+
+    so_tien = serializers.IntegerField()
+    noi_dung = serializers.CharField()
+    tai_khoan = serializers.CharField()
+    han_thanh_toan = serializers.DateTimeField()
+
+
+class ChiTietDonKhachSerializer(DonHangSerializer):
+    """
+    M3-UC05 bước 3. Kế thừa DonHangSerializer nên có đủ các trường cũ
+    (M1, M4, M5 có thể đang dùng), rồi thêm phần khách cần để theo dõi đơn.
+    """
+
+    thoi_diem_hen_cung_cap = serializers.DateTimeField()        # BR13: đơn "Chờ bổ sung hàng"
+    thoi_diem_giao_thanh_cong = serializers.DateTimeField()
+    thoi_diem_xac_nhan_nhan_hang = serializers.DateTimeField()
+    trang_thai_hau_mai = serializers.CharField()                # BR23: trục thứ hai, do M4 ghi
+    ten_trang_thai_hau_mai = serializers.SerializerMethodField()
+    thong_tin_chuyen_khoan = serializers.SerializerMethodField()  # BR17: null nếu không cần QR
+    han_cua_so_doi_tra = serializers.SerializerMethodField()      # BR21: null thì ẩn [Đã nhận hàng]
+    lich_su_trang_thai = serializers.SerializerMethodField()
+
+    def get_ten_trang_thai_hau_mai(self, don):
+        if not don.trang_thai_hau_mai:
+            return None
+        return NHAN_HAU_MAI.get(don.trang_thai_hau_mai, don.trang_thai_hau_mai)
+
+    def get_thong_tin_chuyen_khoan(self, don):
+        thong_tin = DichVuTraCuuDon.thong_tin_chuyen_khoan(don)
+        if thong_tin is None:
+            return None
+        return ThongTinChuyenKhoanSerializer(thong_tin).data
+
+    def get_han_cua_so_doi_tra(self, don):
+        han = DichVuTraCuuDon.han_cua_so_doi_tra(don)
+        if han is None:
+            return None
+        return serializers.DateTimeField().to_representation(han)
+
+    def get_lich_su_trang_thai(self, don):
+        # Sắp thêm theo mã: hai dòng ghi trong cùng một lần xác nhận đơn chuyển khoản
+        # có cùng thời điểm, mã lịch sử giữ đúng thứ tự đã ghi.
+        cac_dong = don.lich_su_trang_thai.order_by("thoi_diem", "ma_lstt")
+        return LichSuTrangThaiSerializer(cac_dong, many=True).data

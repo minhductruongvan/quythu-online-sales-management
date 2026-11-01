@@ -1956,3 +1956,152 @@ class KiemThuTraCuuDon(DuLieuDatHang, TestCase):
         self.assertEqual(self.ma_cac_don(trang_1), [self.don_3.ma_dh, self.don_2.ma_dh])
         self.assertEqual(self.ma_cac_don(trang_2), [self.don_1.ma_dh])
         self.assertEqual(trang_sai.number, 2)  # vượt quá thì trả trang cuối
+
+
+# ==========================================================
+# 18. API ĐƠN HÀNG PHÍA KHÁCH (giai đoạn 4, bước 8A)
+#     M3-UC05 danh sách và chi tiết đơn, M3-UC06 đã nhận hàng,
+#     cổng thanh toán giả lập (M3-UC11). Gửi request thật qua APIClient.
+# ==========================================================
+class KiemThuApiDonHangKhach(DuLieuDatHang, TestCase):
+    def setUp(self):
+        super().setUp()
+        self.nv = tao_nhan_vien()
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.kh.tai_khoan)
+
+    def url_don(self, don, thao_tac=""):
+        return f"{URL_DON_HANG}{don.ma_dh}/{thao_tac}"
+
+    def xac_nhan(self, don):
+        """Nhân viên kiểm tra đủ hàng rồi xác nhận (đơn CK sang "Chờ thanh toán")."""
+        cac_dong = {ma: 0 for ma in don.chi_tiet.values_list("ma_ctdh", flat=True)}
+        DichVuXuLyDon.kiem_tra_kha_nang_cung_ung(don, self.nv, cac_dong)
+        DichVuXuLyDon.xac_nhan_don(don, self.nv)
+        return don
+
+    def giao_thanh_cong(self, don):
+        """Đơn COD đi qua chuẩn bị, bàn giao, giao thành công."""
+        self.xac_nhan(don)
+        DichVuGiaoHang.bat_dau_chuan_bi(don, self.nv)
+        DichVuGiaoHang.san_sang_giao(don, self.nv)
+        DichVuGiaoHang.ban_giao(don, self.nv, HinhThucGiao.SHIPPER, "Giao nhanh A")
+        DichVuKetThucDon.giao_thanh_cong(don, self.nv)
+        return don
+
+    # ----- Phân quyền và thứ tự URL -----
+    def test_chua_dang_nhap_va_nhan_vien_bi_403(self):
+        don = self.dat()
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.client.get(URL_DON_HANG).status_code, 403)
+        self.client.force_authenticate(user=self.nv.tai_khoan)
+        self.assertEqual(self.client.get(self.url_don(don)).status_code, 403)
+
+    def test_duong_dan_co_dinh_khong_bi_ma_dh_che(self):
+        # "cart/" và "checkout/" phải khớp trước "<str:ma_dh>/"
+        phan_hoi = self.client.get(URL_GIO)
+        self.assertEqual(phan_hoi.status_code, 200)
+        self.assertIn("cac_dong", phan_hoi.data["data"])
+        self.assertEqual(self.client.get(f"{URL_THANH_TOAN}?chon={self.d1.ma_ctgh}").status_code, 200)
+
+    # ----- M3-UC05: danh sách -----
+    def test_danh_sach_don_cua_toi_va_loc(self):
+        self.assertEqual(self.client.get(URL_DON_HANG).data["message"], "Bạn chưa có đơn hàng nào.")  # E1
+        don_1 = self.dat()
+        don_2 = DichVuDatHang.dat_hang(self.kh, [self.d3.ma_ctgh], "DC_D1", PhuongThucThanhToan.MA_COD)
+        khach_b = tao_khach_hang("KH_B", "b@test.vn")
+        tao_dia_chi("DC_B", khach_b)
+        dong = DichVuGioHang.them_vao_gio(khach_b, self.bt_le, 1)
+        DichVuDatHang.dat_hang(khach_b, [dong.ma_ctgh], "DC_B", PhuongThucThanhToan.MA_COD)
+
+        phan_hoi = self.client.get(URL_DON_HANG)
+        self.assertEqual(phan_hoi.status_code, 200)
+        self.assertEqual([don["ma_dh"] for don in phan_hoi.data["data"]], [don_2.ma_dh, don_1.ma_dh])
+
+        self.assertEqual(self.client.get(URL_DON_HANG + "?trang_thai=DA_HUY").data["data"], [])
+        self.assertEqual(self.client.get(URL_DON_HANG + "?trang_thai=ABC").status_code, 400)
+
+    # ----- M3-UC05: chi tiết -----
+    def test_chi_tiet_don_chuyen_khoan_co_qr_va_lich_su_dung_thu_tu(self):
+        don = self.xac_nhan(self.dat(ma_pttt=PhuongThucThanhToan.MA_CHUYEN_KHOAN))
+        phan_hoi = self.client.get(self.url_don(don))
+
+        self.assertEqual(phan_hoi.status_code, 200)
+        du_lieu = phan_hoi.data["data"]
+        self.assertEqual(du_lieu["trang_thai"], TrangThaiDonHang.CHO_THANH_TOAN)
+        self.assertEqual(du_lieu["thong_tin_chuyen_khoan"]["so_tien"], 495000)
+        self.assertEqual(du_lieu["thong_tin_chuyen_khoan"]["noi_dung"], don.ma_dh)
+        self.assertIsNone(du_lieu["han_cua_so_doi_tra"])
+        self.assertIsNone(du_lieu["trang_thai_hau_mai"])
+        # Hai dòng ghi cùng thời điểm lúc xác nhận vẫn đúng thứ tự
+        lich_su = du_lieu["lich_su_trang_thai"]
+        self.assertEqual(
+            [dong["trang_thai"] for dong in lich_su],
+            [T.CHO_XAC_NHAN, T.CHO_XAC_NHAN, T.DA_XAC_NHAN, T.CHO_THANH_TOAN],
+        )
+        self.assertIsNone(lich_su[0]["trang_thai_cu"])
+        self.assertEqual(lich_su[-1]["ten_tac_nhan"], "Hệ thống")
+
+        DonHang.objects.filter(pk=don.pk).update(trang_thai_hau_mai=MA_HAU_MAI_CHO_HUY)
+        self.assertEqual(self.client.get(self.url_don(don)).data["data"]["ten_trang_thai_hau_mai"], "Chờ hủy")
+
+    def test_chi_tiet_don_nguoi_khac_va_ma_la(self):
+        # E2
+        don = self.dat()
+        khach_b = tao_khach_hang("KH_B", "b@test.vn")
+        self.client.force_authenticate(user=khach_b.tai_khoan)
+        self.assertEqual(self.client.get(self.url_don(don)).status_code, 403)
+        phan_hoi = self.client.get(f"{URL_DON_HANG}DH999/")
+        self.assertEqual(phan_hoi.status_code, 400)
+        self.assertEqual(phan_hoi.data["message"], "Không tìm thấy đơn hàng DH999.")
+
+    # ----- Cổng thanh toán giả lập -----
+    def test_thanh_toan_gia_lap_that_bai_roi_thanh_cong(self):
+        don = self.xac_nhan(self.dat(ma_pttt=PhuongThucThanhToan.MA_CHUYEN_KHOAN))
+        url = self.url_don(don, "payment/")
+
+        phan_hoi = self.client.post(url, {"ket_qua": "THAT_BAI"}, format="json")
+        self.assertEqual(phan_hoi.status_code, 200)
+        self.assertEqual(phan_hoi.data["data"]["trang_thai_thanh_toan"], TrangThaiThanhToan.THAT_BAI)
+        self.assertIsNotNone(phan_hoi.data["data"]["thong_tin_chuyen_khoan"])  # vẫn hiện QR để thử lại
+
+        phan_hoi = self.client.post(url, {"ket_qua": "THANH_CONG"}, format="json")
+        self.assertEqual(phan_hoi.status_code, 200)
+        self.assertEqual(phan_hoi.data["data"]["trang_thai_thanh_toan"], TrangThaiThanhToan.DA_THANH_TOAN)
+        self.assertEqual(phan_hoi.data["data"]["trang_thai"], T.CHO_THANH_TOAN)  # chờ nhân viên bắt đầu chuẩn bị
+        self.assertIsNone(phan_hoi.data["data"]["thong_tin_chuyen_khoan"])
+
+        phan_hoi = self.client.post(url, {"ket_qua": "THANH_CONG"}, format="json")  # E3
+        self.assertEqual(phan_hoi.status_code, 400)
+        self.assertIn("đã được thanh toán", phan_hoi.data["message"])
+
+    def test_thanh_toan_ket_qua_sai_va_don_cod(self):
+        don = self.xac_nhan(self.dat())
+        url = self.url_don(don, "payment/")
+        phan_hoi = self.client.post(url, {"ket_qua": "abc"}, format="json")
+        self.assertEqual(phan_hoi.status_code, 400)
+        self.assertIn("ket_qua", phan_hoi.data["errors"])
+        phan_hoi = self.client.post(url, {"ket_qua": "THANH_CONG"}, format="json")
+        self.assertEqual(phan_hoi.status_code, 400)
+        self.assertIn("không thanh toán bằng chuyển khoản", phan_hoi.data["message"])
+
+    # ----- M3-UC06: đã nhận hàng -----
+    def test_da_nhan_hang_qua_api(self):
+        don = self.giao_thanh_cong(self.dat())
+        self.assertIsNotNone(self.client.get(self.url_don(don)).data["data"]["han_cua_so_doi_tra"])
+
+        khach_b = tao_khach_hang("KH_B", "b@test.vn")
+        self.client.force_authenticate(user=khach_b.tai_khoan)
+        self.assertEqual(self.client.post(self.url_don(don, "da-nhan-hang/")).status_code, 403)  # E3
+
+        self.client.force_authenticate(user=self.kh.tai_khoan)
+        phan_hoi = self.client.post(self.url_don(don, "da-nhan-hang/"))
+        self.assertEqual(phan_hoi.status_code, 200)
+        du_lieu = phan_hoi.data["data"]
+        self.assertIsNotNone(du_lieu["thoi_diem_xac_nhan_nhan_hang"])
+        self.assertIsNone(du_lieu["han_cua_so_doi_tra"])            # ẩn hai nút
+        self.assertEqual(du_lieu["trang_thai"], T.GIAO_THANH_CONG)  # COD chưa thu tiền
+
+        phan_hoi = self.client.post(self.url_don(don, "da-nhan-hang/"))  # E1
+        self.assertEqual(phan_hoi.status_code, 400)
+        self.assertEqual(phan_hoi.data["message"], "Đơn đã được xác nhận nhận hàng.")

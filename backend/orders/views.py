@@ -9,6 +9,7 @@
 #
 # Phần 1: giỏ hàng – M3-UC01, M3-UC02.
 # Phần 2: trang thanh toán, đặt hàng – M3-UC03, M3-UC04.
+# Phần 3: đơn hàng phía khách – M3-UC05, M3-UC06, cổng thanh toán giả lập (M3-UC11).
 
 from rest_framework import status
 from rest_framework.response import Response
@@ -18,16 +19,22 @@ from .models import PhuongThucThanhToan
 from .permissions import KhachHangCoHoSo
 from .serializers import (
     CapNhatSoLuongSerializer,
+    ChiTietDonKhachSerializer,
     DatHangSerializer,
     DonHangSerializer,
     GioHangSerializer,
+    LocDonCuaToiSerializer,
+    ThanhToanGiaLapSerializer,
     ThemVaoGioSerializer,
     TrangThanhToanSerializer,
 )
 from .services import (
     DichVuDatHang,
     DichVuGioHang,
+    DichVuKetThucDon,
+    DichVuThanhToan,
     DichVuTinhTien,
+    DichVuTraCuuDon,
     DichVuTrangThanhToan,
     LoiNghiepVuDonHang,
     LoiQuyenDonHang,
@@ -178,12 +185,31 @@ class TrangThanhToanView(APIView):
 class DonHangView(APIView):
     """
     URL: /api/orders/
+    GET  – danh sách đơn của tôi (UC05 bước 1–2), lọc: ?trang_thai=DANG_GIAO
     POST – đặt hàng (UC03 bước 3–4),
            body {"chon": ["CG001"], "ma_dia_chi": "DC001", "ma_pttt": "PT002"}
-    (Giai đoạn 4 thêm GET – danh sách đơn của tôi, UC05.)
     """
 
     permission_classes = [KhachHangCoHoSo]
+
+    def get(self, request):
+        khach_hang = request.user.khach_hang
+
+        serializer = LocDonCuaToiSerializer(data=request.query_params)
+        if not serializer.is_valid():
+            return phan_hoi_du_lieu_sai(serializer)
+
+        trang_thai = serializer.validated_data.get("trang_thai")
+        cac_don = DichVuTraCuuDon.danh_sach_don_cua_khach(khach_hang, trang_thai)
+        # UC05-E1: khách chưa có đơn nào thì vẫn 200, danh sách rỗng, kèm câu báo của UC
+        if not cac_don and not trang_thai:
+            message = "Bạn chưa có đơn hàng nào."
+        else:
+            message = "Lấy danh sách đơn hàng thành công."
+        return Response(
+            {"message": message, "data": DonHangSerializer(cac_don, many=True).data},
+            status=status.HTTP_200_OK,
+        )
 
     def post(self, request):
         khach_hang = request.user.khach_hang
@@ -209,3 +235,83 @@ class DonHangView(APIView):
             {"message": message, "data": DonHangSerializer(don).data},
             status=status.HTTP_201_CREATED,
         )
+
+
+# ==========================================================
+# ĐƠN HÀNG PHÍA KHÁCH – M3-UC05, M3-UC06, cổng giả lập M3-UC11
+# Mọi thao tác trên một đơn đều trả về NGUYÊN CHI TIẾT ĐƠN sau thay đổi
+# (cùng ý tưởng với giỏ hàng), để trang vẽ lại trạng thái, lịch sử, nút bấm.
+# ==========================================================
+def phan_hoi_chi_tiet_don(don, message):
+    don.refresh_from_db()  # đọc lại từ CSDL: service ghi bằng .update() nên đối tượng có thể cũ
+    return Response(
+        {"message": message, "data": ChiTietDonKhachSerializer(don).data},
+        status=status.HTTP_200_OK,
+    )
+
+
+class ChiTietDonView(APIView):
+    """
+    URL: /api/orders/<ma_dh>/
+    GET – chi tiết một đơn của tôi (UC05 bước 3). Đơn của người khác -> 403 (E2).
+    """
+
+    permission_classes = [KhachHangCoHoSo]
+
+    def get(self, request, ma_dh):
+        khach_hang = request.user.khach_hang
+
+        try:
+            don = DichVuTraCuuDon.chi_tiet_don_cua_khach(khach_hang, ma_dh)
+            return phan_hoi_chi_tiet_don(don, "Lấy chi tiết đơn hàng thành công.")
+        except LoiNghiepVuDonHang as loi:
+            return phan_hoi_loi_nghiep_vu(loi)
+
+
+class DaNhanHangView(APIView):
+    """
+    URL: /api/orders/<ma_dh>/da-nhan-hang/
+    POST – khách bấm [Đã nhận hàng] (UC06). Không cần body.
+    """
+
+    permission_classes = [KhachHangCoHoSo]
+
+    def post(self, request, ma_dh):
+        khach_hang = request.user.khach_hang
+
+        try:
+            don = DichVuTraCuuDon.lay_don(ma_dh)
+            DichVuKetThucDon.khach_xac_nhan_da_nhan(don, khach_hang)
+            return phan_hoi_chi_tiet_don(don, "Đã xác nhận nhận hàng.")
+        except LoiNghiepVuDonHang as loi:
+            return phan_hoi_loi_nghiep_vu(loi)
+
+
+class ThanhToanGiaLapView(APIView):
+    """
+    URL: /api/orders/<ma_dh>/payment/
+    POST – cổng thanh toán giả lập cho đơn chuyển khoản (UC11, thay việc nhân viên đối soát),
+           body {"ket_qua": "THANH_CONG"} hoặc {"ket_qua": "THAT_BAI"}
+    """
+
+    permission_classes = [KhachHangCoHoSo]
+
+    def post(self, request, ma_dh):
+        khach_hang = request.user.khach_hang
+
+        serializer = ThanhToanGiaLapSerializer(data=request.data)
+        if not serializer.is_valid():
+            return phan_hoi_du_lieu_sai(serializer)
+        thanh_cong = serializer.validated_data["ket_qua"] == "THANH_CONG"
+
+        try:
+            don = DichVuTraCuuDon.lay_don(ma_dh)
+            DichVuThanhToan.thanh_toan_gia_lap(don, khach_hang, thanh_cong)
+        except LoiNghiepVuDonHang as loi:
+            return phan_hoi_loi_nghiep_vu(loi)
+
+        if thanh_cong:
+            message = "Thanh toán thành công. Đơn hàng đang chờ chuẩn bị."
+        else:
+            message = "Thanh toán không thành công. Bạn có thể thử lại trước hạn thanh toán."
+        return phan_hoi_chi_tiet_don(don, message)
