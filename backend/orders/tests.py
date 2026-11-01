@@ -8,8 +8,10 @@
 
 from datetime import timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import patch
 
+from django.contrib.auth.models import AnonymousUser
 from django.db import DatabaseError
 from django.test import TestCase
 from django.utils import timezone
@@ -31,6 +33,7 @@ from .models import (
     TrangThaiDonHang,
     TrangThaiThanhToan,
 )
+from .permissions import KhachHangCoHoSo
 from .services import (
     DichVuDatHang,
     DichVuDiaChiGiaoHang,
@@ -608,3 +611,37 @@ class KiemThuDatHangNgoaiLe(DuLieuDatHang, TestCase):
         )
         self.assertEqual(GiaoDichThanhToan.objects.count(), 2)
         self.assertEqual(DichVuGioHang.dem_so_dong(self.kh), 0)
+
+
+# ==========================================================
+# Phần 7: phân quyền API phía khách hàng (orders/permissions.py)
+# Gọi thẳng has_permission, chưa cần view: request giả chỉ cần thuộc tính .user
+# ==========================================================
+class KiemThuPhanQuyen(TestCase):
+
+    def setUp(self):
+        self.quyen = KhachHangCoHoSo()
+        self.kh = tao_khach_hang("KH_PQ", "pq@test.vn")
+
+    def kiem_tra(self, nguoi_dung):
+        request_gia = SimpleNamespace(user=nguoi_dung)
+        return self.quyen.has_permission(request_gia, None)
+
+    def test_khach_co_ho_so_duoc_phep(self):
+        self.assertTrue(self.kiem_tra(self.kh.tai_khoan))
+
+    def test_chua_dang_nhap_bi_chan(self):
+        self.assertFalse(self.kiem_tra(AnonymousUser()))
+
+    def test_nhan_vien_bi_chan_du_co_ho_so_khach(self):
+        # Đổi vai trò tài khoản của khách thành nhân viên: vẫn còn hồ sơ KhachHang,
+        # nên chỉ bước kiểm tra vai trò (của M1) mới chặn được
+        tai_khoan = self.kh.tai_khoan
+        tai_khoan.vai_tro = TaiKhoan.VaiTro.EMPLOYEE
+        tai_khoan.save()
+        self.assertFalse(self.kiem_tra(tai_khoan))
+
+    def test_tai_khoan_khach_chua_co_ho_so_bi_chan(self):
+        tai_khoan = TaiKhoan.objects.create(ma_tk="TK_TRONG", email="trong@test.vn")
+        self.assertFalse(self.kiem_tra(tai_khoan))
+        self.assertEqual(self.quyen.message, "Tài khoản không có hồ sơ khách hàng.")
