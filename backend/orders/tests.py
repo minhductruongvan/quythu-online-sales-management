@@ -15,6 +15,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.db import DatabaseError
 from django.test import TestCase
 from django.utils import timezone
+from rest_framework.test import APIClient
 
 from customers.models import DiaChiKH, KhachHang, LoaiKhachHang, TaiKhoan
 from products.models import BienTheSanPham, DanhMucSanPham, SanPham
@@ -730,3 +731,125 @@ class KiemThuSerializerGioHang(TestCase):
         self.assertEqual(du_lieu["so_dong"], 0)
         self.assertEqual(du_lieu["cac_dong"], [])
         self.assertEqual(du_lieu["tam_tinh"], 0)
+
+# ==========================================================
+# Phần 9: API giỏ hàng (views.py, urls.py) – gọi như trình duyệt gọi
+# APIClient gửi request thật qua config/urls.py -> orders/urls.py -> view.
+# force_authenticate: coi như đã đăng nhập bằng tài khoản này (M1 cũng dùng).
+# ==========================================================
+URL_GIO = "/api/orders/cart/"
+
+
+class KiemThuApiGioHang(TestCase):
+
+    def setUp(self):
+        self.client = APIClient()
+        self.kh = tao_khach_hang("KH_API", "api@test.vn", ma_loai="LKH002")  # khách sỉ
+        danh_muc = DanhMucSanPham.objects.create(ma_dm="DM_A", ten_dm="Bánh test")
+        self.san_pham = SanPham.objects.create(
+            ma_sp="SP_A", danh_muc=danh_muc, ten_sp="Bánh dừa API"
+        )
+        self.bt = tao_bien_the("BT_A1", self.san_pham, gia_le=50000, gia_si=40000)  # mức sỉ 10
+        self.client.force_authenticate(user=self.kh.tai_khoan)
+
+    def them(self, ma_bien_the="BT_A1", so_luong=2):
+        return self.client.post(
+            URL_GIO, {"ma_bien_the": ma_bien_the, "so_luong": so_luong}, format="json"
+        )
+
+    def url_dong(self, ma_ctgh):
+        return f"{URL_GIO}{ma_ctgh}/"
+
+    # ---------- Phân quyền ----------
+    def test_chua_dang_nhap_bi_403(self):
+        self.client.force_authenticate(user=None)  # đăng xuất
+        self.assertEqual(self.client.get(URL_GIO).status_code, 403)
+
+    def test_khach_ngung_hoat_dong_bi_403(self):
+        # Sửa qua chính đối tượng self.kh rồi save(), không dùng .update():
+        # force_authenticate giữ đúng đối tượng tài khoản này, và
+        # tai_khoan.khach_hang trỏ tới self.kh đã nạp sẵn trong bộ nhớ
+        self.kh.trang_thai = KhachHang.TrangThai.INACTIVE
+        self.kh.save()
+        phan_hoi = self.client.get(URL_GIO)
+        self.assertEqual(phan_hoi.status_code, 403)
+        self.assertIn("ngừng hoạt động", phan_hoi.data["message"])
+
+    # ---------- UC01: thêm vào giỏ ----------
+    def test_them_thanh_cong_tra_ca_gio(self):
+        phan_hoi = self.them()
+        self.assertEqual(phan_hoi.status_code, 200)
+        self.assertEqual(phan_hoi.data["message"], "Đã thêm sản phẩm vào giỏ hàng.")
+        self.assertEqual(phan_hoi.data["data"]["so_dong"], 1)
+        self.assertEqual(phan_hoi.data["data"]["cac_dong"][0]["so_luong"], 2)
+
+    def test_them_lai_cong_don(self):
+        self.them(so_luong=2)
+        phan_hoi = self.them(so_luong=3)
+        self.assertEqual(phan_hoi.data["data"]["so_dong"], 1)
+        self.assertEqual(phan_hoi.data["data"]["cac_dong"][0]["so_luong"], 5)
+
+    def test_them_sai_dinh_dang_400_kem_loi_tung_truong(self):
+        phan_hoi = self.them(so_luong="abc")
+        self.assertEqual(phan_hoi.status_code, 400)
+        self.assertEqual(phan_hoi.data["message"], "Dữ liệu không hợp lệ.")
+        self.assertIn("so_luong", phan_hoi.data["errors"])
+        self.assertEqual(ChiTietGioHang.objects.count(), 0)
+
+    def test_them_bien_the_ngung_ban_400(self):
+        BienTheSanPham.objects.filter(ma_bien_the="BT_A1").update(trang_thai="INACTIVE")
+        phan_hoi = self.them()
+        self.assertEqual(phan_hoi.status_code, 400)
+        self.assertEqual(phan_hoi.data["message"], "Sản phẩm hiện không được bán.")
+
+    # ---------- UC02: xem, sửa, xóa ----------
+    def test_xem_gio_tinh_tam_tinh_theo_dong_chon(self):
+        ma_ctgh = self.them(so_luong=2).data["data"]["cac_dong"][0]["ma_ctgh"]
+
+        khong_chon = self.client.get(URL_GIO)
+        co_chon = self.client.get(f"{URL_GIO}?chon={ma_ctgh}")
+
+        self.assertEqual(khong_chon.data["data"]["tam_tinh"], 0)
+        self.assertEqual(co_chon.data["data"]["tam_tinh"], 100000)  # 2 x 50.000
+
+    def test_sua_so_luong_doi_sang_gia_si(self):
+        ma_ctgh = self.them(so_luong=2).data["data"]["cac_dong"][0]["ma_ctgh"]
+
+        phan_hoi = self.client.patch(
+            f"{self.url_dong(ma_ctgh)}?chon={ma_ctgh}", {"so_luong": 10}, format="json"
+        )
+
+        self.assertEqual(phan_hoi.status_code, 200)
+        dong = phan_hoi.data["data"]["cac_dong"][0]
+        self.assertEqual(dong["loai_gia"], "GIA_SI")
+        self.assertEqual(dong["don_gia"], 40000)
+        self.assertEqual(phan_hoi.data["data"]["tam_tinh"], 400000)
+
+    def test_sua_so_luong_0_bi_service_chan(self):
+        ma_ctgh = self.them(so_luong=2).data["data"]["cac_dong"][0]["ma_ctgh"]
+        phan_hoi = self.client.patch(self.url_dong(ma_ctgh), {"so_luong": 0}, format="json")
+        self.assertEqual(phan_hoi.status_code, 400)
+        self.assertEqual(phan_hoi.data["message"], "Số lượng phải là số nguyên lớn hơn 0.")
+
+    def test_sua_dong_cua_khach_khac_bi_403(self):
+        khach_khac = tao_khach_hang("KH_API2", "api2@test.vn")
+        dong_khac = DichVuGioHang.them_vao_gio(khach_khac, self.bt, 1)
+
+        phan_hoi = self.client.patch(
+            self.url_dong(dong_khac.ma_ctgh), {"so_luong": 9}, format="json"
+        )
+
+        self.assertEqual(phan_hoi.status_code, 403)
+        dong_khac.refresh_from_db()
+        self.assertEqual(dong_khac.so_luong, 1)  # giỏ của khách kia không bị đổi
+
+    def test_xoa_dong(self):
+        ma_ctgh = self.them().data["data"]["cac_dong"][0]["ma_ctgh"]
+        phan_hoi = self.client.delete(self.url_dong(ma_ctgh))
+        self.assertEqual(phan_hoi.status_code, 200)
+        self.assertEqual(phan_hoi.data["data"]["so_dong"], 0)
+
+    def test_xoa_ma_khong_ton_tai_400(self):
+        phan_hoi = self.client.delete(self.url_dong("CG999"))
+        self.assertEqual(phan_hoi.status_code, 400)
+        self.assertEqual(phan_hoi.data["message"], "Không tìm thấy dòng hàng trong giỏ.")
