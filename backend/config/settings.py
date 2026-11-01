@@ -42,7 +42,9 @@ INSTALLED_APPS = [
     'orders',
     'after_sales',
     'reports',
+    'rest_framework',
 ]
+AUTH_USER_MODEL = "customers.TaiKhoan"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
