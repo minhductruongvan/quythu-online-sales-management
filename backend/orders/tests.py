@@ -8,10 +8,12 @@
 
 from datetime import timedelta
 from decimal import Decimal
+from io import StringIO
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth.models import AnonymousUser
+from django.core.management import call_command
 from django.db import DatabaseError, IntegrityError, transaction
 from django.test import TestCase
 from django.utils import timezone
@@ -46,6 +48,7 @@ from .serializers import (
 )
 from .services import (
     CAC_CANH_HOP_LE,
+    CUA_SO_DOI_TRA,
     MA_HAU_MAI_CHO_DOI_TRA,
     MA_HAU_MAI_CHO_HUY,
     TRANG_THAI_CUOI,
@@ -53,6 +56,7 @@ from .services import (
     DichVuDiaChiGiaoHang,
     DichVuGiaoHang,
     DichVuGioHang,
+    DichVuKetThucDon,
     DichVuThanhToan,
     DichVuTinhTien,
     DichVuTrangThai,
@@ -1635,3 +1639,215 @@ class KiemThuChuanBiBanGiao(DuLieuDatHang, TestCase):
             DichVuGiaoHang.tao_lan_giao_lai(don, self.nv, KetQuaGiao.THAT_BAI, "Sai địa chỉ",
                                             HinhThucGiao.SHIPPER, "Giao nhanh A")
         self.assertEqual(GiaoHang.objects.filter(don_hang=don).count(), 3)
+
+
+# ==========================================================
+# 16. GIAO THÀNH CÔNG, NHẬN HÀNG, HỦY ĐƠN (giai đoạn 4F)
+#     M3-UC13, M3-UC06, BR21 (cửa sổ 7 ngày), BR22 (hoàn thành, hủy),
+#     tác vụ định kỳ và luồng trọn từ "Chờ xác nhận" đến "Hoàn thành".
+# ==========================================================
+T = TrangThaiDonHang
+
+
+class KiemThuKetThucDon(DuLieuDatHang, TestCase):
+    def setUp(self):
+        super().setUp()
+        self.nv = tao_nhan_vien()
+
+    def dat_don_thu_hai(self, ma_pttt=PhuongThucThanhToan.MA_COD):
+        """Đơn thứ hai chỉ gồm dòng d3 (dòng còn lại trong giỏ sau self.dat())."""
+        return DichVuDatHang.dat_hang(self.kh, [self.d3.ma_ctgh], "DC_D1", ma_pttt)
+
+    def dua_den_dang_giao(self, don):
+        """Đi đúng luồng qua các service: kiểm tra hàng → xác nhận → (CK: thanh toán)
+        → bắt đầu chuẩn bị → sẵn sàng giao → bàn giao."""
+        cac_dong = {ma: 0 for ma in don.chi_tiet.values_list("ma_ctdh", flat=True)}
+        DichVuXuLyDon.kiem_tra_kha_nang_cung_ung(don, self.nv, cac_dong)
+        DichVuXuLyDon.xac_nhan_don(don, self.nv)
+        if don.phuong_thuc_thanh_toan_id == PhuongThucThanhToan.MA_CHUYEN_KHOAN:
+            DichVuThanhToan.thanh_toan_gia_lap(don, self.kh, thanh_cong=True)
+        DichVuGiaoHang.bat_dau_chuan_bi(don, self.nv)
+        DichVuGiaoHang.san_sang_giao(don, self.nv)
+        return DichVuGiaoHang.ban_giao(don, self.nv, HinhThucGiao.SHIPPER, "Giao nhanh A")
+
+    def don_giao_thanh_cong(self, don, so_ngay_truoc=0):
+        """Đơn đã giao thành công; so_ngay_truoc > 0 thì lùi mốc giao về quá khứ."""
+        DichVuKetThucDon.giao_thanh_cong(self.dua_den_dang_giao(don), self.nv)
+        if so_ngay_truoc:
+            DonHang.objects.filter(pk=don.pk).update(
+                thoi_diem_giao_thanh_cong=timezone.now() - timedelta(days=so_ngay_truoc)
+            )
+        don.refresh_from_db()
+        return don
+
+    def cac_trang_thai_lich_su(self, don):
+        return list(
+            LichSuTrangThaiDonHang.objects.filter(don_hang=don).order_by("ma_lstt").values_list("trang_thai", flat=True)
+        )
+
+    # ----- Luồng trọn -----
+    def test_luong_tron_cod(self):
+        don = self.don_giao_thanh_cong(self.dat())
+        DichVuKetThucDon.khach_xac_nhan_da_nhan(don, self.kh)
+        # UC06 A2: COD chưa thu tiền thì đơn giữ "Giao thành công"
+        self.assertEqual(DonHang.objects.get(pk=don.pk).trang_thai, T.GIAO_THANH_CONG)
+
+        don.refresh_from_db()
+        DichVuThanhToan.ghi_nhan_thu_cod(don, self.nv, Decimal("495000"))
+        trong_csdl = DonHang.objects.get(pk=don.pk)
+        self.assertEqual(trong_csdl.trang_thai, T.HOAN_THANH)
+        self.assertEqual(
+            self.cac_trang_thai_lich_su(don),
+            [T.CHO_XAC_NHAN, T.CHO_XAC_NHAN, T.DA_XAC_NHAN, T.DANG_CHUAN_BI,
+             T.SAN_SANG_GIAO, T.DANG_GIAO, T.GIAO_THANH_CONG, T.HOAN_THANH],
+        )
+        for moc in ("thoi_diem_xac_nhan", "thoi_diem_bat_dau_chuan_bi", "thoi_diem_ban_giao",
+                    "thoi_diem_giao_thanh_cong", "thoi_diem_xac_nhan_nhan_hang", "thoi_diem_hoan_thanh"):
+            self.assertIsNotNone(getattr(trong_csdl, moc), moc)
+        self.assertFalse(trong_csdl.xac_nhan_tu_dong)
+
+    def test_luong_tron_chuyen_khoan(self):
+        don = self.don_giao_thanh_cong(self.dat(ma_pttt=PhuongThucThanhToan.MA_CHUYEN_KHOAN))
+        DichVuKetThucDon.khach_xac_nhan_da_nhan(don, self.kh)
+        # Đã thanh toán trước nên khách xác nhận là đơn hoàn thành ngay
+        self.assertEqual(DonHang.objects.get(pk=don.pk).trang_thai, T.HOAN_THANH)
+        self.assertEqual(
+            self.cac_trang_thai_lich_su(don),
+            [T.CHO_XAC_NHAN, T.CHO_XAC_NHAN, T.DA_XAC_NHAN, T.CHO_THANH_TOAN, T.DANG_CHUAN_BI,
+             T.SAN_SANG_GIAO, T.DANG_GIAO, T.GIAO_THANH_CONG, T.HOAN_THANH],
+        )
+
+    # ----- M3-UC13 -----
+    def test_giao_thanh_cong_ghi_moc_va_dong_lan_giao(self):
+        don = self.don_giao_thanh_cong(self.dat())
+        self.assertEqual(don.trang_thai, T.GIAO_THANH_CONG)
+        self.assertIsNotNone(don.thoi_diem_giao_thanh_cong)
+        self.assertIsNone(don.thoi_diem_xac_nhan_nhan_hang)  # cửa sổ đổi/trả đang mở
+        giao = GiaoHang.objects.get(don_hang=don)
+        self.assertEqual(giao.ket_qua_giao, KetQuaGiao.THANH_CONG)
+        self.assertEqual(giao.thoi_diem_giao_xong, don.thoi_diem_giao_thanh_cong)
+        self.assertEqual(giao.nhan_vien_xac_nhan, self.nv)
+
+    def test_giao_thanh_cong_sai_trang_thai(self):
+        # E1: chưa bàn giao thì chưa ghi nhận giao thành công được
+        don = self.dat()
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "Không thể ghi nhận giao thành công"):
+            DichVuKetThucDon.giao_thanh_cong(don, self.nv)
+
+    def test_thoi_diem_giao_o_tuong_lai(self):
+        # E2
+        don = self.dua_den_dang_giao(self.dat())
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "không được ở tương lai"):
+            DichVuKetThucDon.giao_thanh_cong(don, self.nv, timezone.now() + timedelta(hours=1))
+
+    def test_thoi_diem_giao_so_voi_lan_giao_hien_tai(self):
+        # E2: so với mốc bàn giao của LẦN GIAO HIỆN TẠI, không phải mốc lần đầu trên đơn
+        don = self.dua_den_dang_giao(self.dat())
+        GiaoHang.objects.filter(don_hang=don).update(thoi_diem_ban_giao=timezone.now() - timedelta(hours=3))
+        DichVuGiaoHang.tao_lan_giao_lai(don, self.nv, KetQuaGiao.THAT_BAI, "Vắng nhà",
+                                        HinhThucGiao.SHIPPER, "Giao nhanh A")
+        GiaoHang.objects.filter(don_hang=don, lan_giao=2).update(
+            thoi_diem_ban_giao=timezone.now() - timedelta(hours=1)
+        )
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "trước thời điểm bàn giao"):
+            DichVuKetThucDon.giao_thanh_cong(don, self.nv, timezone.now() - timedelta(hours=2))
+
+        thoi_diem = timezone.now() - timedelta(minutes=30)
+        DichVuKetThucDon.giao_thanh_cong(don, self.nv, thoi_diem)
+        self.assertEqual(DonHang.objects.get(pk=don.pk).thoi_diem_giao_thanh_cong, thoi_diem)
+        self.assertEqual(GiaoHang.objects.get(don_hang=don, lan_giao=2).ket_qua_giao, KetQuaGiao.THANH_CONG)
+
+    def test_loi_luu_giao_thanh_cong_hoan_tac(self):
+        # E4: đóng lần giao lỗi thì đơn vẫn "Đang giao"
+        don = self.dua_den_dang_giao(self.dat())
+        with patch.object(GiaoHang.objects, "filter", side_effect=DatabaseError("giả lập")):
+            with self.assertRaisesMessage(LoiNghiepVuDonHang, "Không thể lưu thao tác"):
+                DichVuKetThucDon.giao_thanh_cong(don, self.nv)
+        trong_csdl = DonHang.objects.get(pk=don.pk)
+        self.assertEqual(trong_csdl.trang_thai, T.DANG_GIAO)
+        self.assertIsNone(trong_csdl.thoi_diem_giao_thanh_cong)
+
+    # ----- M3-UC06 -----
+    def test_xac_nhan_hai_lan_bao_cua_so_da_dong(self):
+        # E1
+        don = self.don_giao_thanh_cong(self.dat())
+        DichVuKetThucDon.khach_xac_nhan_da_nhan(don, self.kh)
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "Đơn đã được xác nhận nhận hàng"):
+            DichVuKetThucDon.khach_xac_nhan_da_nhan(don, self.kh)
+
+    def test_khach_khac_khong_xac_nhan_duoc(self):
+        # E3
+        don = self.don_giao_thanh_cong(self.dat())
+        khach_khac = tao_khach_hang("KH_KHAC", "khac@test.vn")
+        with self.assertRaises(LoiQuyenDonHang):
+            DichVuKetThucDon.khach_xac_nhan_da_nhan(don, khach_khac)
+        self.assertIsNone(DonHang.objects.get(pk=don.pk).thoi_diem_xac_nhan_nhan_hang)
+
+    def test_xac_nhan_khi_da_het_cua_so(self):
+        # Hết 7 ngày mà tác vụ định kỳ chưa chạy: hệ thống tự xác nhận rồi báo E1
+        don = self.don_giao_thanh_cong(self.dat(ma_pttt=PhuongThucThanhToan.MA_CHUYEN_KHOAN), so_ngay_truoc=8)
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "Đơn đã được xác nhận nhận hàng"):
+            DichVuKetThucDon.khach_xac_nhan_da_nhan(don, self.kh)
+        trong_csdl = DonHang.objects.get(pk=don.pk)
+        self.assertTrue(trong_csdl.xac_nhan_tu_dong)
+        self.assertEqual(trong_csdl.trang_thai, T.HOAN_THANH)
+
+    # ----- Tự xác nhận sau 7 ngày (UC13 A2) -----
+    def test_tu_xac_nhan_sau_7_ngay(self):
+        qua_han = self.don_giao_thanh_cong(self.dat(ma_pttt=PhuongThucThanhToan.MA_CHUYEN_KHOAN), so_ngay_truoc=8)
+        con_han = self.don_giao_thanh_cong(self.dat_don_thu_hai(), so_ngay_truoc=6)
+
+        self.assertEqual(DichVuKetThucDon.tu_xac_nhan_nhan_hang(), 1)
+        qua_han.refresh_from_db()
+        self.assertEqual(qua_han.trang_thai, T.HOAN_THANH)
+        self.assertTrue(qua_han.xac_nhan_tu_dong)
+        self.assertEqual(qua_han.thoi_diem_xac_nhan_nhan_hang, qua_han.thoi_diem_giao_thanh_cong + CUA_SO_DOI_TRA)
+        self.assertIsNone(DonHang.objects.get(pk=con_han.pk).thoi_diem_xac_nhan_nhan_hang)
+        self.assertEqual(DichVuKetThucDon.tu_xac_nhan_nhan_hang(), 0)  # chạy lại không đổi kết quả
+
+    def test_tu_xac_nhan_doi_tra_dang_mo_chua_hoan_thanh(self):
+        don = self.don_giao_thanh_cong(self.dat(ma_pttt=PhuongThucThanhToan.MA_CHUYEN_KHOAN), so_ngay_truoc=8)
+        DonHang.objects.filter(pk=don.pk).update(trang_thai_hau_mai=MA_HAU_MAI_CHO_DOI_TRA)
+        DichVuKetThucDon.tu_xac_nhan_nhan_hang()
+        trong_csdl = DonHang.objects.get(pk=don.pk)
+        self.assertIsNotNone(trong_csdl.thoi_diem_xac_nhan_nhan_hang)  # cửa sổ vẫn đóng
+        self.assertEqual(trong_csdl.trang_thai, T.GIAO_THANH_CONG)    # chờ M4 xử lý xong
+
+    # ----- Hủy đơn cho M4 -----
+    def test_huy_don_dang_giao_dong_lan_giao(self):
+        don = self.dua_den_dang_giao(self.dat())
+        DichVuKetThucDon.huy_don(don, self.nv, "Khách từ chối nhận", KetQuaGiao.KHACH_TU_CHOI)
+        self.assertEqual(DonHang.objects.get(pk=don.pk).trang_thai, T.DA_HUY)
+        lich_su = LichSuTrangThaiDonHang.objects.filter(don_hang=don).order_by("-ma_lstt").first()
+        self.assertEqual((lich_su.trang_thai, lich_su.tac_nhan), (T.DA_HUY, TacNhan.NHAN_VIEN))
+        giao = GiaoHang.objects.get(don_hang=don)
+        self.assertEqual(giao.ket_qua_giao, KetQuaGiao.KHACH_TU_CHOI)
+        self.assertEqual(giao.ly_do_that_bai, "Khách từ chối nhận")
+
+    def test_huy_don_bi_chan_o_giao_thanh_cong_va_trang_thai_cuoi(self):
+        don = self.don_giao_thanh_cong(self.dat())
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "Không thể chuyển đơn hàng"):
+            DichVuKetThucDon.huy_don(don, self.nv, "Khách đổi ý")
+
+        don_moi = self.dat_don_thu_hai()
+        DichVuKetThucDon.huy_don(don_moi, ghi_chu="Khách hủy trước khi xác nhận")
+        self.assertEqual(LichSuTrangThaiDonHang.objects.filter(don_hang=don_moi).order_by("-ma_lstt")
+                         .first().tac_nhan, TacNhan.HE_THONG)
+        with self.assertRaisesMessage(LoiNghiepVuDonHang, "không thể xử lý thêm"):
+            DichVuKetThucDon.huy_don(don_moi, self.nv)
+
+    # ----- Lệnh quản trị -----
+    def test_lenh_xu_ly_don_dinh_ky(self):
+        don_ck = self.dat(ma_pttt=PhuongThucThanhToan.MA_CHUYEN_KHOAN)
+        cac_dong = {ma: 0 for ma in don_ck.chi_tiet.values_list("ma_ctdh", flat=True)}
+        DichVuXuLyDon.kiem_tra_kha_nang_cung_ung(don_ck, self.nv, cac_dong)
+        DichVuXuLyDon.xac_nhan_don(don_ck, self.nv)
+        DonHang.objects.filter(pk=don_ck.pk).update(thoi_diem_xac_nhan=timezone.now() - timedelta(hours=25))
+        don_cod = self.don_giao_thanh_cong(self.dat_don_thu_hai(), so_ngay_truoc=8)
+
+        dau_ra = StringIO()
+        call_command("xu_ly_don_dinh_ky", stdout=dau_ra)
+        self.assertIn("Đã hủy 1 đơn", dau_ra.getvalue())
+        self.assertIn("tự xác nhận nhận hàng 1 đơn", dau_ra.getvalue())
+        self.assertEqual(DonHang.objects.get(pk=don_ck.pk).trang_thai, T.DA_HUY)
+        self.assertEqual(DonHang.objects.get(pk=don_cod.pk).trang_thai, T.GIAO_THANH_CONG)  # COD chưa thu tiền
