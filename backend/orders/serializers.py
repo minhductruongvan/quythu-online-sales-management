@@ -471,3 +471,86 @@ class ChiTietDonNhanVienSerializer(ChiTietDonKhachSerializer):
     def get_goi_y_hinh_thuc_giao(self, don):
         ma = DichVuGiaoHang.goi_y_hinh_thuc_giao(don)
         return {"ma": ma, "ten": HinhThucGiao(ma).label}
+
+# ==========================================================
+# PHẦN 5: THAO TÁC CỦA NHÂN VIÊN TRÊN MỘT ĐƠN – M3-UC08 đến M3-UC13 (bước 8C)
+# Mỗi serializer chỉ kiểm tra ĐỊNH DẠNG body của một thao tác. Điều kiện nghiệp vụ
+# (đúng trạng thái, hẹn ở tương lai, đủ tiền, đã chọn hình thức giao...) do services.py báo.
+# ==========================================================
+LOI_THOI_DIEM = "Thời điểm không hợp lệ, nhập theo dạng YYYY-MM-DDTHH:MM."
+
+
+class GhiChuSerializer(serializers.Serializer):
+    """Body chỉ có ghi chú (không bắt buộc). Dùng cho: xac-nhan, da-du-hang,
+    bat-dau-chuan-bi, san-sang-giao; các serializer bên dưới kế thừa để có sẵn ghi_chu."""
+
+    ghi_chu = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class KiemTraHangSerializer(GhiChuSerializer):
+    """
+    M3-UC09. Body: {"ket_qua": {"CT001": 0, "CT002": 3}}
+    Mỗi mã dòng đơn kèm số lượng thiếu: 0 là đủ hàng, lớn hơn 0 là thiếu.
+    """
+
+    ket_qua = serializers.DictField(
+        child=serializers.IntegerField(
+            min_value=0,
+            error_messages={
+                "invalid": "Số lượng thiếu phải là số nguyên từ 0 trở lên.",
+                "min_value": "Số lượng thiếu phải là số nguyên từ 0 trở lên.",
+            },
+        ),
+        error_messages={
+            "required": "Vui lòng gửi kết quả kiểm tra từng dòng hàng.",
+            "not_a_dict": "Kết quả kiểm tra phải gồm các cặp mã dòng: số lượng thiếu.",
+        },
+    )
+
+
+class HenCungCapSerializer(GhiChuSerializer):
+    """M3-UC10 chuyển chờ bổ sung và gia hạn (A1). Body: {"thoi_diem_hen": "2026-11-03T09:00"}"""
+
+    thoi_diem_hen = serializers.DateTimeField(
+        error_messages={
+            "required": "Vui lòng nhập thời điểm hẹn cung cấp.",
+            "null": "Vui lòng nhập thời điểm hẹn cung cấp.",
+            "invalid": LOI_THOI_DIEM,
+        },
+    )
+
+
+class ThuCodSerializer(GhiChuSerializer):
+    """M3-UC11 thu tiền COD. Body: {"so_tien_thuc_nhan": 495000}"""
+
+    so_tien_thuc_nhan = serializers.IntegerField(
+        min_value=0,
+        error_messages={
+            "required": "Vui lòng nhập số tiền thực nhận.",
+            "null": "Vui lòng nhập số tiền thực nhận.",
+            "invalid": "Số tiền phải là số nguyên từ 0 trở lên.",
+            "min_value": "Số tiền phải là số nguyên từ 0 trở lên.",
+        },
+    )
+
+
+class BanGiaoSerializer(GhiChuSerializer):
+    """
+    M3-UC12 bàn giao. Body: {"hinh_thuc_giao": "SHIPPER", "don_vi_van_chuyen": "Giao nhanh A",
+                             "sdt_shipper": "0905111222", "ma_van_don": ""}
+    Không kiểm tra hình thức giao ở đây: thiếu hoặc sai thì service báo câu của UC12-E3.
+    """
+
+    hinh_thuc_giao = serializers.CharField(required=False, allow_blank=True, default="")
+    don_vi_van_chuyen = serializers.CharField(required=False, allow_blank=True, default="")
+    sdt_shipper = serializers.CharField(required=False, allow_blank=True, default="")
+    ma_van_don = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class GiaoThanhCongSerializer(GhiChuSerializer):
+    """M3-UC13. Body: {"thoi_diem_giao": "2026-11-05T15:30"}; không gửi hoặc null = thời điểm hiện tại."""
+
+    thoi_diem_giao = serializers.DateTimeField(
+        required=False, allow_null=True, default=None,
+        error_messages={"invalid": LOI_THOI_DIEM},
+    )

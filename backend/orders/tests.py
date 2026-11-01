@@ -2227,3 +2227,134 @@ class KiemThuApiTraCuuDon(DuLieuDatHang, TestCase):
         phan_hoi = self.client.get(f"{URL_NHAN_VIEN}DH999/")
         self.assertEqual(phan_hoi.status_code, 400)
         self.assertEqual(phan_hoi.data["message"], "Không tìm thấy đơn hàng DH999.")
+
+# ==========================================================
+# PHẦN 20 – API THAO TÁC CỦA NHÂN VIÊN (M3-UC08 đến M3-UC13, bước 8C)
+# Gọi POST /api/orders/staff/<ma_dh>/<thao_tac>/ như trình duyệt.
+# ==========================================================
+class KiemThuApiThaoTacNhanVien(DuLieuDatHang, TestCase):
+    def setUp(self):
+        super().setUp()
+        self.nv = tao_nhan_vien()
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.nv.tai_khoan)
+
+    def goi(self, don, thao_tac, du_lieu=None):
+        return self.client.post(f"{URL_NHAN_VIEN}{don.ma_dh}/{thao_tac}/", du_lieu or {}, format="json")
+
+    def ket_qua_du(self, don, ma_thieu=None, so_thieu=0):
+        """Body kiểm tra hàng: mọi dòng đủ, trừ dòng ma_thieu thiếu so_thieu."""
+        cac_ma = don.chi_tiet.order_by("ma_ctdh").values_list("ma_ctdh", flat=True)
+        return {"ket_qua": {ma: (so_thieu if ma == ma_thieu else 0) for ma in cac_ma}}
+
+    def den_san_sang_giao(self, don):
+        for thao_tac, du_lieu in [("kiem-tra-hang", self.ket_qua_du(don)), ("xac-nhan", None),
+                                  ("bat-dau-chuan-bi", None), ("san-sang-giao", None)]:
+            self.assertEqual(self.goi(don, thao_tac, du_lieu).status_code, 200, thao_tac)
+
+    # ----- Phân quyền, thao tác lạ -----
+    def test_khach_bi_403_va_thao_tac_la_404(self):
+        don = self.dat()
+        self.assertEqual(self.goi(don, "abc").status_code, 404)
+        self.assertEqual(self.goi(don, "abc").data["message"], "Thao tác không hợp lệ.")
+        self.client.force_authenticate(user=self.kh.tai_khoan)
+        self.assertEqual(self.goi(don, "xac-nhan").status_code, 403)
+
+    # ----- M3-UC09, M3-UC08 -----
+    def test_kiem_tra_hang_sai_dinh_dang_va_thieu_hang(self):
+        don = self.dat()
+        self.assertIn("ket_qua", self.goi(don, "kiem-tra-hang", {"ket_qua": [1, 2]}).data["errors"])
+        ma_dau = don.chi_tiet.order_by("ma_ctdh").first().ma_ctdh
+        self.assertEqual(self.goi(don, "kiem-tra-hang", self.ket_qua_du(don, ma_dau, -1)).status_code, 400)
+        phan_hoi = self.goi(don, "kiem-tra-hang", {"ket_qua": {ma_dau: 0}})  # E1: còn dòng chưa đánh dấu
+        self.assertEqual(phan_hoi.data["message"], "Còn dòng hàng chưa được đánh dấu, vui lòng hoàn tất kiểm tra.")
+
+        phan_hoi = self.goi(don, "kiem-tra-hang", self.ket_qua_du(don, ma_dau, 3))
+        self.assertEqual(phan_hoi.status_code, 200)
+        self.assertIn("thiếu hàng", phan_hoi.data["message"])
+        dong_dau = phan_hoi.data["data"]["chi_tiet"][0]
+        self.assertEqual((dong_dau["ket_qua_kiem_tra"], dong_dau["so_luong_thieu"]), (KetQuaKiemTra.THIEU, 3))
+        self.assertEqual(self.goi(don, "xac-nhan").status_code, 400)  # BR12: chưa đủ hàng
+
+    def test_xac_nhan_chuyen_khoan_sang_cho_thanh_toan(self):
+        don = self.dat(ma_pttt=PhuongThucThanhToan.MA_CHUYEN_KHOAN)
+        self.goi(don, "kiem-tra-hang", self.ket_qua_du(don))
+        phan_hoi = self.goi(don, "xac-nhan", {"ghi_chu": "Đã gọi khách"})
+        self.assertEqual(phan_hoi.status_code, 200)
+        self.assertEqual(phan_hoi.data["data"]["trang_thai"], T.CHO_THANH_TOAN)
+        self.assertEqual(phan_hoi.data["data"]["ten_nhan_vien_xac_nhan"], self.nv.ho_ten)
+        self.assertEqual(self.goi(don, "bat-dau-chuan-bi").status_code, 400)  # UC12-E1: chưa thanh toán
+
+    # ----- M3-UC10 -----
+    def test_xu_ly_thieu_hang(self):
+        don = self.dat()
+        ma_dau = don.chi_tiet.order_by("ma_ctdh").first().ma_ctdh
+        self.goi(don, "kiem-tra-hang", self.ket_qua_du(don, ma_dau, 2))
+
+        self.assertIn("thoi_diem_hen", self.goi(don, "cho-bo-sung").data["errors"])
+        qua_khu = (timezone.now() - timedelta(hours=1)).isoformat()
+        self.assertEqual(self.goi(don, "cho-bo-sung", {"thoi_diem_hen": qua_khu}).data["message"],
+                         "Thời điểm hẹn cung cấp phải ở tương lai.")  # E1
+
+        ngay_mai = (timezone.now() + timedelta(days=1)).isoformat()
+        phan_hoi = self.goi(don, "cho-bo-sung", {"thoi_diem_hen": ngay_mai})
+        self.assertEqual(phan_hoi.data["data"]["trang_thai"], T.CHO_BO_SUNG)
+        ngay_kia = (timezone.now() + timedelta(days=2)).isoformat()
+        self.assertEqual(self.goi(don, "gia-han", {"thoi_diem_hen": ngay_kia}).status_code, 200)
+        phan_hoi = self.goi(don, "da-du-hang")
+        self.assertEqual(phan_hoi.data["data"]["trang_thai"], T.CHO_XAC_NHAN)
+
+    # ----- M3-UC12 -----
+    def test_ban_giao_thieu_hinh_thuc_roi_xe_tai_noi_bo(self):
+        don = self.dat()
+        self.den_san_sang_giao(don)
+        phan_hoi = self.goi(don, "ban-giao")
+        self.assertEqual(phan_hoi.data["message"], "Vui lòng chọn hình thức giao trước khi bàn giao.")  # E3
+
+        phan_hoi = self.goi(don, "ban-giao", {"hinh_thuc_giao": HinhThucGiao.XE_TAI})
+        self.assertEqual(phan_hoi.status_code, 200)
+        self.assertEqual(phan_hoi.data["data"]["trang_thai"], T.DANG_GIAO)
+        self.assertEqual(phan_hoi.data["data"]["cac_lan_giao"][0]["don_vi_van_chuyen"], "Xe nội bộ Quý Thu")
+        self.assertEqual(self.goi(don, "san-sang-giao").status_code, 400)  # E4: sai thứ tự
+
+    # ----- M3-UC13, M3-UC11 -----
+    def test_giao_thanh_cong_va_thu_cod_sai_du_lieu(self):
+        don = self.dat()
+        self.den_san_sang_giao(don)
+        self.goi(don, "ban-giao", {"hinh_thuc_giao": HinhThucGiao.SHIPPER, "don_vi_van_chuyen": "Giao nhanh A"})
+        self.assertIn("thoi_diem_giao", self.goi(don, "giao-thanh-cong", {"thoi_diem_giao": "abc"}).data["errors"])
+        tuong_lai = (timezone.now() + timedelta(hours=1)).isoformat()
+        self.assertEqual(self.goi(don, "giao-thanh-cong", {"thoi_diem_giao": tuong_lai}).data["message"],
+                         "Thời điểm giao không được ở tương lai.")  # E2
+
+        phan_hoi = self.goi(don, "giao-thanh-cong")
+        self.assertEqual(phan_hoi.data["data"]["trang_thai"], T.GIAO_THANH_CONG)
+        self.assertIn("thu tiền COD", phan_hoi.data["message"])
+        self.assertIn("so_tien_thuc_nhan", self.goi(don, "thu-cod", {"so_tien_thuc_nhan": "abc"}).data["errors"])
+        self.assertEqual(self.goi(don, "thu-cod", {"so_tien_thuc_nhan": 100000}).status_code, 400)  # E2: thiếu
+
+    # ----- Luồng trọn COD hoàn toàn qua API -----
+    def test_luong_tron_cod_qua_api(self):
+        khach = APIClient()
+        khach.force_authenticate(user=self.kh.tai_khoan)
+        phan_hoi = khach.post(URL_DON_HANG, {"chon": [self.d1.ma_ctgh, self.d2.ma_ctgh], "ma_dia_chi": "DC_D1",
+                                              "ma_pttt": PhuongThucThanhToan.MA_COD}, format="json")
+        self.assertEqual(phan_hoi.status_code, 201)
+        don = DonHang.objects.get(ma_dh=phan_hoi.data["data"]["ma_dh"])
+
+        self.den_san_sang_giao(don)
+        self.assertEqual(self.goi(don, "ban-giao", {"hinh_thuc_giao": HinhThucGiao.SHIPPER,
+                                                    "don_vi_van_chuyen": "Giao nhanh A"}).status_code, 200)
+        self.assertEqual(self.goi(don, "giao-thanh-cong").status_code, 200)
+        self.assertEqual(khach.post(f"{URL_DON_HANG}{don.ma_dh}/da-nhan-hang/").status_code, 200)
+
+        phan_hoi = self.goi(don, "thu-cod", {"so_tien_thuc_nhan": 495000})
+        self.assertEqual(phan_hoi.data["message"], "Đã ghi nhận thu tiền COD. Đơn hàng đã hoàn thành.")
+        du_lieu = phan_hoi.data["data"]
+        self.assertEqual((du_lieu["trang_thai"], du_lieu["trang_thai_thanh_toan"]),
+                         (T.HOAN_THANH, TrangThaiThanhToan.DA_THANH_TOAN))
+        self.assertEqual(
+            [dong["trang_thai"] for dong in du_lieu["lich_su_trang_thai"]],
+            [T.CHO_XAC_NHAN, T.CHO_XAC_NHAN, T.DA_XAC_NHAN, T.DANG_CHUAN_BI,
+             T.SAN_SANG_GIAO, T.DANG_GIAO, T.GIAO_THANH_CONG, T.HOAN_THANH],
+        )

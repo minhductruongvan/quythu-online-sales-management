@@ -7,6 +7,7 @@
 #   /api/orders/checkout/               -> TrangThanhToanView  (GET trang thanh toán)
 #   /api/orders/staff/                  -> DanhSachDonNhanVienView (GET tra cứu đơn, nhân viên)
 #   /api/orders/staff/DH001/            -> ChiTietDonNhanVienView  (GET chi tiết đơn, nhân viên)
+#   /api/orders/staff/DH001/xac-nhan/   -> ThaoTacNhanVienView     (POST thao tác xử lý đơn, nhân viên)
 #   /api/orders/DH001/                  -> ChiTietDonView      (GET chi tiết đơn của tôi)
 #   /api/orders/DH001/da-nhan-hang/     -> DaNhanHangView      (POST đã nhận hàng)
 #   /api/orders/DH001/payment/          -> ThanhToanGiaLapView (POST cổng thanh toán giả lập)
@@ -26,6 +27,7 @@ from .views import (
     DonHangView,
     GioHangView,
     ThanhToanGiaLapView,
+    ThaoTacNhanVienView,
     TrangThanhToanView,
 )
 
@@ -41,6 +43,7 @@ urlpatterns = [
     # ----- Phía nhân viên (bước 8B) – đường dẫn cố định "staff/" nên đứng trên "<str:ma_dh>/" -----
     path("staff/", DanhSachDonNhanVienView.as_view(), name="nv-danh-sach-don"),
     path("staff/<str:ma_dh>/", ChiTietDonNhanVienView.as_view(), name="nv-chi-tiet-don"),
+    path("staff/<str:ma_dh>/<str:thao_tac>/", ThaoTacNhanVienView.as_view(), name="nv-thao-tac"),
     # ----- Đơn hàng phía khách (giai đoạn 4, bước 8A) – luôn để cuối danh sách -----
     path("<str:ma_dh>/", ChiTietDonView.as_view(), name="chi-tiet-don"),
     path("<str:ma_dh>/da-nhan-hang/", DaNhanHangView.as_view(), name="da-nhan-hang"),

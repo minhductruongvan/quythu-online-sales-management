@@ -13,34 +13,44 @@
 # Phần 4: phía nhân viên – M3-UC07 tra cứu và chi tiết đơn.
 #         View phía nhân viên lấy NHÂN VIÊN ở bước 1 (request.user.nhan_vien).
 
+from decimal import Decimal
+
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import PhuongThucThanhToan
+from .models import PhuongThucThanhToan, TrangThaiDonHang
 from .permissions import KhachHangCoHoSo, NhanVienCoHoSo
 from .serializers import (
+    BanGiaoSerializer,
     CapNhatSoLuongSerializer,
     ChiTietDonKhachSerializer,
     ChiTietDonNhanVienSerializer,
     DatHangSerializer,
     DonHangSerializer,
     DonNhanVienSerializer,
+    GhiChuSerializer,
+    GiaoThanhCongSerializer,
     GioHangSerializer,
+    HenCungCapSerializer,
+    KiemTraHangSerializer,
     LocDonCuaToiSerializer,
     ThanhToanGiaLapSerializer,
     ThemVaoGioSerializer,
+    ThuCodSerializer,
     TraCuuDonSerializer,
     TrangThanhToanSerializer,
 )
 from .services import (
     DichVuDatHang,
+    DichVuGiaoHang,
     DichVuGioHang,
     DichVuKetThucDon,
     DichVuThanhToan,
     DichVuTinhTien,
     DichVuTraCuuDon,
     DichVuTrangThanhToan,
+    DichVuXuLyDon,
     LoiNghiepVuDonHang,
     LoiQuyenDonHang,
 )
@@ -387,3 +397,124 @@ class ChiTietDonNhanVienView(APIView):
              "data": ChiTietDonNhanVienSerializer(don).data},
             status=status.HTTP_200_OK,
         )
+
+# ==========================================================
+# THAO TÁC CỦA NHÂN VIÊN TRÊN MỘT ĐƠN – M3-UC08 đến M3-UC13 (bước 8C)
+# URL: POST /api/orders/staff/<ma_dh>/<thao_tac>/   ví dụ .../staff/DH001/xac-nhan/
+# Mười thao tác dùng CHUNG một view. Bảng CAC_THAO_TAC cho biết mỗi thao tác
+# dùng serializer nào để đọc body và gọi hàm "nv_..." nào. Mỗi hàm "nv_..."
+# gọi đúng một hàm service rồi trả câu thông báo.
+# Sau thao tác luôn trả NGUYÊN CHI TIẾT ĐƠN phía nhân viên (giống phía khách).
+# ==========================================================
+def phan_hoi_chi_tiet_don_nv(don, message):
+    don.refresh_from_db()  # service ghi bằng .update() nên đọc lại cho chắc
+    return Response(
+        {"message": message, "data": ChiTietDonNhanVienSerializer(don).data},
+        status=status.HTTP_200_OK,
+    )
+
+
+def nv_kiem_tra_hang(don, nhan_vien, du_lieu):  # M3-UC09
+    du_hang = DichVuXuLyDon.kiem_tra_kha_nang_cung_ung(
+        don, nhan_vien, du_lieu["ket_qua"], du_lieu["ghi_chu"]
+    )
+    if du_hang:
+        return "Đã lưu kết quả kiểm tra: đủ hàng."
+    return "Đã lưu kết quả kiểm tra: thiếu hàng. Hãy chuyển đơn sang chờ bổ sung hàng."
+
+
+def nv_xac_nhan(don, nhan_vien, du_lieu):  # M3-UC08
+    DichVuXuLyDon.xac_nhan_don(don, nhan_vien, du_lieu["ghi_chu"])
+    if don.trang_thai == TrangThaiDonHang.CHO_THANH_TOAN:
+        return "Đã xác nhận đơn. Đơn chuyển khoản đang chờ khách thanh toán."
+    return "Đã xác nhận đơn. Đơn chờ bắt đầu chuẩn bị hàng."
+
+
+def nv_cho_bo_sung(don, nhan_vien, du_lieu):  # M3-UC10 bước 1–3
+    DichVuXuLyDon.chuyen_cho_bo_sung(don, nhan_vien, du_lieu["thoi_diem_hen"], du_lieu["ghi_chu"])
+    return "Đã chuyển đơn sang chờ bổ sung hàng."
+
+
+def nv_gia_han(don, nhan_vien, du_lieu):  # M3-UC10 A1
+    DichVuXuLyDon.gia_han_hen(don, nhan_vien, du_lieu["thoi_diem_hen"], du_lieu["ghi_chu"])
+    return "Đã gia hạn thời điểm hẹn cung cấp."
+
+
+def nv_da_du_hang(don, nhan_vien, du_lieu):  # M3-UC10 bước 4
+    DichVuXuLyDon.da_du_hang(don, nhan_vien, du_lieu["ghi_chu"])
+    return "Đã xác nhận đủ hàng. Đơn quay về bước trước khi chờ bổ sung."
+
+
+def nv_thu_cod(don, nhan_vien, du_lieu):  # M3-UC11 (COD)
+    so_tien = Decimal(du_lieu["so_tien_thuc_nhan"])  # tiền luôn dùng Decimal
+    DichVuThanhToan.ghi_nhan_thu_cod(don, nhan_vien, so_tien, du_lieu["ghi_chu"])
+    if don.trang_thai == TrangThaiDonHang.HOAN_THANH:
+        return "Đã ghi nhận thu tiền COD. Đơn hàng đã hoàn thành."
+    return "Đã ghi nhận thu tiền COD."
+
+
+def nv_bat_dau_chuan_bi(don, nhan_vien, du_lieu):  # M3-UC12 bước 1
+    DichVuGiaoHang.bat_dau_chuan_bi(don, nhan_vien, du_lieu["ghi_chu"])
+    return "Đã bắt đầu chuẩn bị hàng."
+
+
+def nv_san_sang_giao(don, nhan_vien, du_lieu):  # M3-UC12 bước 2
+    DichVuGiaoHang.san_sang_giao(don, nhan_vien, du_lieu["ghi_chu"])
+    return "Đơn đã sẵn sàng giao."
+
+
+def nv_ban_giao(don, nhan_vien, du_lieu):  # M3-UC12 bước 3–4
+    DichVuGiaoHang.ban_giao(
+        don, nhan_vien, du_lieu["hinh_thuc_giao"], du_lieu["don_vi_van_chuyen"],
+        du_lieu["sdt_shipper"], du_lieu["ma_van_don"], du_lieu["ghi_chu"],
+    )
+    return "Đã bàn giao vận chuyển. Đơn đang giao."
+
+
+def nv_giao_thanh_cong(don, nhan_vien, du_lieu):  # M3-UC13
+    DichVuKetThucDon.giao_thanh_cong(don, nhan_vien, du_lieu["thoi_diem_giao"], du_lieu["ghi_chu"])
+    if don.phuong_thuc_thanh_toan_id == PhuongThucThanhToan.MA_COD:
+        return "Đã ghi nhận giao thành công. Vui lòng ghi nhận thu tiền COD."  # UC13 bước 3
+    return "Đã ghi nhận giao thành công."
+
+
+# Tên thao tác trên URL -> (serializer đọc body, hàm thực hiện)
+CAC_THAO_TAC = {
+    "kiem-tra-hang": (KiemTraHangSerializer, nv_kiem_tra_hang),
+    "xac-nhan": (GhiChuSerializer, nv_xac_nhan),
+    "cho-bo-sung": (HenCungCapSerializer, nv_cho_bo_sung),
+    "gia-han": (HenCungCapSerializer, nv_gia_han),
+    "da-du-hang": (GhiChuSerializer, nv_da_du_hang),
+    "thu-cod": (ThuCodSerializer, nv_thu_cod),
+    "bat-dau-chuan-bi": (GhiChuSerializer, nv_bat_dau_chuan_bi),
+    "san-sang-giao": (GhiChuSerializer, nv_san_sang_giao),
+    "ban-giao": (BanGiaoSerializer, nv_ban_giao),
+    "giao-thanh-cong": (GiaoThanhCongSerializer, nv_giao_thanh_cong),
+}
+
+
+class ThaoTacNhanVienView(APIView):
+    """
+    URL: /api/orders/staff/<ma_dh>/<thao_tac>/
+    POST – một thao tác xử lý đơn của nhân viên (UC08–UC13), body JSON tùy thao tác.
+    Thao tác không có trong CAC_THAO_TAC -> 404.
+    """
+
+    permission_classes = [NhanVienCoHoSo]
+
+    def post(self, request, ma_dh, thao_tac):
+        nhan_vien = request.user.nhan_vien                              # 1. người thao tác
+        if thao_tac not in CAC_THAO_TAC:
+            return Response({"message": "Thao tác không hợp lệ."}, status=status.HTTP_404_NOT_FOUND)
+        lop_serializer, ham_thuc_hien = CAC_THAO_TAC[thao_tac]
+
+        serializer = lop_serializer(data=request.data)                  # 2. định dạng body
+        if not serializer.is_valid():
+            return phan_hoi_du_lieu_sai(serializer)
+
+        try:
+            don = DichVuTraCuuDon.lay_don(ma_dh)                        # 3. nghiệp vụ
+            message = ham_thuc_hien(don, nhan_vien, serializer.validated_data)
+        except LoiNghiepVuDonHang as loi:
+            return phan_hoi_loi_nghiep_vu(loi)
+        return phan_hoi_chi_tiet_don_nv(don, message)                   # 4. trả chi tiết đơn
