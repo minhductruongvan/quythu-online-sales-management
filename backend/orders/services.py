@@ -6,6 +6,16 @@
 #   5. Địa chỉ giao hàng (M3-UC04)
 #   6. Tính giá và tính tiền (M3-UC02 phần hiển thị, M3-UC03 bước 1)
 #   7. Đặt hàng (M3-UC03 bước 3–4)
+#   8. Trang thanh toán (M3-UC02 bước 3, M3-UC03 bước 1, M3-UC04)
+#   9. Máy trạng thái đơn hàng (M3-BR14, M3-BR15, M3-BR22)
+#  10. Xử lý đơn phía nhân viên: kiểm tra hàng (M3-UC09), xác nhận đơn
+#      (M3-UC08), xử lý thiếu hàng (M3-UC10)
+#  11. Thanh toán (M3-UC11): cổng giả lập chuyển khoản, thu tiền COD,
+#      hủy đơn quá hạn thanh toán, xét hoàn thành đơn (M3-BR22)
+#  12. Chuẩn bị và bàn giao hàng (M3-UC12), giao lại cho M4
+#  13. Giao thành công (M3-UC13), xác nhận đã nhận hàng (M3-UC06),
+#      tự xác nhận sau 7 ngày, hủy đơn cho M4, tác vụ định kỳ
+#  14. Theo dõi đơn của khách (M3-UC05), tra cứu đơn phía nhân viên (M3-UC07)
 #
 # Quy ước (theo M1 – customers/services.py):
 # - View không tự xử lý nghiệp vụ, chỉ gọi hàm ở file này.
@@ -13,9 +23,12 @@
 #   tiếng Việt; view bắt lỗi này và trả câu báo về cho người dùng.
 # - Mọi số tiền dùng Decimal, không dùng float.
 
+from datetime import timedelta
 from decimal import Decimal
 
+from django.core.paginator import Paginator
 from django.db import DatabaseError, transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from customers.models import DiaChiKH
@@ -25,7 +38,11 @@ from .models import (
     ChiTietGioHang,
     DonHang,
     GiaoDichThanhToan,
+    GiaoHang,
     GioHang,
+    HinhThucGiao,
+    KetQuaGiao,
+    KetQuaKiemTra,
     LichSuTrangThaiDonHang,
     LoaiGia,
     PhuongThucThanhToan,
@@ -60,6 +77,7 @@ TIEN_TO_MA = {
     ChiTietDonHang: "CT",
     LichSuTrangThaiDonHang: "LT",
     GiaoDichThanhToan: "GD",
+    GiaoHang: "GH",
 }
 
 
@@ -735,3 +753,690 @@ class DichVuTrangThai:
         for ten_cot, gia_tri in cac_cot.items():
             setattr(don, ten_cot, gia_tri)
         return don
+
+
+# ==========================================================
+# 10. XỬ LÝ ĐƠN PHÍA NHÂN VIÊN – giai đoạn 4C
+#     M3-UC09 kiểm tra khả năng cung ứng, M3-UC08 xác nhận đơn,
+#     M3-UC10 xử lý thiếu hàng (chờ bổ sung, gia hạn, đã đủ hàng).
+#     Quy tắc: M3-BR11, BR12, BR13, BR14, BR15, BR19.
+#     Mọi thao tác theo cùng một khuôn: kiểm tra điều kiện trước,
+#     rồi ghi trong transaction.atomic(); lỗi CSDL thì báo và giữ nguyên đơn.
+# ==========================================================
+GOI_Y_HEN_CUNG_CAP = timedelta(days=1)  # BR13: hẹn 1–2 ngày; giao diện đặt sẵn bây giờ + 1 ngày
+MA_HAU_MAI_CHO_HUY = "CHO_HUY"          # M4 ghi vào trang_thai_hau_mai khi khách gửi yêu cầu hủy
+CAU_LOI_LUU = "Không thể lưu thao tác, vui lòng thử lại."
+
+
+class DichVuXuLyDon:
+
+    # ----- Các bước kiểm tra dùng chung -----
+    @staticmethod
+    def kiem_tra_trang_thai(don, cac_trang_thai, thao_tac):
+        """Đơn phải đang ở một trong các trạng thái cho phép thao tác này."""
+        if don.trang_thai not in cac_trang_thai:
+            raise LoiNghiepVuDonHang(
+                f"Không thể {thao_tac} khi đơn hàng đang ở trạng thái \"{ten_trang_thai(don.trang_thai)}\"."
+            )
+
+    @staticmethod
+    def kiem_tra_khong_cho_huy(don):
+        """M3-BR19: đơn có yêu cầu hủy đang chờ M4 xử lý thì không xác nhận, chuẩn bị, bàn giao."""
+        if don.trang_thai_hau_mai == MA_HAU_MAI_CHO_HUY:
+            raise LoiNghiepVuDonHang("Đơn hàng đang có yêu cầu hủy chờ xử lý, không thể thực hiện thao tác này.")
+
+    @staticmethod
+    def kiem_tra_hen_tuong_lai(thoi_diem_hen):
+        """M3-UC10 E1: thời điểm hẹn cung cấp phải ở tương lai."""
+        if thoi_diem_hen <= timezone.now():
+            raise LoiNghiepVuDonHang("Thời điểm hẹn cung cấp phải ở tương lai.")
+
+    # ----- M3-UC09: kiểm tra khả năng cung ứng -----
+    @staticmethod
+    def kiem_tra_kha_nang_cung_ung(don, nhan_vien, ket_qua, ghi_chu=""):
+        """Ghi kết quả kiểm tra hàng thực tế cho từng dòng của đơn.
+
+        ket_qua: dict {ma_ctdh: so_luong_thieu}. 0 là đủ hàng; lớn hơn 0 là thiếu
+        (A1: thiếu một phần số lượng vẫn tính là thiếu). Trả về True nếu mọi dòng đủ.
+        """
+        DichVuXuLyDon.kiem_tra_trang_thai(
+            don, {T.CHO_XAC_NHAN, T.DANG_CHUAN_BI}, "kiểm tra khả năng cung ứng"
+        )
+        cac_ma_dong = set(don.chi_tiet.values_list("ma_ctdh", flat=True))
+        if set(ket_qua) - cac_ma_dong:
+            raise LoiNghiepVuDonHang(f"Có dòng hàng không thuộc đơn {don.ma_dh}.")
+        if cac_ma_dong - set(ket_qua):  # E1
+            raise LoiNghiepVuDonHang("Còn dòng hàng chưa được đánh dấu, vui lòng hoàn tất kiểm tra.")
+
+        so_dong_thieu = sum(1 for so_thieu in ket_qua.values() if so_thieu > 0)
+        ket_luan = "đủ hàng" if so_dong_thieu == 0 else f"thiếu hàng ở {so_dong_thieu} dòng"
+        try:
+            with transaction.atomic():
+                for ma_ctdh, so_thieu in ket_qua.items():
+                    ChiTietDonHang.objects.filter(ma_ctdh=ma_ctdh).update(
+                        ket_qua_kiem_tra=KetQuaKiemTra.THIEU if so_thieu > 0 else KetQuaKiemTra.DU,
+                        so_luong_thieu=so_thieu,
+                    )
+                # Dòng lịch sử giữ nguyên trạng thái: ghi người và thời điểm kiểm tra
+                DichVuTrangThai.ghi_lich_su(
+                    don, don.trang_thai, don.trang_thai, TacNhan.NHAN_VIEN,
+                    nhan_vien=nhan_vien, ghi_chu=f"Kiểm tra hàng: {ket_luan}. {ghi_chu}".strip(),
+                )
+        except DatabaseError as loi:  # E2 (kể cả số lượng thiếu lớn hơn số lượng đặt)
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        return so_dong_thieu == 0
+
+    # ----- M3-UC08: xác nhận đơn -----
+    @staticmethod
+    def xac_nhan_don(don, nhan_vien, ghi_chu=""):
+        DichVuXuLyDon.kiem_tra_trang_thai(don, {T.CHO_XAC_NHAN}, "xác nhận đơn")
+        DichVuXuLyDon.kiem_tra_khong_cho_huy(don)  # E2
+        # BR12: chỉ xác nhận sau khi đã kiểm tra và mọi dòng đều đủ hàng
+        if don.chi_tiet.exclude(ket_qua_kiem_tra=KetQuaKiemTra.DU).exists():
+            raise LoiNghiepVuDonHang("Chỉ xác nhận được đơn đã kiểm tra và đủ hàng ở mọi dòng.")
+
+        bay_gio = timezone.now()
+        try:
+            with transaction.atomic():
+                DichVuTrangThai.chuyen_trang_thai(
+                    don, T.DA_XAC_NHAN, TacNhan.NHAN_VIEN, nhan_vien=nhan_vien,
+                    ghi_chu=ghi_chu, thoi_diem=bay_gio,
+                    cap_nhat_them={"nhan_vien_xac_nhan": nhan_vien, "thoi_diem_xac_nhan": bay_gio},
+                )
+                # Chuyển khoản: hệ thống chuyển tiếp sang Chờ thanh toán trong cùng transaction.
+                # COD dừng ở Đã xác nhận, chờ nhân viên bấm [Bắt đầu chuẩn bị] (UC12).
+                if don.phuong_thuc_thanh_toan_id == PhuongThucThanhToan.MA_CHUYEN_KHOAN:
+                    DichVuTrangThai.chuyen_trang_thai(
+                        don, T.CHO_THANH_TOAN, TacNhan.HE_THONG,
+                        ghi_chu="Chờ khách thanh toán chuyển khoản.", thoi_diem=bay_gio,
+                    )
+        except DatabaseError as loi:  # E4
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        return don
+
+    # ----- M3-UC10: xử lý thiếu hàng -----
+    @staticmethod
+    def chuyen_cho_bo_sung(don, nhan_vien, thoi_diem_hen, ghi_chu=""):
+        DichVuXuLyDon.kiem_tra_trang_thai(
+            don, {T.CHO_XAC_NHAN, T.DANG_CHUAN_BI}, "chuyển chờ bổ sung hàng"
+        )  # E2
+        if not don.chi_tiet.filter(ket_qua_kiem_tra=KetQuaKiemTra.THIEU).exists():
+            raise LoiNghiepVuDonHang("Chỉ chuyển chờ bổ sung hàng khi kết quả kiểm tra có dòng thiếu hàng.")
+        DichVuXuLyDon.kiem_tra_hen_tuong_lai(thoi_diem_hen)  # E1
+
+        try:
+            # Lưu trạng thái hiện tại để [Đã đủ hàng] đưa đơn quay lại đúng bước
+            DichVuTrangThai.chuyen_trang_thai(
+                don, T.CHO_BO_SUNG, TacNhan.NHAN_VIEN, nhan_vien=nhan_vien, ghi_chu=ghi_chu,
+                cap_nhat_them={
+                    "thoi_diem_hen_cung_cap": thoi_diem_hen,
+                    "trang_thai_truoc_cho_bo_sung": don.trang_thai,
+                },
+            )
+        except DatabaseError as loi:  # E3
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        return don
+
+    @staticmethod
+    def gia_han_hen(don, nhan_vien, thoi_diem_hen_moi, ghi_chu=""):
+        """A1: đổi thời điểm hẹn, trạng thái giữ nguyên Chờ bổ sung hàng, ghi lịch sử."""
+        DichVuXuLyDon.kiem_tra_trang_thai(don, {T.CHO_BO_SUNG}, "gia hạn hẹn cung cấp")
+        DichVuXuLyDon.kiem_tra_hen_tuong_lai(thoi_diem_hen_moi)
+
+        hen_moi = timezone.localtime(thoi_diem_hen_moi).strftime("%d/%m/%Y %H:%M")
+        try:
+            with transaction.atomic():
+                DonHang.objects.filter(ma_dh=don.ma_dh).update(thoi_diem_hen_cung_cap=thoi_diem_hen_moi)
+                DichVuTrangThai.ghi_lich_su(
+                    don, T.CHO_BO_SUNG, T.CHO_BO_SUNG, TacNhan.NHAN_VIEN, nhan_vien=nhan_vien,
+                    ghi_chu=f"Gia hạn hẹn cung cấp đến {hen_moi}. {ghi_chu}".strip(),
+                )
+        except DatabaseError as loi:
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        don.thoi_diem_hen_cung_cap = thoi_diem_hen_moi
+        return don
+
+    @staticmethod
+    def da_du_hang(don, nhan_vien, ghi_chu=""):
+        """Bước 4: hàng đã về, đơn quay về trạng thái trước khi chờ bổ sung."""
+        DichVuXuLyDon.kiem_tra_trang_thai(don, {T.CHO_BO_SUNG}, "xác nhận đã đủ hàng")
+
+        try:
+            with transaction.atomic():
+                # Các dòng thiếu nay đã đủ, để bước sau (xác nhận, chuẩn bị) không bị chặn
+                don.chi_tiet.filter(ket_qua_kiem_tra=KetQuaKiemTra.THIEU).update(
+                    ket_qua_kiem_tra=KetQuaKiemTra.DU, so_luong_thieu=0
+                )
+                DichVuTrangThai.chuyen_trang_thai(
+                    don, don.trang_thai_truoc_cho_bo_sung, TacNhan.NHAN_VIEN,
+                    nhan_vien=nhan_vien, ghi_chu=ghi_chu or "Đã đủ hàng.",
+                    cap_nhat_them={"trang_thai_truoc_cho_bo_sung": None},
+                )
+        except DatabaseError as loi:  # E3
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        return don
+
+
+# ==========================================================
+# 11. THANH TOÁN – M3-UC11 (giai đoạn 4D)
+#     Chuyển khoản: khách trả qua cổng thanh toán giả lập (thay cho việc
+#     nhân viên đối soát). COD: nhân viên ghi nhận đã thu sau khi giao.
+#     Quy tắc: M3-BR16 (bản ghi thanh toán), BR17 (24 giờ), BR18 (COD), BR22.
+#     Thanh toán chỉ đổi trang_thai_thanh_toan, không đổi trạng thái xử lý
+#     của đơn; vì vậy không ghi lịch sử trạng thái (trừ khi đơn hoàn thành).
+# ==========================================================
+THOI_HAN_THANH_TOAN = timedelta(hours=24)  # BR17, tính từ thoi_diem_xac_nhan
+MA_HAU_MAI_CHO_DOI_TRA = "CHO_DOI_TRA"      # M4 ghi khi có yêu cầu đổi/trả đang mở
+CHUA_TRA_TIEN = [TrangThaiThanhToan.CHUA_THANH_TOAN, TrangThaiThanhToan.THAT_BAI]
+
+
+class DichVuThanhToan:
+
+    @staticmethod
+    def lay_giao_dich(don):
+        """Bản ghi thanh toán tạo lúc đặt hàng (BR16: mỗi đơn một bản ghi)."""
+        return don.giao_dich_thanh_toan.first()
+
+    @staticmethod
+    def kiem_tra_chua_thanh_toan(don):
+        """E3: đơn đã ghi nhận thanh toán thì không ghi trùng."""
+        if don.trang_thai_thanh_toan == TrangThaiThanhToan.DA_THANH_TOAN:
+            raise LoiNghiepVuDonHang(f"Đơn hàng {don.ma_dh} đã được thanh toán trước đó.")
+
+    @staticmethod
+    def ghi_da_thanh_toan(don, so_tien_thuc_nhan, thoi_diem, nhan_vien=None,
+                          ma_giao_dich_ngan_hang=None, ghi_chu=""):
+        """Ghi "Đã thanh toán" vào giao dịch gốc và vào đơn. Gọi bên trong transaction.atomic()."""
+        # Compare-and-set như máy trạng thái: hai yêu cầu cùng lúc thì yêu cầu sau nhận 0 dòng
+        so_dong = DonHang.objects.filter(
+            ma_dh=don.ma_dh, trang_thai_thanh_toan__in=CHUA_TRA_TIEN
+        ).update(trang_thai_thanh_toan=TrangThaiThanhToan.DA_THANH_TOAN)
+        if so_dong == 0:
+            raise LoiNghiepVuDonHang(f"Đơn hàng {don.ma_dh} đã được thanh toán trước đó.")
+        GiaoDichThanhToan.objects.filter(
+            ma_giao_dich=DichVuThanhToan.lay_giao_dich(don).ma_giao_dich
+        ).update(
+            trang_thai=TrangThaiThanhToan.DA_THANH_TOAN,
+            so_tien_thuc_nhan=so_tien_thuc_nhan,
+            thoi_diem_thanh_toan=thoi_diem,
+            nhan_vien_ghi_nhan=nhan_vien,
+            ma_giao_dich_ngan_hang=ma_giao_dich_ngan_hang,
+            ghi_chu=ghi_chu or None,
+        )
+        don.trang_thai_thanh_toan = TrangThaiThanhToan.DA_THANH_TOAN
+
+    # ----- Chuyển khoản qua cổng giả lập -----
+    @staticmethod
+    def thanh_toan_gia_lap(don, khach_hang, thanh_cong):
+        """Khách bấm thanh toán trên cổng giả lập; thanh_cong=False giả lập ngân hàng từ chối."""
+        if don.khach_hang_id != khach_hang.ma_kh:  # BR24
+            raise LoiQuyenDonHang("Bạn không có quyền thao tác trên đơn hàng này.")
+        if don.phuong_thuc_thanh_toan_id != PhuongThucThanhToan.MA_CHUYEN_KHOAN:
+            raise LoiNghiepVuDonHang("Đơn hàng này không thanh toán bằng chuyển khoản.")
+        DichVuThanhToan.kiem_tra_chua_thanh_toan(don)  # E3
+        DichVuXuLyDon.kiem_tra_trang_thai(don, {T.CHO_THANH_TOAN}, "thanh toán")  # E1
+        DichVuXuLyDon.kiem_tra_khong_cho_huy(don)
+        if don.thoi_diem_xac_nhan + THOI_HAN_THANH_TOAN <= timezone.now():  # A2
+            DichVuThanhToan.huy_don_qua_han_thanh_toan()
+            raise LoiNghiepVuDonHang(f"Đơn hàng {don.ma_dh} đã quá hạn thanh toán và bị hủy.")
+
+        bay_gio = timezone.now()
+        try:
+            with transaction.atomic():
+                if thanh_cong:
+                    DichVuThanhToan.ghi_da_thanh_toan(
+                        don, DichVuThanhToan.lay_giao_dich(don).so_tien_phai_thu, bay_gio,
+                        ma_giao_dich_ngan_hang=f"GL{bay_gio:%Y%m%d%H%M%S}{don.ma_dh}",
+                    )
+                else:
+                    # Giao dịch gốc giữ "Chưa thanh toán"; khách được thử lại trong hạn
+                    DonHang.objects.filter(ma_dh=don.ma_dh).update(
+                        trang_thai_thanh_toan=TrangThaiThanhToan.THAT_BAI
+                    )
+                    don.trang_thai_thanh_toan = TrangThaiThanhToan.THAT_BAI
+        except DatabaseError as loi:  # E4
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        return don
+
+    # ----- COD: nhân viên ghi nhận đã thu tiền -----
+    @staticmethod
+    def ghi_nhan_thu_cod(don, nhan_vien, so_tien_thuc_nhan, ghi_chu=""):
+        if don.phuong_thuc_thanh_toan_id != PhuongThucThanhToan.MA_COD:
+            raise LoiNghiepVuDonHang("Đơn hàng này không thanh toán khi nhận hàng (COD).")
+        DichVuThanhToan.kiem_tra_chua_thanh_toan(don)  # E3
+        DichVuXuLyDon.kiem_tra_trang_thai(don, {T.GIAO_THANH_CONG}, "ghi nhận thu tiền COD")  # E1, BR18
+
+        so_tien_phai_thu = DichVuThanhToan.lay_giao_dich(don).so_tien_phai_thu
+        if so_tien_thuc_nhan < so_tien_phai_thu:  # E2: nhận thiếu thì chưa ghi "Đã thanh toán"
+            raise LoiNghiepVuDonHang(
+                f"Số tiền thực nhận ít hơn số tiền phải thu ({so_tien_phai_thu} đ), "
+                "chưa thể ghi nhận đã thanh toán."
+            )
+        if so_tien_thuc_nhan > so_tien_phai_thu:  # E2: nhận thừa thì ghi chú để M4 hoàn phần thừa
+            ghi_chu = f"Nhận thừa {so_tien_thuc_nhan - so_tien_phai_thu} đ, chờ hoàn phần thừa. {ghi_chu}".strip()
+
+        try:
+            with transaction.atomic():
+                DichVuThanhToan.ghi_da_thanh_toan(
+                    don, so_tien_thuc_nhan, timezone.now(), nhan_vien=nhan_vien, ghi_chu=ghi_chu
+                )
+                DichVuThanhToan.xet_hoan_thanh(don)  # bước 3: đủ điều kiện thì "Hoàn thành"
+        except DatabaseError as loi:  # E4
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        return don
+
+    # ----- Hủy đơn chuyển khoản quá hạn (A2, tác vụ định kỳ) -----
+    @staticmethod
+    def huy_don_qua_han_thanh_toan():
+        """Hủy mọi đơn chuyển khoản ở "Chờ thanh toán" chưa trả tiền quá 24 giờ.
+
+        Chỉ lọc đơn chưa xử lý nên chạy lại nhiều lần không đổi kết quả. Trả về số đơn đã hủy.
+        """
+        bay_gio = timezone.now()
+        cac_don = DonHang.objects.filter(
+            phuong_thuc_thanh_toan_id=PhuongThucThanhToan.MA_CHUYEN_KHOAN,
+            trang_thai=T.CHO_THANH_TOAN,
+            trang_thai_thanh_toan__in=CHUA_TRA_TIEN,
+            thoi_diem_xac_nhan__lte=bay_gio - THOI_HAN_THANH_TOAN,
+        )
+        so_don = 0
+        for don in cac_don:
+            DichVuTrangThai.chuyen_trang_thai(
+                don, T.DA_HUY, TacNhan.HE_THONG,
+                ghi_chu="Quá hạn thanh toán 24 giờ, hệ thống tự hủy.", thoi_diem=bay_gio,
+            )
+            so_don += 1
+        return so_don
+
+    # ----- Xét hoàn thành đơn (M3-BR22) -----
+    @staticmethod
+    def xet_hoan_thanh(don):
+        """Chuyển "Hoàn thành" nếu đủ 3 điều kiện; trả về True nếu đã chuyển.
+
+        Được gọi sau mỗi sự kiện có thể làm đơn đủ điều kiện: thu tiền COD (UC11),
+        khách xác nhận đã nhận (UC06), hệ thống tự xác nhận sau 7 ngày, M4 đóng đổi/trả.
+        """
+        du_dieu_kien = (
+            don.trang_thai == T.GIAO_THANH_CONG
+            and don.thoi_diem_xac_nhan_nhan_hang is not None          # cửa sổ đổi/trả đã đóng
+            and don.trang_thai_hau_mai != MA_HAU_MAI_CHO_DOI_TRA       # không còn đổi/trả đang mở
+            and don.trang_thai_thanh_toan == TrangThaiThanhToan.DA_THANH_TOAN  # COD đã thu
+        )
+        if not du_dieu_kien:
+            return False
+        bay_gio = timezone.now()
+        DichVuTrangThai.chuyen_trang_thai(
+            don, T.HOAN_THANH, TacNhan.HE_THONG, ghi_chu="Đơn đủ điều kiện hoàn thành.",
+            thoi_diem=bay_gio, cap_nhat_them={"thoi_diem_hoan_thanh": bay_gio},
+        )
+        return True
+
+
+# ==========================================================
+# 12. CHUẨN BỊ VÀ BÀN GIAO HÀNG – M3-UC12 (giai đoạn 4E)
+#     Đã xác nhận / Chờ thanh toán → Đang chuẩn bị hàng → Sẵn sàng giao
+#     → Đang giao (tạo bản ghi GiaoHang lần 1). Giao lại do M4 yêu cầu
+#     tạo bản ghi giao mới trên cùng đơn, đơn vẫn "Đang giao".
+#     Quy tắc: M3-BR15 (mốc bắt đầu chuẩn bị ghi một lần), BR17, BR18,
+#     BR19 (chặn khi có yêu cầu hủy), BR20 (hình thức giao, lần giao).
+# ==========================================================
+DON_VI_XE_NOI_BO = "Xe nội bộ Quý Thu"
+
+
+class DichVuGiaoHang:
+
+    @staticmethod
+    def goi_y_hinh_thuc_giao(don):
+        """BR20: khách sỉ gợi ý xe tải, khách lẻ gợi ý shipper; nhân viên được đổi."""
+        if don.loai_khach_hang_ap_dung_id == MA_LOAI_KHACH_SI:
+            return HinhThucGiao.XE_TAI
+        return HinhThucGiao.SHIPPER
+
+    @staticmethod
+    def kiem_tra_thong_tin_giao(hinh_thuc_giao, don_vi_van_chuyen):
+        """E3: bắt buộc chọn hình thức giao. Trả về tên đơn vị vận chuyển sẽ lưu."""
+        if hinh_thuc_giao not in HinhThucGiao.values:
+            raise LoiNghiepVuDonHang("Vui lòng chọn hình thức giao trước khi bàn giao.")
+        if not don_vi_van_chuyen:
+            if hinh_thuc_giao != HinhThucGiao.XE_TAI:
+                raise LoiNghiepVuDonHang("Vui lòng nhập đơn vị vận chuyển.")
+            don_vi_van_chuyen = DON_VI_XE_NOI_BO
+        return don_vi_van_chuyen
+
+    # ----- Bước 1: bắt đầu chuẩn bị -----
+    @staticmethod
+    def bat_dau_chuan_bi(don, nhan_vien, ghi_chu=""):
+        DichVuXuLyDon.kiem_tra_trang_thai(don, {T.DA_XAC_NHAN, T.CHO_THANH_TOAN}, "bắt đầu chuẩn bị hàng")  # E4
+        if (don.phuong_thuc_thanh_toan_id == PhuongThucThanhToan.MA_CHUYEN_KHOAN
+                and don.trang_thai_thanh_toan != TrangThaiThanhToan.DA_THANH_TOAN):  # E1, BR17
+            raise LoiNghiepVuDonHang("Đơn chuyển khoản chưa được thanh toán, chưa thể bắt đầu chuẩn bị hàng.")
+        DichVuXuLyDon.kiem_tra_khong_cho_huy(don)  # E2, BR19
+
+        cap_nhat = {}
+        if don.thoi_diem_bat_dau_chuan_bi is None:  # BR15: mốc này chỉ ghi một lần
+            cap_nhat["thoi_diem_bat_dau_chuan_bi"] = timezone.now()
+        try:
+            DichVuTrangThai.chuyen_trang_thai(
+                don, T.DANG_CHUAN_BI, TacNhan.NHAN_VIEN, nhan_vien=nhan_vien,
+                ghi_chu=ghi_chu, cap_nhat_them=cap_nhat,
+            )
+        except DatabaseError as loi:
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        return don
+
+    # ----- Bước 2: sẵn sàng giao -----
+    @staticmethod
+    def san_sang_giao(don, nhan_vien, ghi_chu=""):
+        DichVuXuLyDon.kiem_tra_trang_thai(don, {T.DANG_CHUAN_BI}, "chuyển sẵn sàng giao")  # E4
+        try:
+            DichVuTrangThai.chuyen_trang_thai(don, T.SAN_SANG_GIAO, TacNhan.NHAN_VIEN,
+                                              nhan_vien=nhan_vien, ghi_chu=ghi_chu)
+        except DatabaseError as loi:
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        return don
+
+    # ----- Bước 3–4: bàn giao vận chuyển -----
+    @staticmethod
+    def ban_giao(don, nhan_vien, hinh_thuc_giao, don_vi_van_chuyen="", sdt_shipper="",
+                 ma_van_don="", ghi_chu=""):
+        DichVuXuLyDon.kiem_tra_trang_thai(don, {T.SAN_SANG_GIAO}, "bàn giao vận chuyển")  # E4
+        DichVuXuLyDon.kiem_tra_khong_cho_huy(don)  # E2, BR19
+        don_vi_van_chuyen = DichVuGiaoHang.kiem_tra_thong_tin_giao(hinh_thuc_giao, don_vi_van_chuyen)  # E3
+
+        bay_gio = timezone.now()
+        try:
+            with transaction.atomic():
+                DichVuTrangThai.chuyen_trang_thai(
+                    don, T.DANG_GIAO, TacNhan.NHAN_VIEN, nhan_vien=nhan_vien, ghi_chu=ghi_chu,
+                    thoi_diem=bay_gio, cap_nhat_them={"thoi_diem_ban_giao": bay_gio},
+                )
+                GiaoHang.objects.create(
+                    ma_giao_hang=sinh_ma(GiaoHang),
+                    don_hang=don,
+                    lan_giao=1,
+                    hinh_thuc_giao=hinh_thuc_giao,
+                    don_vi_van_chuyen=don_vi_van_chuyen,
+                    sdt_shipper=sdt_shipper or None,
+                    ma_van_don=ma_van_don or None,
+                    thoi_diem_ban_giao=bay_gio,
+                )
+        except DatabaseError as loi:  # E5
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        return don
+
+    @staticmethod
+    def lay_lan_giao_hien_tai(don):
+        """Bản ghi giao có số lần giao lớn nhất của đơn."""
+        return don.giao_hang.order_by("-lan_giao").first()
+
+    # ----- A2: giao lại theo yêu cầu của M4 -----
+    @staticmethod
+    def tao_lan_giao_lai(don, nhan_vien, ket_qua_lan_truoc, ly_do, hinh_thuc_giao,
+                         don_vi_van_chuyen="", sdt_shipper="", ma_van_don=""):
+        """M4 gọi hàm này khi quyết định giao lại.
+
+        Đóng lần giao hiện tại với kết quả THAT_BAI hoặc KHACH_TU_CHOI kèm lý do,
+        rồi tạo lần giao mới. Đơn giữ "Đang giao", số lần giao lại tăng 1 (tối đa 2).
+        """
+        DichVuXuLyDon.kiem_tra_trang_thai(don, {T.DANG_GIAO}, "tạo lần giao lại")
+        if ket_qua_lan_truoc not in (KetQuaGiao.THAT_BAI, KetQuaGiao.KHACH_TU_CHOI):
+            raise LoiNghiepVuDonHang("Kết quả lần giao trước phải là thất bại hoặc khách từ chối nhận.")
+        if don.so_lan_giao_lai >= GiaoHang.SO_LAN_GIAO_TOI_DA - 1:
+            raise LoiNghiepVuDonHang(f"Đơn hàng {don.ma_dh} đã giao lại tối đa {GiaoHang.SO_LAN_GIAO_TOI_DA - 1} lần.")
+        don_vi_van_chuyen = DichVuGiaoHang.kiem_tra_thong_tin_giao(hinh_thuc_giao, don_vi_van_chuyen)
+
+        lan_hien_tai = DichVuGiaoHang.lay_lan_giao_hien_tai(don)
+        bay_gio = timezone.now()
+        try:
+            with transaction.atomic():
+                GiaoHang.objects.filter(ma_giao_hang=lan_hien_tai.ma_giao_hang).update(
+                    ket_qua_giao=ket_qua_lan_truoc,
+                    ly_do_that_bai=ly_do or None,
+                    thoi_diem_giao_xong=bay_gio,
+                    nhan_vien_xac_nhan=nhan_vien,
+                )
+                GiaoHang.objects.create(
+                    ma_giao_hang=sinh_ma(GiaoHang),
+                    don_hang=don,
+                    lan_giao=lan_hien_tai.lan_giao + 1,
+                    hinh_thuc_giao=hinh_thuc_giao,
+                    don_vi_van_chuyen=don_vi_van_chuyen,
+                    sdt_shipper=sdt_shipper or None,
+                    ma_van_don=ma_van_don or None,
+                    thoi_diem_ban_giao=bay_gio,
+                )
+                # Mốc bàn giao trên đơn giữ lần đầu (BR19: M4 dựa vào mốc này để xét hủy)
+                DonHang.objects.filter(ma_dh=don.ma_dh).update(so_lan_giao_lai=don.so_lan_giao_lai + 1)
+        except DatabaseError as loi:
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        don.so_lan_giao_lai += 1
+        return don
+
+
+# ==========================================================
+# 13. GIAO THÀNH CÔNG, NHẬN HÀNG, HỦY ĐƠN – giai đoạn 4F
+#     M3-UC13 ghi nhận giao thành công (mở cửa sổ đổi/trả 7 ngày),
+#     M3-UC06 khách xác nhận đã nhận hàng (đóng cửa sổ), hệ thống tự xác
+#     nhận khi hết 7 ngày, hàm hủy đơn để M4 gọi, và tác vụ định kỳ.
+#     Quy tắc: M3-BR14, BR15, BR20, BR21 (cửa sổ 7 ngày), BR22, BR24.
+#     Cửa sổ đổi/trả "đóng" khi thoi_diem_xac_nhan_nhan_hang khác null.
+# ==========================================================
+CUA_SO_DOI_TRA = timedelta(days=7)  # BR21, tính từ thoi_diem_giao_thanh_cong
+
+
+class DichVuKetThucDon:
+
+    # ----- M3-UC13: ghi nhận giao thành công -----
+    @staticmethod
+    def giao_thanh_cong(don, nhan_vien, thoi_diem_giao=None, ghi_chu=""):
+        DichVuXuLyDon.kiem_tra_trang_thai(don, {T.DANG_GIAO}, "ghi nhận giao thành công")  # E1
+        bay_gio = timezone.now()
+        thoi_diem_giao = thoi_diem_giao or bay_gio  # mặc định là thời điểm hiện tại
+        lan_giao = DichVuGiaoHang.lay_lan_giao_hien_tai(don)
+        if thoi_diem_giao > bay_gio:  # E2
+            raise LoiNghiepVuDonHang("Thời điểm giao không được ở tương lai.")
+        if thoi_diem_giao < lan_giao.thoi_diem_ban_giao:  # E2: so với lần giao hiện tại
+            raise LoiNghiepVuDonHang("Thời điểm giao không được trước thời điểm bàn giao.")
+
+        try:
+            with transaction.atomic():
+                DichVuTrangThai.chuyen_trang_thai(
+                    don, T.GIAO_THANH_CONG, TacNhan.NHAN_VIEN, nhan_vien=nhan_vien, ghi_chu=ghi_chu,
+                    thoi_diem=bay_gio, cap_nhat_them={"thoi_diem_giao_thanh_cong": thoi_diem_giao},
+                )
+                # Đóng lần giao hiện tại với kết quả thành công
+                GiaoHang.objects.filter(ma_giao_hang=lan_giao.ma_giao_hang).update(
+                    ket_qua_giao=KetQuaGiao.THANH_CONG,
+                    thoi_diem_giao_xong=thoi_diem_giao,
+                    nhan_vien_xac_nhan=nhan_vien,
+                )
+        except DatabaseError as loi:  # E4
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        return don
+
+    # ----- M3-UC06: khách xác nhận đã nhận hàng -----
+    @staticmethod
+    def khach_xac_nhan_da_nhan(don, khach_hang):
+        if don.khach_hang_id != khach_hang.ma_kh:  # E3, BR24
+            raise LoiQuyenDonHang("Bạn không có quyền thao tác trên đơn hàng này.")
+        if don.thoi_diem_xac_nhan_nhan_hang is not None:  # E1: cửa sổ đã đóng
+            raise LoiNghiepVuDonHang("Đơn đã được xác nhận nhận hàng.")
+        DichVuXuLyDon.kiem_tra_trang_thai(don, {T.GIAO_THANH_CONG}, "xác nhận đã nhận hàng")  # E2
+        if don.thoi_diem_giao_thanh_cong + CUA_SO_DOI_TRA <= timezone.now():
+            # Hết 7 ngày nhưng tác vụ định kỳ chưa chạy: chạy ngay để kết quả giống nhau
+            DichVuKetThucDon.tu_xac_nhan_nhan_hang()
+            raise LoiNghiepVuDonHang("Đơn đã được xác nhận nhận hàng.")
+
+        bay_gio = timezone.now()
+        try:
+            with transaction.atomic():
+                # Compare-and-set: một đơn chỉ đóng cửa sổ một lần
+                so_dong = DonHang.objects.filter(
+                    ma_dh=don.ma_dh, trang_thai=T.GIAO_THANH_CONG, thoi_diem_xac_nhan_nhan_hang__isnull=True
+                ).update(thoi_diem_xac_nhan_nhan_hang=bay_gio)
+                if so_dong == 0:
+                    raise LoiNghiepVuDonHang("Đơn đã được xác nhận nhận hàng.")
+                don.thoi_diem_xac_nhan_nhan_hang = bay_gio
+                DichVuThanhToan.xet_hoan_thanh(don)  # bước 3: đủ điều kiện thì "Hoàn thành"
+        except DatabaseError as loi:  # E4
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        return don
+
+    # ----- M3-UC13 A2: hệ thống tự xác nhận khi hết cửa sổ 7 ngày (tác vụ định kỳ) -----
+    @staticmethod
+    def tu_xac_nhan_nhan_hang():
+        """Đóng cửa sổ của mọi đơn "Giao thành công" đã quá 7 ngày mà khách chưa xác nhận.
+
+        Mốc đóng cửa sổ là đúng thời điểm hết hạn, không phụ thuộc lúc tác vụ chạy.
+        Chỉ lọc đơn chưa đóng nên chạy lại nhiều lần không đổi kết quả. Trả về số đơn đã xử lý.
+        """
+        cac_don = DonHang.objects.filter(
+            trang_thai=T.GIAO_THANH_CONG,
+            thoi_diem_xac_nhan_nhan_hang__isnull=True,
+            thoi_diem_giao_thanh_cong__lte=timezone.now() - CUA_SO_DOI_TRA,
+        )
+        so_don = 0
+        for don in cac_don:
+            het_han = don.thoi_diem_giao_thanh_cong + CUA_SO_DOI_TRA
+            with transaction.atomic():
+                DonHang.objects.filter(ma_dh=don.ma_dh).update(
+                    thoi_diem_xac_nhan_nhan_hang=het_han, xac_nhan_tu_dong=True
+                )
+                don.thoi_diem_xac_nhan_nhan_hang = het_han
+                don.xac_nhan_tu_dong = True
+                # COD chưa thu tiền hoặc còn đổi/trả đang mở thì đơn giữ "Giao thành công"
+                DichVuThanhToan.xet_hoan_thanh(don)
+            so_don += 1
+        return so_don
+
+    # ----- Hủy đơn: M4 gọi khi duyệt yêu cầu hủy hoặc quyết định hủy sau giao thất bại -----
+    @staticmethod
+    def huy_don(don, nhan_vien=None, ghi_chu="", ket_qua_lan_giao=KetQuaGiao.THAT_BAI):
+        """Chuyển đơn sang "Đã hủy" (BR22). M3 chỉ chặn những gì bảng cạnh chặn:
+        trạng thái cuối và "Giao thành công" không có cạnh sang "Đã hủy".
+
+        Đơn đang giao thì đóng luôn lần giao hiện tại với ket_qua_lan_giao
+        (THAT_BAI hoặc KHACH_TU_CHOI), lý do lấy từ ghi_chu.
+        Điều kiện được hủy (chưa bàn giao, giao thất bại...) do M4 kiểm tra trước khi gọi.
+        """
+        dang_giao = don.trang_thai == T.DANG_GIAO
+        if dang_giao and ket_qua_lan_giao not in (KetQuaGiao.THAT_BAI, KetQuaGiao.KHACH_TU_CHOI):
+            raise LoiNghiepVuDonHang("Kết quả lần giao trước phải là thất bại hoặc khách từ chối nhận.")
+
+        bay_gio = timezone.now()
+        tac_nhan = TacNhan.NHAN_VIEN if nhan_vien else TacNhan.HE_THONG
+        try:
+            with transaction.atomic():
+                DichVuTrangThai.chuyen_trang_thai(
+                    don, T.DA_HUY, tac_nhan, nhan_vien=nhan_vien, ghi_chu=ghi_chu, thoi_diem=bay_gio,
+                )
+                if dang_giao:
+                    lan_giao = DichVuGiaoHang.lay_lan_giao_hien_tai(don)
+                    GiaoHang.objects.filter(ma_giao_hang=lan_giao.ma_giao_hang).update(
+                        ket_qua_giao=ket_qua_lan_giao,
+                        ly_do_that_bai=ghi_chu or None,
+                        thoi_diem_giao_xong=bay_gio,
+                        nhan_vien_xac_nhan=nhan_vien,
+                    )
+        except DatabaseError as loi:
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        return don
+
+    # ----- Tác vụ định kỳ: lệnh xu_ly_don_dinh_ky và đầu các API danh sách đơn gọi hàm này -----
+    @staticmethod
+    def chay_tac_vu_dinh_ky():
+        """BR17 (hủy đơn quá hạn thanh toán 24 giờ) và BR21 (tự xác nhận sau 7 ngày)."""
+        return {
+            "so_don_huy_qua_han": DichVuThanhToan.huy_don_qua_han_thanh_toan(),
+            "so_don_tu_xac_nhan": DichVuKetThucDon.tu_xac_nhan_nhan_hang(),
+        }
+
+
+# ==========================================================
+# 14. THEO DÕI VÀ TRA CỨU ĐƠN HÀNG – giai đoạn 4G
+#     M3-UC05 (khách xem đơn của mình), M3-UC07 (nhân viên tìm, lọc, xem đơn).
+#     Chỉ ĐỌC dữ liệu. Trước khi đọc, chạy tác vụ định kỳ (UC11 A2, UC13 A2)
+#     để trạng thái hiển thị luôn đúng dù lệnh định kỳ chưa chạy theo lịch.
+#     Quy tắc: M3-BR13, BR17 (thông tin chuyển khoản), BR21 (cửa sổ 7 ngày),
+#     BR23 (hai trục trạng thái), BR24 (khách chỉ xem đơn của mình).
+# ==========================================================
+SO_DON_MOI_TRANG = 20  # UC07: danh sách nhân viên có phân trang
+
+
+class DichVuTraCuuDon:
+
+    @staticmethod
+    def lay_don(ma_dh):
+        """Lấy một đơn theo mã sau khi chạy tác vụ định kỳ; không có thì báo lỗi."""
+        DichVuKetThucDon.chay_tac_vu_dinh_ky()
+        don = DonHang.objects.filter(ma_dh=ma_dh).first()
+        if don is None:
+            raise LoiNghiepVuDonHang(f"Không tìm thấy đơn hàng {ma_dh}.")
+        return don
+
+    # ----- M3-UC05: phía khách hàng -----
+    @staticmethod
+    def danh_sach_don_cua_khach(khach_hang, trang_thai=None):
+        """Bước 1–2: các đơn của khách, mới nhất trước; lọc theo trạng thái nếu có."""
+        DichVuKetThucDon.chay_tac_vu_dinh_ky()
+        cac_don = DonHang.objects.filter(khach_hang=khach_hang)
+        if trang_thai:
+            cac_don = cac_don.filter(trang_thai=trang_thai)
+        return cac_don.order_by("-ngay_dat", "-ma_dh")
+
+    @staticmethod
+    def chi_tiet_don_cua_khach(khach_hang, ma_dh):
+        """Bước 3. E2: đơn không thuộc khách thì từ chối (BR24)."""
+        don = DichVuTraCuuDon.lay_don(ma_dh)
+        if don.khach_hang_id != khach_hang.ma_kh:
+            raise LoiQuyenDonHang("Bạn không có quyền xem đơn hàng này.")
+        return don
+
+    @staticmethod
+    def thong_tin_chuyen_khoan(don):
+        """BR17: thông tin để hiện mã QR, chỉ có khi đơn chuyển khoản đang chờ khách trả tiền."""
+        if not (don.phuong_thuc_thanh_toan_id == PhuongThucThanhToan.MA_CHUYEN_KHOAN
+                and don.trang_thai == T.CHO_THANH_TOAN
+                and don.trang_thai_thanh_toan in CHUA_TRA_TIEN):
+            return None
+        return {
+            "so_tien": don.tong_thanh_toan,
+            "noi_dung": don.ma_dh,
+            "tai_khoan": don.phuong_thuc_thanh_toan.thong_tin_tai_khoan,
+            "han_thanh_toan": don.thoi_diem_xac_nhan + THOI_HAN_THANH_TOAN,
+        }
+
+    @staticmethod
+    def han_cua_so_doi_tra(don):
+        """BR21: cửa sổ đang mở thì trả thời điểm hết hạn (giao diện hiện [Đã nhận hàng]
+        và [Yêu cầu đổi/trả]); cửa sổ chưa mở hoặc đã đóng thì trả None."""
+        if don.trang_thai == T.GIAO_THANH_CONG and don.thoi_diem_xac_nhan_nhan_hang is None:
+            return don.thoi_diem_giao_thanh_cong + CUA_SO_DOI_TRA
+        return None
+
+    # ----- M3-UC07: phía nhân viên -----
+    @staticmethod
+    def tra_cuu_don(tu_khoa="", trang_thai=None, tu_ngay=None, den_ngay=None, ma_loai_kh=None, trang=1):
+        """Tìm theo mã đơn, tên khách, tên người nhận, số điện thoại; lọc theo trạng thái,
+        khoảng ngày đặt, loại khách áp dụng. Trả về một trang kết quả (Page của Django)."""
+        DichVuKetThucDon.chay_tac_vu_dinh_ky()
+        cac_don = DonHang.objects.select_related("khach_hang")
+        tu_khoa = (tu_khoa or "").strip()
+        if tu_khoa:
+            cac_don = cac_don.filter(
+                Q(ma_dh__icontains=tu_khoa)
+                | Q(khach_hang__ho_ten__icontains=tu_khoa)
+                | Q(ho_ten_nguoi_nhan__icontains=tu_khoa)
+                | Q(sdt_nguoi_nhan__icontains=tu_khoa)
+                | Q(khach_hang__so_dien_thoai__icontains=tu_khoa)
+            )
+        if trang_thai:
+            cac_don = cac_don.filter(trang_thai=trang_thai)
+        if tu_ngay:
+            cac_don = cac_don.filter(ngay_dat__date__gte=tu_ngay)
+        if den_ngay:
+            cac_don = cac_don.filter(ngay_dat__date__lte=den_ngay)
+        if ma_loai_kh:
+            cac_don = cac_don.filter(loai_khach_hang_ap_dung_id=ma_loai_kh)
+        # get_page: số trang sai hoặc vượt quá thì trả trang gần nhất, không báo lỗi
+        return Paginator(cac_don.order_by("-ngay_dat", "-ma_dh"), SO_DON_MOI_TRANG).get_page(trang)
