@@ -16,6 +16,9 @@ urlpatterns = [
 
     # M3 - Quản lý bán hàng và đơn hàng
     path("api/orders/", include("orders.urls")),
+
+    # M4 - Quản lý hậu mãi (hủy đơn, giao thất bại, đổi/trả, hoàn tiền)
+    path("api/after-sales/", include("after_sales.urls")),
 ]
 
 # Phục vụ file media trong môi trường development
