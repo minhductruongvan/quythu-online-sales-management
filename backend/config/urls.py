@@ -1,4 +1,3 @@
-
 from django.contrib import admin
 from django.urls import include, path
 from django.conf import settings
@@ -16,6 +15,9 @@ urlpatterns = [
 
     # M3 - Quản lý bán hàng và đơn hàng
     path("api/orders/", include("orders.urls")),
+
+    # M5 - Quản lý báo cáo và thống kê
+    path("reports/", include("reports.urls")),
 ]
 
 # Phục vụ file media trong môi trường development
