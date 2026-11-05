@@ -11,7 +11,7 @@ class QuyenKhachHang:
     PHAN_LOAI = "PHAN_LOAI"
     DOI_TRANG_THAI = "DOI_TRANG_THAI"
     KHOA_MO_TAI_KHOAN = "KHOA_MO_TAI_KHOAN"
-
+    NHAP_KHACH_HANG = "NHAP_KHACH_HANG"
 
 MA_TRAN_QUYEN_KHACH_HANG = {
     TaiKhoan.VaiTro.CUSTOMER: set(),
@@ -24,6 +24,7 @@ MA_TRAN_QUYEN_KHACH_HANG = {
         QuyenKhachHang.PHAN_LOAI,
         QuyenKhachHang.DOI_TRANG_THAI,
         QuyenKhachHang.KHOA_MO_TAI_KHOAN,
+        QuyenKhachHang.NHAP_KHACH_HANG,
     },
 
     TaiKhoan.VaiTro.MANAGER: {
@@ -34,6 +35,7 @@ MA_TRAN_QUYEN_KHACH_HANG = {
         QuyenKhachHang.PHAN_LOAI,
         QuyenKhachHang.DOI_TRANG_THAI,
         QuyenKhachHang.KHOA_MO_TAI_KHOAN,
+        QuyenKhachHang.NHAP_KHACH_HANG,
     },
 }
 
