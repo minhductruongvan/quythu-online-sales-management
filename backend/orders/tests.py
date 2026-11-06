@@ -792,7 +792,7 @@ class KiemThuApiGioHang(TestCase):
         self.kh.save()
         phan_hoi = self.client.get(URL_GIO)
         self.assertEqual(phan_hoi.status_code, 403)
-        self.assertIn("ngừng hoạt động", phan_hoi.data["message"])
+        self.assertIn("ngừng hoạt động", phan_hoi.data["detail"])
 
     # ---------- UC01: thêm vào giỏ ----------
     def test_them_thanh_cong_tra_ca_gio(self):

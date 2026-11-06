@@ -1,0 +1,518 @@
+{% extends "layouts/base_customer.html" %}
+
+{% block title %}Lịch sử mua hàng | Quý Thu{% endblock %}
+
+{% block extra_css %}
+<style>
+.purchase-page {
+    color: #3E3028;
+}
+
+.purchase-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.purchase-header h2 {
+    font-size: 25px;
+    font-weight: 800;
+    margin-bottom: 6px;
+}
+
+.purchase-subtitle {
+    color: #766A61;
+    font-size: 14px;
+}
+
+.purchase-demo {
+    background: #FFF3DC;
+    color: #94621D;
+    border: 1px solid #EBD5A8;
+    border-radius: 8px;
+    padding: 9px 13px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.purchase-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.purchase-stat {
+    background: #fff;
+    border: 1px solid #F0E6DB;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 3px 12px rgba(62,48,40,.04);
+}
+
+.purchase-stat-label {
+    color: #766A61;
+    font-size: 13px;
+    margin-bottom: 10px;
+}
+
+.purchase-stat-value {
+    font-size: 25px;
+    font-weight: 800;
+    color: #6F452B;
+}
+
+.purchase-stat-note {
+    font-size: 12px;
+    color: #91847A;
+    margin-top: 5px;
+}
+
+.purchase-panel {
+    background: #fff;
+    border: 1px solid #F0E6DB;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.purchase-toolbar {
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    border-bottom: 1px solid #F0E6DB;
+}
+
+.purchase-toolbar h5 {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.purchase-filters {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.purchase-input,
+.purchase-select {
+    border: 1px solid #E6D8CA;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+    outline: none;
+    background: #FFFEFC;
+    color: #3E3028;
+}
+
+.purchase-input:focus,
+.purchase-select:focus {
+    border-color: #8B5E3C;
+    box-shadow: 0 0 0 3px rgba(139,94,60,.1);
+}
+
+.purchase-table-wrap {
+    overflow-x: auto;
+}
+
+.purchase-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 750px;
+}
+
+.purchase-table th {
+    background: #FFF8EC;
+    color: #766A61;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 14px 18px;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.purchase-table td {
+    padding: 17px 18px;
+    border-top: 1px solid #F3EAE1;
+    font-size: 13px;
+    vertical-align: middle;
+}
+
+.purchase-table tr:hover td {
+    background: #FFFCF7;
+}
+
+.purchase-code {
+    color: #8B5E3C;
+    font-weight: 700;
+}
+
+.purchase-total {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.purchase-status {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.status-pending {
+    background: #FFF2D9;
+    color: #A66B13;
+}
+
+.status-shipping {
+    background: #E8F0FF;
+    color: #4169A8;
+}
+
+.status-completed {
+    background: #E7F4E9;
+    color: #4F8A5B;
+}
+
+.status-cancelled {
+    background: #FCE9E7;
+    color: #C94C4C;
+}
+
+.purchase-detail-btn {
+    border: 1px solid #DCC9B8;
+    background: #fff;
+    color: #8B5E3C;
+    padding: 7px 12px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.purchase-detail-btn:hover {
+    background: #FFF8EC;
+    border-color: #8B5E3C;
+}
+
+.purchase-empty {
+    display: none;
+    padding: 45px 20px;
+    text-align: center;
+    color: #766A61;
+}
+
+.purchase-empty-icon {
+    font-size: 34px;
+    margin-bottom: 10px;
+}
+
+.purchase-modal-label {
+    color: #766A61;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.purchase-modal-value {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 15px;
+}
+
+.purchase-demo-note {
+    background: #FFF8EC;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 12px;
+    color: #766A61;
+}
+
+@media (max-width: 768px) {
+    .purchase-header {
+        flex-direction: column;
+    }
+
+    .purchase-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .purchase-toolbar {
+        align-items: stretch;
+    }
+
+    .purchase-filters {
+        width: 100%;
+    }
+
+    .purchase-input,
+    .purchase-select {
+        width: 100%;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="purchase-page">
+
+    <div class="purchase-header">
+        <div>
+            <h2>Lịch sử mua hàng</h2>
+            <div class="purchase-subtitle">
+                Theo dõi các đơn hàng và quá trình mua sắm của bạn.
+            </div>
+        </div>
+
+        <div class="purchase-demo">
+            DỮ LIỆU MINH HỌA
+        </div>
+    </div>
+
+    <div class="purchase-stats">
+        <div class="purchase-stat">
+            <div class="purchase-stat-label">Tổng số đơn hàng</div>
+            <div class="purchase-stat-value">{{ total_orders }}</div>
+            <div class="purchase-stat-note">Tất cả đơn hàng</div>
+        </div>
+
+        <div class="purchase-stat">
+            <div class="purchase-stat-label">Đơn hoàn thành</div>
+            <div class="purchase-stat-value">{{ completed_orders }}</div>
+            <div class="purchase-stat-note">Đơn hàng đã giao thành công</div>
+        </div>
+
+        <div class="purchase-stat">
+            <div class="purchase-stat-label">Tổng giá trị mua hàng</div>
+            <div class="purchase-stat-value">
+                {{ total_spent|floatformat:0 }}đ
+            </div>
+            <div class="purchase-stat-note">Giá trị đơn hoàn thành (demo)</div>
+        </div>
+    </div>
+
+    <div class="purchase-panel">
+        <div class="purchase-toolbar">
+            <h5>Danh sách đơn hàng</h5>
+
+            <div class="purchase-filters">
+                <input
+                    type="text"
+                    id="purchaseSearch"
+                    class="purchase-input"
+                    placeholder="Tìm mã đơn hàng..."
+                >
+
+                <select id="purchaseStatus" class="purchase-select">
+                    <option value="">Tất cả trạng thái</option>
+                    <option value="pending">Chờ xác nhận</option>
+                    <option value="shipping">Đang giao</option>
+                    <option value="completed">Hoàn thành</option>
+                    <option value="cancelled">Đã hủy</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="purchase-table-wrap">
+            <table class="purchase-table">
+                <thead>
+                    <tr>
+                        <th>Mã đơn hàng</th>
+                        <th>Ngày đặt</th>
+                        <th>Sản phẩm</th>
+                        <th>Tổng tiền</th>
+                        <th>Trạng thái</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+
+                <tbody id="purchaseTableBody">
+                    {% for order in orders %}
+                    <tr
+                        class="purchase-row"
+                        data-code="{{ order.ma_don_hang|lower }}"
+                        data-status="{{ order.status_key }}"
+                    >
+                        <td class="purchase-code">
+                            {{ order.ma_don_hang }}
+                        </td>
+
+                        <td>{{ order.ngay_dat }}</td>
+
+                        <td>{{ order.san_pham }}</td>
+
+                        <td class="purchase-total">
+                            {{ order.tong_tien|floatformat:0 }}đ
+                        </td>
+
+                        <td>
+                            <span class="purchase-status {{ order.status_class }}">
+                                {{ order.trang_thai }}
+                            </span>
+                        </td>
+
+                        <td>
+                            <button
+                                type="button"
+                                class="purchase-detail-btn"
+                                data-bs-toggle="modal"
+                                data-bs-target="#purchaseDetailModal"
+                                data-code="{{ order.ma_don_hang }}"
+                                data-date="{{ order.ngay_dat }}"
+                                data-products="{{ order.san_pham }}"
+                                data-total="{{ order.tong_tien|floatformat:0 }}"
+                                data-status="{{ order.trang_thai }}"
+                                data-address="{{ order.dia_chi }}"
+                            >
+                                Xem chi tiết
+                            </button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            Chưa có đơn hàng nào.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="purchase-empty" id="purchaseEmpty">
+            <div class="purchase-empty-icon">⌕</div>
+            <strong>Không tìm thấy đơn hàng</strong>
+            <p class="mb-0 mt-1">Thử thay đổi từ khóa hoặc bộ lọc.</p>
+        </div>
+    </div>
+
+    <div class="purchase-demo-note mt-3">
+        <strong>Lưu ý:</strong> Đây là dữ liệu minh họa phục vụ xây dựng giao diện
+        M1. Lịch sử đơn hàng thực tế sẽ được kết nối với module M3 sau khi
+        thống nhất API và trạng thái đơn hàng.
+    </div>
+</div>
+
+<!-- Modal chi tiết đơn hàng -->
+<div class="modal fade" id="purchaseDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border:0;border-radius:12px;">
+
+            <div class="modal-header" style="background:#FFF8EC;">
+                <h5 class="modal-title fw-bold">Chi tiết đơn hàng</h5>
+                <button type="button" class="btn-close"
+                        data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body p-4">
+                <div class="row">
+                    <div class="col-6">
+                        <div class="purchase-modal-label">Mã đơn hàng</div>
+                        <div class="purchase-modal-value" id="modalCode"></div>
+                    </div>
+
+                    <div class="col-6">
+                        <div class="purchase-modal-label">Ngày đặt</div>
+                        <div class="purchase-modal-value" id="modalDate"></div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="purchase-modal-label">Sản phẩm</div>
+                        <div class="purchase-modal-value" id="modalProducts"></div>
+                    </div>
+
+                    <div class="col-6">
+                        <div class="purchase-modal-label">Tổng tiền</div>
+                        <div class="purchase-modal-value" id="modalTotal"></div>
+                    </div>
+
+                    <div class="col-6">
+                        <div class="purchase-modal-label">Trạng thái</div>
+                        <div class="purchase-modal-value" id="modalStatus"></div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="purchase-modal-label">Địa chỉ nhận hàng</div>
+                        <div class="purchase-modal-value" id="modalAddress"></div>
+                    </div>
+                </div>
+
+                <div class="purchase-demo-note">
+                    Thông tin đơn hàng chỉ là dữ liệu minh họa, chưa kết nối M3.
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">
+                    Đóng
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const searchInput = document.getElementById("purchaseSearch");
+    const statusSelect = document.getElementById("purchaseStatus");
+    const rows = document.querySelectorAll(".purchase-row");
+    const emptyState = document.getElementById("purchaseEmpty");
+
+    function filterOrders() {
+        const keyword = searchInput.value.trim().toLowerCase();
+        const selectedStatus = statusSelect.value;
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const code = row.dataset.code || "";
+            const status = row.dataset.status || "";
+
+            const matchKeyword = code.includes(keyword);
+            const matchStatus = !selectedStatus || status === selectedStatus;
+
+            const visible = matchKeyword && matchStatus;
+            row.style.display = visible ? "" : "none";
+
+            if (visible) visibleCount++;
+        });
+
+        emptyState.style.display =
+            rows.length > 0 && visibleCount === 0 ? "block" : "none";
+    }
+
+    searchInput.addEventListener("input", filterOrders);
+    statusSelect.addEventListener("change", filterOrders);
+
+    const detailModal = document.getElementById("purchaseDetailModal");
+
+    detailModal.addEventListener("show.bs.modal", function (event) {
+        const button = event.relatedTarget;
+
+        document.getElementById("modalCode").textContent =
+            button.dataset.code || "";
+
+        document.getElementById("modalDate").textContent =
+            button.dataset.date || "";
+
+        document.getElementById("modalProducts").textContent =
+            button.dataset.products || "";
+
+        document.getElementById("modalTotal").textContent =
+            (button.dataset.total || "0") + "đ";
+
+        document.getElementById("modalStatus").textContent =
+            button.dataset.status || "";
+
+        document.getElementById("modalAddress").textContent =
+            button.dataset.address || "";
+    });
+});
+</script>
+{% endblock %}

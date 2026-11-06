@@ -10,31 +10,46 @@
 #   - IsCustomer: đã đăng nhập và vai_tro = CUSTOMER.
 #   - IsEmployeeOrManager: đã đăng nhập và vai_tro = EMPLOYEE hoặc MANAGER.
 
-from customers.models import NhanVien
+from customers.models import NhanVien, KhachHang, TaiKhoan
 from customers.permissions import IsCustomer, IsEmployeeOrManager
 
 
 class KhachHangCoHoSo(IsCustomer):
     """
-    Dùng cho M3-UC01 đến M3-UC06 (phía khách hàng).
-    Điều kiện: đủ điều kiện IsCustomer của M1 VÀ tài khoản có hồ sơ KhachHang,
-    vì mọi hàm trong services.py đều cần đối tượng KhachHang
-    (lấy bằng request.user.khach_hang).
+    Dùng cho M3-UC01 đến M3-UC06.
+    Yêu cầu tài khoản CUSTOMER hợp lệ, có hồ sơ KhachHang
+    và hồ sơ khách hàng đang hoạt động.
     """
 
     def has_permission(self, request, view):
-        # Bước 1: điều kiện của M1. Sai thì DRF trả câu báo của M1:
-        # "Chức năng này chỉ dành cho khách hàng."
-        if not super().has_permission(request, view):
+        user = request.user
+
+        # Bước 1: Kiểm tra đăng nhập
+        if not user.is_authenticated:
             return False
 
-        # Bước 2: tài khoản CUSTOMER nhưng chưa có dòng KhachHang đi kèm
-        if not hasattr(request.user, "khach_hang"):
+        # Bước 2: Kiểm tra trạng thái và vai trò tài khoản
+        if (
+            not user.is_active
+            or user.vai_tro != TaiKhoan.VaiTro.CUSTOMER
+            or user.trang_thai != TaiKhoan.TrangThai.ACTIVE
+        ):
+            self.message = IsCustomer.message
+            return False
+
+        # Bước 3: Kiểm tra hồ sơ khách hàng
+        try:
+            khach_hang = user.khach_hang
+        except KhachHang.DoesNotExist:
             self.message = "Tài khoản không có hồ sơ khách hàng."
             return False
 
-        return True
+        # Bước 4: Kiểm tra trạng thái hồ sơ
+        if khach_hang.trang_thai != KhachHang.TrangThai.ACTIVE:
+            self.message = "Tài khoản khách hàng đang ngừng hoạt động."
+            return False
 
+        return True
 
 class NhanVienCoHoSo(IsEmployeeOrManager):
     """

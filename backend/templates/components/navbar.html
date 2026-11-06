@@ -1,0 +1,52 @@
+
+<header class="topbar">
+
+    <div class="topbar-left">
+        <button class="sidebar-toggle" id="sidebarToggle">
+            ☰
+        </button>
+
+        <div>
+            <span class="topbar-label">WORKSPACE</span>
+            <h6>Quản lý bán hàng trực tuyến</h6>
+        </div>
+    </div>
+
+    <div class="topbar-right">
+
+
+        <div class="topbar-date">
+            <span>●</span> Không gian làm việc nhân viên
+        </div>
+
+
+        <div class="topbar-profile">
+            <div class="profile-avatar">
+                {% if request.user.is_authenticated %}
+                    {{ request.user.email|first|upper }}
+                {% else %}
+                    G
+                {% endif %}
+            </div>
+
+            <div class="profile-text">
+                <strong>
+                    {% if request.user.is_authenticated %}
+                        {{ request.user.ma_tk }}
+                    {% else %}
+                        Guest
+                    {% endif %}
+                </strong>
+                <span>
+                    {% if request.user.is_authenticated %}
+                        {{ request.user.vai_tro }}
+                    {% else %}
+                        Khách
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+
+    </div>
+
+</header>
