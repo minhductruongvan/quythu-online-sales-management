@@ -1,4 +1,3 @@
-
 from django.contrib import admin
 from django.urls import include, path
 from django.conf import settings
@@ -90,6 +89,9 @@ urlpatterns = [
 
     # API M4 - Quản lý hậu mãi
     path("api/after-sales/", include("after_sales.urls")),
+
+    # M5 - Quản lý báo cáo và thống kê
+    path("reports/", include("reports.urls")),
 ]
 
 
