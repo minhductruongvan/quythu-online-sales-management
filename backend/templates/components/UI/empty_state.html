@@ -1,0 +1,8 @@
+
+<div class="empty-state">
+    <div class="empty-state-icon">◇</div>
+    <h4>{{ title|default:"Chưa có dữ liệu" }}</h4>
+    <p>{{ description|default:"Dữ liệu sẽ được hiển thị tại đây." }}</p>
+</div>
+
+{% include "components/ui/empty_state.html" with title="Chưa có đơn hàng" description="Hiện tại chưa có đơn hàng nào trong hệ thống." %}

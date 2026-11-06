@@ -1,0 +1,439 @@
+{% extends "auth_base.html" %}
+
+{% block title %}Đăng ký tài khoản | Quý Thu{% endblock %}
+
+{% block content %}
+
+<div class="auth-container auth-register-container">
+
+    <!-- Khu vực thương hiệu -->
+    <section class="auth-brand">
+        <div class="auth-brand-content">
+
+            <div class="auth-logo">
+                <span class="auth-logo-icon">Q</span>
+                <span>QUÝ THU</span>
+            </div>
+
+            <div class="auth-brand-text">
+                <span class="auth-eyebrow">QUÝ THU CUSTOMER</span>
+
+                <h1>Bắt đầu hành trình mua sắm cùng Quý Thu.</h1>
+
+                <p>
+                    Tạo tài khoản để quản lý thông tin cá nhân,
+                    địa chỉ nhận hàng và trải nghiệm dịch vụ thuận tiện hơn.
+                </p>
+            </div>
+
+            <div class="auth-brand-footer">
+                © 2026 Quý Thu Online Sales Management
+            </div>
+
+        </div>
+    </section>
+
+
+    <!-- Khu vực biểu mẫu -->
+    <section class="auth-form-section">
+
+        <div class="auth-form-container auth-register-form">
+
+            <div class="auth-mobile-logo">
+                <span class="auth-logo-icon">Q</span>
+                <span>QUÝ THU</span>
+            </div>
+
+            <div class="auth-heading">
+                <span class="auth-eyebrow">TẠO TÀI KHOẢN MỚI</span>
+
+                <h2>Đăng ký</h2>
+
+                <p>
+                    Điền thông tin bên dưới để tạo tài khoản khách hàng.
+                </p>
+            </div>
+
+
+            <div
+                id="registerMessage"
+                class="auth-message"
+                role="alert"
+                hidden
+            ></div>
+
+
+            <form id="registerForm" novalidate>
+
+                {% csrf_token %}
+
+                <!-- Họ tên -->
+                <div class="auth-field">
+
+                    <label for="fullName">Họ và tên <span>*</span></label>
+
+                    <input
+                        type="text"
+                        id="fullName"
+                        name="ho_ten"
+                        placeholder="Nhập họ và tên"
+                        maxlength="100"
+                        autocomplete="name"
+                        required
+                    >
+
+                    <small class="auth-error" id="fullNameError"></small>
+
+                </div>
+
+
+                <!-- Email -->
+                <div class="auth-field">
+
+                    <label for="registerEmail">Email <span>*</span></label>
+
+                    <input
+                        type="email"
+                        id="registerEmail"
+                        name="email"
+                        placeholder="example@email.com"
+                        maxlength="254"
+                        autocomplete="email"
+                        required
+                    >
+
+                    <small class="auth-error" id="registerEmailError"></small>
+
+                </div>
+
+
+                <!-- Số điện thoại -->
+                <div class="auth-field">
+
+                    <label for="phone">Số điện thoại <span>*</span></label>
+
+                    <input
+                        type="tel"
+                        id="phone"
+                        name="so_dien_thoai"
+                        placeholder="Nhập số điện thoại"
+                        maxlength="15"
+                        inputmode="tel"
+                        autocomplete="tel"
+                        required
+                    >
+
+                    <small class="auth-error" id="phoneError"></small>
+
+                </div>
+
+
+                <!-- Mật khẩu -->
+                <div class="auth-field">
+
+                    <label for="registerPassword">Mật khẩu <span>*</span></label>
+
+                    <div class="auth-password-wrapper">
+
+                        <input
+                            type="password"
+                            id="registerPassword"
+                            name="mat_khau"
+                            placeholder="Tối thiểu 8 ký tự"
+                            minlength="8"
+                            autocomplete="new-password"
+                            required
+                        >
+
+                        <button
+                            type="button"
+                            class="auth-password-toggle"
+                            data-target="registerPassword"
+                        >
+                            Hiện
+                        </button>
+
+                    </div>
+
+                    <small class="auth-error" id="registerPasswordError"></small>
+
+                    <div class="auth-password-hint">
+                        Mật khẩu phải có ít nhất 8 ký tự.
+                    </div>
+
+                </div>
+
+
+                <!-- Xác nhận mật khẩu -->
+                <div class="auth-field">
+
+                    <label for="confirmPassword">
+                        Xác nhận mật khẩu <span>*</span>
+                    </label>
+
+                    <div class="auth-password-wrapper">
+
+                        <input
+                            type="password"
+                            id="confirmPassword"
+                            placeholder="Nhập lại mật khẩu"
+                            autocomplete="new-password"
+                            required
+                        >
+
+                        <button
+                            type="button"
+                            class="auth-password-toggle"
+                            data-target="confirmPassword"
+                        >
+                            Hiện
+                        </button>
+
+                    </div>
+
+                    <small class="auth-error" id="confirmPasswordError"></small>
+
+                </div>
+
+
+                <!-- Điều khoản -->
+                <div class="auth-terms">
+
+                    <label>
+                        <input type="checkbox" id="agreeTerms">
+
+                        <span>
+                            Tôi xác nhận thông tin đăng ký là chính xác.
+                        </span>
+                    </label>
+
+                    <small class="auth-error" id="termsError"></small>
+
+                </div>
+
+
+                <button type="submit" class="auth-submit-btn">
+                    Tạo tài khoản
+                    <span>→</span>
+                </button>
+
+            </form>
+
+
+            <div class="auth-register-text auth-login-existing">
+                Đã có tài khoản?
+                <a href="{% url 'login-page' %}">
+                    Đăng nhập
+                </a>
+            </div>
+
+            <p class="auth-demo-note">
+                Giao diện thử nghiệm – chưa lưu dữ liệu vào hệ thống.
+            </p>
+
+        </div>
+
+    </section>
+
+</div>
+
+{% endblock %}
+
+
+{% block extra_js %}
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const form = document.getElementById("registerForm");
+
+    const fields = {
+        fullName: document.getElementById("fullName"),
+        email: document.getElementById("registerEmail"),
+        phone: document.getElementById("phone"),
+        password: document.getElementById("registerPassword"),
+        confirmPassword: document.getElementById("confirmPassword"),
+        agreeTerms: document.getElementById("agreeTerms")
+    };
+
+    const message = document.getElementById("registerMessage");
+
+
+    // Hiện / ẩn mật khẩu
+    document.querySelectorAll(".auth-password-toggle").forEach(button => {
+
+        button.addEventListener("click", function () {
+
+            const target = document.getElementById(
+                this.dataset.target
+            );
+
+            const isHidden = target.type === "password";
+
+            target.type = isHidden ? "text" : "password";
+
+            this.textContent = isHidden ? "Ẩn" : "Hiện";
+
+        });
+
+    });
+
+
+    // Xóa thông báo lỗi của từng trường
+    function clearErrors() {
+
+        document.querySelectorAll(".auth-error").forEach(error => {
+            error.textContent = "";
+        });
+
+        message.hidden = true;
+        message.className = "auth-message";
+
+    }
+
+
+    // Hiển thị lỗi
+    function showError(id, text) {
+
+        document.getElementById(id).textContent = text;
+
+    }
+
+
+    // Kiểm tra dữ liệu
+    form.addEventListener("submit", function (event) {
+
+        event.preventDefault();
+
+        clearErrors();
+
+        let isValid = true;
+
+        const fullName = fields.fullName.value.trim();
+        const email = fields.email.value.trim();
+        const phone = fields.phone.value.trim();
+        const password = fields.password.value;
+        const confirmPassword = fields.confirmPassword.value;
+
+
+        // Họ tên
+        if (!fullName) {
+
+            showError("fullNameError", "Vui lòng nhập họ và tên.");
+            isValid = false;
+
+        } else if (fullName.length > 100) {
+
+            showError("fullNameError", "Họ tên không được vượt quá 100 ký tự.");
+            isValid = false;
+
+        }
+
+
+        // Email
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!email) {
+
+            showError("registerEmailError", "Vui lòng nhập email.");
+            isValid = false;
+
+        } else if (!emailPattern.test(email)) {
+
+            showError("registerEmailError", "Email không đúng định dạng.");
+            isValid = false;
+
+        }
+
+
+        // Số điện thoại
+        if (!phone) {
+
+            showError("phoneError", "Vui lòng nhập số điện thoại.");
+            isValid = false;
+
+        } else if (phone.length > 15) {
+
+            showError("phoneError", "Số điện thoại không được vượt quá 15 ký tự.");
+            isValid = false;
+
+        }
+
+
+        // Mật khẩu
+        if (!password) {
+
+            showError("registerPasswordError", "Vui lòng nhập mật khẩu.");
+            isValid = false;
+
+        } else if (password.length < 8) {
+
+            showError("registerPasswordError", "Mật khẩu phải có ít nhất 8 ký tự.");
+            isValid = false;
+
+        }
+
+
+        // Xác nhận mật khẩu
+        if (!confirmPassword) {
+
+            showError("confirmPasswordError", "Vui lòng xác nhận mật khẩu.");
+            isValid = false;
+
+        } else if (password !== confirmPassword) {
+
+            showError("confirmPasswordError", "Mật khẩu xác nhận không khớp.");
+            isValid = false;
+
+        }
+
+
+        // Xác nhận thông tin
+        if (!fields.agreeTerms.checked) {
+
+            showError("termsError", "Vui lòng xác nhận thông tin đăng ký.");
+            isValid = false;
+
+        }
+
+
+        if (!isValid) {
+            return;
+        }
+
+
+        // Chỉ mô phỏng, chưa gửi dữ liệu đến backend
+        message.textContent =
+            "Thông tin hợp lệ. Chức năng đăng ký sẽ được kết nối với hệ thống ở giai đoạn tích hợp.";
+
+        message.classList.add("success");
+        message.hidden = false;
+
+    });
+
+
+    // Xóa lỗi khi người dùng chỉnh sửa
+    Object.values(fields).forEach(field => {
+
+        if (field && field.addEventListener) {
+
+            field.addEventListener("input", function () {
+
+                const error = document.getElementById(
+                    field.id + "Error"
+                );
+
+                if (error) {
+                    error.textContent = "";
+                }
+
+            });
+
+        }
+
+    });
+
+});
+</script>
+
+{% endblock %}

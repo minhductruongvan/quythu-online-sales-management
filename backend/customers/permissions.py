@@ -1,6 +1,6 @@
 from rest_framework.permissions import BasePermission
 
-from .models import TaiKhoan
+from .models import TaiKhoan, KhachHang
 
 
 class QuyenKhachHang:
@@ -11,7 +11,7 @@ class QuyenKhachHang:
     PHAN_LOAI = "PHAN_LOAI"
     DOI_TRANG_THAI = "DOI_TRANG_THAI"
     KHOA_MO_TAI_KHOAN = "KHOA_MO_TAI_KHOAN"
-
+    NHAP_KHACH_HANG = "NHAP_KHACH_HANG"
 
 MA_TRAN_QUYEN_KHACH_HANG = {
     TaiKhoan.VaiTro.CUSTOMER: set(),
@@ -24,6 +24,7 @@ MA_TRAN_QUYEN_KHACH_HANG = {
         QuyenKhachHang.PHAN_LOAI,
         QuyenKhachHang.DOI_TRANG_THAI,
         QuyenKhachHang.KHOA_MO_TAI_KHOAN,
+        QuyenKhachHang.NHAP_KHACH_HANG,
     },
 
     TaiKhoan.VaiTro.MANAGER: {
@@ -34,16 +35,19 @@ MA_TRAN_QUYEN_KHACH_HANG = {
         QuyenKhachHang.PHAN_LOAI,
         QuyenKhachHang.DOI_TRANG_THAI,
         QuyenKhachHang.KHOA_MO_TAI_KHOAN,
+        QuyenKhachHang.NHAP_KHACH_HANG,
     },
 }
 
 
 def co_quyen_khach_hang(tai_khoan, quyen):
-    """
-    Kiểm tra tài khoản có một quyền nghiệp vụ
-    trong module quản lý khách hàng hay không.
-    """
     if not tai_khoan or not tai_khoan.is_authenticated:
+        return False
+
+    if not tai_khoan.is_active:
+        return False
+
+    if tai_khoan.trang_thai != TaiKhoan.TrangThai.ACTIVE:
         return False
 
     cac_quyen = MA_TRAN_QUYEN_KHACH_HANG.get(
@@ -52,7 +56,6 @@ def co_quyen_khach_hang(tai_khoan, quyen):
     )
 
     return quyen in cac_quyen
-
 
 class CoQuyenKhachHang(BasePermission):
     message = "Bạn không có quyền thực hiện chức năng này."
@@ -87,23 +90,43 @@ class CoQuyenKhachHang(BasePermission):
 
 
 class IsCustomer(BasePermission):
-    message = "Chức năng này chỉ dành cho khách hàng."
+    message = "Tài khoản không có quyền truy cập hoặc đã bị khóa."
 
     def has_permission(self, request, view):
-        return (
-            request.user.is_authenticated
-            and request.user.vai_tro == TaiKhoan.VaiTro.CUSTOMER
-        )
+        user = request.user
 
+        if not user.is_authenticated:
+            return False
+
+        if not user.is_active:
+            return False
+
+        if user.vai_tro != TaiKhoan.VaiTro.CUSTOMER:
+            return False
+
+        if user.trang_thai != TaiKhoan.TrangThai.ACTIVE:
+            return False
+
+        try:
+            khach_hang = user.khach_hang
+        except KhachHang.DoesNotExist:
+            return False
+
+        return (
+            khach_hang.trang_thai == KhachHang.TrangThai.ACTIVE
+        )
 
 class IsEmployeeOrManager(BasePermission):
     message = "Bạn không có quyền thực hiện chức năng này."
 
     def has_permission(self, request, view):
+        user = request.user
+
         return (
-            request.user.is_authenticated
-            and request.user.vai_tro
-            in [
+            user.is_authenticated
+            and user.is_active
+            and user.trang_thai == TaiKhoan.TrangThai.ACTIVE
+            and user.vai_tro in [
                 TaiKhoan.VaiTro.EMPLOYEE,
                 TaiKhoan.VaiTro.MANAGER,
             ]

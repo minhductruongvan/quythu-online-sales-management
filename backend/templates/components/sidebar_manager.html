@@ -1,0 +1,79 @@
+
+{% load static %}
+
+<aside class="sidebar" id="sidebar">
+
+    <div class="sidebar-brand">
+        <div class="brand-logo">Q</div>
+        <div class="brand-info">
+            <h5>QUÝ THU</h5>
+            <span>Management Workspace</span>
+        </div>
+    </div>
+
+    <div class="sidebar-user">
+        <div class="user-avatar">
+            {{ request.user.email|first|upper }}
+        </div>
+
+        <div class="user-info">
+            <strong>{{ request.user.email }}</strong>
+            <span>Quản lý</span>
+        </div>
+    </div>
+
+    <nav class="sidebar-nav">
+
+        <div class="nav-section-title">QUẢN TRỊ</div>
+
+        <a href="{% url 'manager-dashboard' %}" class="nav-link-custom">
+            <span class="nav-icon">⌂</span>
+            <span>Tổng quan</span>
+        </a>
+
+        <div class="nav-section-title">QUẢN LÝ HỆ THỐNG</div>
+
+        <a href="{% url 'employee-customer-list' %}" class="nav-link-custom">
+            <span class="nav-icon">♙</span>
+            <span>Khách hàng</span>
+        </a>
+
+        <a href="{% url 'order-list' %}" class="nav-link-custom">
+            <span class="nav-icon">▤</span>
+            <span>Đơn hàng</span>
+        </a>
+
+        <a href="#" class="nav-link-custom is-disabled" title="Chưa triển khai">
+            <span class="nav-icon">▣</span>
+            <span>Sản phẩm</span>
+        </a>
+
+        <div class="nav-section-title">PHÂN TÍCH KINH DOANH</div>
+
+        <a href="#" class="nav-link-custom is-disabled" title="Chưa triển khai">
+            <span class="nav-icon">▥</span>
+            <span>Báo cáo doanh thu</span>
+        </a>
+
+        <a href="#" class="nav-link-custom is-disabled" title="Chưa triển khai">
+            <span class="nav-icon">◷</span>
+            <span>Hiệu suất nhân viên</span>
+        </a>
+
+        <a href="#" class="nav-link-custom is-disabled" title="Chưa triển khai">
+            <span class="nav-icon">↩</span>
+            <span>Hậu mãi</span>
+        </a>
+
+    </nav>
+
+    <div class="sidebar-bottom">
+        <form method="post" action="{% url 'dang-xuat-giao-dien' %}">
+            {% csrf_token %}
+            <button type="submit" class="logout-button">
+                <span>↪</span> Đăng xuất
+            </button>
+        </form>
+    </div>
+
+</aside>

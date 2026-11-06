@@ -1,0 +1,16 @@
+
+<div class="stat-card">
+    <div class="stat-top">
+        <span>{{ label }}</span>
+        <span class="stat-icon {{ tone|default:'green' }}">
+            {{ icon|default:'•' }}
+        </span>
+    </div>
+
+    <h3>{{ value }}</h3>
+
+    {% if note %}
+        <small>{{ note }}</small>
+    {% endif %}
+</div>
+{% include "components/ui/stat_card.html" with label="Khách hàng" value="1.250" icon="♙" tone="green" note="Dữ liệu minh họa" %}

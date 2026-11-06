@@ -1,0 +1,790 @@
+{% extends "layouts/base_customer.html" %}
+
+{% block title %}Sổ địa chỉ | Quý Thu{% endblock %}
+
+{% block content %}
+
+<div class="address-page">
+
+    <div class="address-page-header">
+        <div>
+            <div class="profile-breadcrumb">
+                Tài khoản <span>/</span> Sổ địa chỉ
+            </div>
+            <h2>Sổ địa chỉ</h2>
+            <p>Quản lý địa chỉ giao hàng và thông tin người nhận.</p>
+        </div>
+
+        <button type="button" class="address-add-btn" id="addAddressBtn">
+            <span>＋</span> Thêm địa chỉ mới
+        </button>
+    </div>
+
+
+    <div class="address-summary">
+        <div class="address-summary-icon">⌖</div>
+        <div>
+            <strong id="addressCount">{{ addresses|length }} địa chỉ</strong>
+            <p>Địa chỉ giao hàng được lưu trong tài khoản của bạn.</p>
+        </div>
+    </div>
+
+
+    <div class="address-list-header">
+        <h3>Địa chỉ đã lưu</h3>
+        <span>Quản lý địa chỉ nhận hàng</span>
+    </div>
+
+
+    <div class="address-list" id="addressList">
+
+        {% for address in addresses %}
+        <article class="address-card" data-id="{{ address.ma_dia_chi }}">
+
+            <div class="address-card-top">
+                <div class="address-recipient">
+                    <div class="address-recipient-icon">♙</div>
+
+                    <div>
+                        <h4 class="address-name">{{ address.ten_nguoi_nhan }}</h4>
+                        <p class="address-phone">{{ address.so_dien_thoai }}</p>
+                    </div>
+                </div>
+
+                <div class="address-badges">
+                    {% if address.mac_dinh %}
+                    <span class="address-default-badge">Mặc định</span>
+                    {% endif %}
+                </div>
+            </div>
+
+
+            <div class="address-detail">
+                <span class="address-detail-icon">⌖</span>
+
+                <div>
+                    <p class="address-street">{{ address.dia_chi_chi_tiet }}</p>
+                    <p class="address-location">
+                        {{ address.phuong_xa }},
+                        {{ address.quan_huyen }},
+                        {{ address.tinh_thanh }}
+                    </p>
+                </div>
+            </div>
+
+
+            <div class="address-card-actions">
+
+                <button
+                    type="button"
+                    class="address-action-btn edit-address-btn"
+                >
+                    ✎ Chỉnh sửa
+                </button>
+
+                {% if not address.mac_dinh %}
+                <button
+                    type="button"
+                    class="address-action-btn set-default-btn"
+                >
+                    Đặt làm mặc định
+                </button>
+                {% endif %}
+
+                <button
+                    type="button"
+                    class="address-action-btn delete-address-btn"
+                >
+                    Xóa
+                </button>
+
+            </div>
+
+        </article>
+        {% empty %}
+        <div class="address-empty" id="initialEmpty">
+            <div class="address-empty-icon">⌖</div>
+            <h3>Chưa có địa chỉ giao hàng</h3>
+            <p>Thêm địa chỉ để thuận tiện hơn khi đặt hàng.</p>
+        </div>
+        {% endfor %}
+
+    </div>
+
+
+</div>
+
+
+<!-- MODAL THÊM / SỬA ĐỊA CHỈ -->
+<div class="address-modal-overlay" id="addressModal" hidden>
+
+    <div
+        class="address-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="addressModalTitle"
+    >
+
+        <div class="address-modal-header">
+            <div>
+                <span class="address-modal-eyebrow">THÔNG TIN GIAO HÀNG</span>
+                <h3 id="addressModalTitle">Thêm địa chỉ mới</h3>
+                <p>Điền đầy đủ thông tin người nhận và địa chỉ.</p>
+            </div>
+
+            <button
+                type="button"
+                class="address-modal-close"
+                id="closeAddressModal"
+                aria-label="Đóng"
+            >×</button>
+        </div>
+
+
+        <form id="addressForm" novalidate>
+
+            {% csrf_token %}
+
+            <input type="hidden" id="addressId">
+
+
+            <div class="address-form-grid">
+
+                <div class="address-form-group">
+                    <label for="recipientName">Tên người nhận <span>*</span></label>
+                    <input
+                        type="text"
+                        id="recipientName"
+                        maxlength="100"
+                        placeholder="Nhập tên người nhận"
+                        required
+                    >
+                    <small class="address-error" id="recipientNameError"></small>
+                </div>
+
+
+                <div class="address-form-group">
+                    <label for="recipientPhone">Số điện thoại <span>*</span></label>
+                    <input
+                        type="tel"
+                        id="recipientPhone"
+                        maxlength="15"
+                        placeholder="Nhập số điện thoại"
+                        required
+                    >
+                    <small class="address-error" id="recipientPhoneError"></small>
+                </div>
+
+
+                <div class="address-form-group full">
+                    <label for="streetAddress">Địa chỉ chi tiết <span>*</span></label>
+                    <input
+                        type="text"
+                        id="streetAddress"
+                        maxlength="255"
+                        placeholder="Số nhà, tên đường..."
+                        required
+                    >
+                    <small class="address-error" id="streetAddressError"></small>
+                </div>
+
+
+                <div class="address-form-group">
+                    <label for="ward">Phường / Xã <span>*</span></label>
+                    <input
+                        type="text"
+                        id="ward"
+                        placeholder="Nhập phường / xã"
+                        required
+                    >
+                    <small class="address-error" id="wardError"></small>
+                </div>
+
+
+                <div class="address-form-group">
+                    <label for="district">Quận / Huyện <span>*</span></label>
+                    <input
+                        type="text"
+                        id="district"
+                        placeholder="Nhập quận / huyện"
+                        required
+                    >
+                    <small class="address-error" id="districtError"></small>
+                </div>
+
+
+                <div class="address-form-group full">
+                    <label for="province">Tỉnh / Thành phố <span>*</span></label>
+                    <input
+                        type="text"
+                        id="province"
+                        placeholder="Nhập tỉnh / thành phố"
+                        required
+                    >
+                    <small class="address-error" id="provinceError"></small>
+                </div>
+
+            </div>
+
+
+            <label class="address-default-option">
+                <input type="checkbox" id="makeDefault">
+                <span>Đặt làm địa chỉ mặc định</span>
+            </label>
+
+
+            <div class="address-modal-actions">
+                <button
+                    type="button"
+                    class="address-modal-cancel"
+                    id="cancelAddressBtn"
+                >
+                    Hủy
+                </button>
+
+                <button type="submit" class="address-modal-save">
+                    Lưu địa chỉ
+                </button>
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+
+<!-- MODAL XÁC NHẬN XÓA -->
+<div class="address-modal-overlay" id="deleteAddressModal" hidden>
+
+    <div class="address-confirm-modal">
+
+        <div class="address-delete-icon">!</div>
+
+        <h3>Xóa địa chỉ này?</h3>
+
+        <p>
+            Địa chỉ sẽ bị xóa khỏi danh sách trong phiên demo hiện tại.
+        </p>
+
+        <div class="address-modal-actions">
+            <button
+                type="button"
+                class="address-modal-cancel"
+                id="cancelDeleteBtn"
+            >
+                Hủy
+            </button>
+
+            <button
+                type="button"
+                class="address-delete-confirm"
+                id="confirmDeleteBtn"
+            >
+                Xóa địa chỉ
+            </button>
+        </div>
+
+    </div>
+
+</div>
+
+{% endblock %}
+
+
+{% block extra_js %}
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function () {
+    const API_URL = "/api/customers/addresses/";
+
+    const addressList = document.getElementById("addressList");
+    const addressModal = document.getElementById("addressModal");
+    const deleteModal = document.getElementById("deleteAddressModal");
+    const addressForm = document.getElementById("addressForm");
+    const addressCount = document.getElementById("addressCount");
+
+    const fields = {
+        name: document.getElementById("recipientName"),
+        phone: document.getElementById("recipientPhone"),
+        street: document.getElementById("streetAddress"),
+        ward: document.getElementById("ward"),
+        district: document.getElementById("district"),
+        province: document.getElementById("province")
+    };
+
+    const csrfToken = addressForm.querySelector(
+        '[name="csrfmiddlewaretoken"]'
+    ).value;
+
+    let addressData = [];
+    let deletingId = null;
+
+    const errorFields = {
+        ten_nguoi_nhan: "recipientNameError",
+        so_dien_thoai: "recipientPhoneError",
+        dia_chi_chi_tiet: "streetAddressError",
+        phuong_xa: "wardError",
+        quan_huyen: "districtError",
+        tinh_thanh: "provinceError"
+    };
+
+    function showMessage(message) {
+        window.alert(message);
+    }
+
+    function getErrorMessage(payload) {
+        if (payload.message) return payload.message;
+
+        if (payload.errors) {
+            return Object.entries(payload.errors)
+                .map(([field, errors]) => {
+                    const messages = Array.isArray(errors)
+                        ? errors.join(", ")
+                        : String(errors);
+
+                    return `${field}: ${messages}`;
+                })
+                .join("\n");
+        }
+
+        return "Có lỗi xảy ra. Vui lòng thử lại.";
+    }
+
+    async function apiRequest(url, method = "GET", data = null) {
+        const options = {
+            method,
+            credentials: "same-origin",
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        if (["POST", "PATCH", "DELETE"].includes(method)) {
+            options.headers["X-CSRFToken"] = csrfToken;
+        }
+
+        if (data !== null) {
+            options.headers["Content-Type"] = "application/json";
+            options.body = JSON.stringify(data);
+        }
+
+        const response = await fetch(url, options);
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(getErrorMessage(payload));
+        }
+
+        return payload;
+    }
+
+    function normalizeAddress(item) {
+        return {
+            id: String(item.ma_dia_chi),
+            name: item.ten_nguoi_nhan || "",
+            phone: item.so_dien_thoai || "",
+            street: item.dia_chi_chi_tiet || "",
+            ward: item.phuong_xa || "",
+            district: item.quan_huyen || "",
+            province: item.tinh_thanh || "",
+            isDefault: Boolean(item.mac_dinh)
+        };
+    }
+
+    function updateCount() {
+        const count = addressData.length;
+
+        addressCount.textContent = `${count} địa chỉ`;
+    }
+
+    function renderAddresses() {
+        addressList.innerHTML = "";
+
+        if (addressData.length === 0) {
+            const empty = document.createElement("div");
+            empty.className = "address-empty";
+
+            const icon = document.createElement("div");
+            icon.className = "address-empty-icon";
+            icon.textContent = "⌖";
+
+            const title = document.createElement("h3");
+            title.textContent = "Chưa có địa chỉ giao hàng";
+
+            const description = document.createElement("p");
+            description.textContent =
+                "Thêm địa chỉ để thuận tiện hơn khi đặt hàng.";
+
+            empty.append(icon, title, description);
+            addressList.appendChild(empty);
+
+            updateCount();
+            return;
+        }
+
+        addressData.forEach(address => {
+            const card = document.createElement("article");
+            card.className = "address-card";
+            card.dataset.id = address.id;
+
+            card.innerHTML = `
+                <div class="address-card-top">
+                    <div class="address-recipient">
+                        <div class="address-recipient-icon">♙</div>
+                        <div>
+                            <h4 class="address-name"></h4>
+                            <p class="address-phone"></p>
+                        </div>
+                    </div>
+                    <div class="address-badges"></div>
+                </div>
+
+                <div class="address-detail">
+                    <span class="address-detail-icon">⌖</span>
+                    <div>
+                        <p class="address-street"></p>
+                        <p class="address-location"></p>
+                    </div>
+                </div>
+
+                <div class="address-card-actions">
+                    <button type="button"
+                        class="address-action-btn edit-address-btn">
+                        Chỉnh sửa
+                    </button>
+
+                    <button type="button"
+                        class="address-action-btn set-default-btn">
+                        Đặt làm mặc định
+                    </button>
+
+                    <button type="button"
+                        class="address-action-btn delete-address-btn">
+                        Xóa
+                    </button>
+                </div>
+            `;
+
+            card.querySelector(".address-name").textContent =
+                address.name;
+
+            card.querySelector(".address-phone").textContent =
+                address.phone;
+
+            card.querySelector(".address-street").textContent =
+                address.street;
+
+            card.querySelector(".address-location").textContent =
+                `${address.ward}, ${address.district}, ${address.province}`;
+
+            if (address.isDefault) {
+                const badge = document.createElement("span");
+                badge.className = "address-default-badge";
+                badge.textContent = "Mặc định";
+
+                card.querySelector(".address-badges").appendChild(badge);
+                card.querySelector(".set-default-btn").remove();
+            }
+
+            addressList.appendChild(card);
+        });
+
+        updateCount();
+    }
+
+    function clearErrors() {
+        document.querySelectorAll(".address-error").forEach(error => {
+            error.textContent = "";
+        });
+    }
+
+    function closeAddressModal() {
+        addressModal.hidden = true;
+        addressForm.reset();
+
+        document.getElementById("addressId").value = "";
+
+        clearErrors();
+    }
+
+    function openAddressModal(address = null) {
+        addressForm.reset();
+        clearErrors();
+
+        document.getElementById("addressId").value =
+            address ? address.id : "";
+
+        document.getElementById("addressModalTitle").textContent =
+            address ? "Chỉnh sửa địa chỉ" : "Thêm địa chỉ mới";
+
+        document.querySelector(".address-modal-save").textContent =
+            address ? "Cập nhật địa chỉ" : "Lưu địa chỉ";
+
+        if (address) {
+            fields.name.value = address.name;
+            fields.phone.value = address.phone;
+            fields.street.value = address.street;
+            fields.ward.value = address.ward;
+            fields.district.value = address.district;
+            fields.province.value = address.province;
+
+            document.getElementById("makeDefault").checked =
+                address.isDefault;
+        } else {
+            document.getElementById("makeDefault").checked =
+                addressData.length === 0;
+        }
+
+        addressModal.hidden = false;
+        fields.name.focus();
+    }
+
+    function getFormData() {
+        return {
+            ten_nguoi_nhan: fields.name.value.trim(),
+            so_dien_thoai: fields.phone.value.trim(),
+            dia_chi_chi_tiet: fields.street.value.trim(),
+            phuong_xa: fields.ward.value.trim(),
+            quan_huyen: fields.district.value.trim(),
+            tinh_thanh: fields.province.value.trim(),
+            mac_dinh: document.getElementById("makeDefault").checked
+        };
+    }
+
+    function validateForm(data) {
+        clearErrors();
+
+        let valid = true;
+
+        const requiredFields = [
+            ["ten_nguoi_nhan", "recipientNameError"],
+            ["so_dien_thoai", "recipientPhoneError"],
+            ["dia_chi_chi_tiet", "streetAddressError"],
+            ["phuong_xa", "wardError"],
+            ["quan_huyen", "districtError"],
+            ["tinh_thanh", "provinceError"]
+        ];
+
+        requiredFields.forEach(([field, errorId]) => {
+            if (!data[field]) {
+                document.getElementById(errorId).textContent =
+                    "Vui lòng nhập thông tin này.";
+
+                valid = false;
+            }
+        });
+
+        if (data.ten_nguoi_nhan.length > 100) {
+            document.getElementById("recipientNameError").textContent =
+                "Tên người nhận không được vượt quá 100 ký tự.";
+            valid = false;
+        }
+
+        if (data.so_dien_thoai.length > 15) {
+            document.getElementById("recipientPhoneError").textContent =
+                "Số điện thoại không được vượt quá 15 ký tự.";
+            valid = false;
+        }
+
+        if (data.dia_chi_chi_tiet.length > 255) {
+            document.getElementById("streetAddressError").textContent =
+                "Địa chỉ chi tiết không được vượt quá 255 ký tự.";
+            valid = false;
+        }
+
+        return valid;
+    }
+
+    function displayServerErrors(payload) {
+        if (!payload.errors) return;
+
+        Object.entries(payload.errors).forEach(([field, errors]) => {
+            const errorId = errorFields[field];
+
+            if (!errorId) return;
+
+            document.getElementById(errorId).textContent =
+                Array.isArray(errors) ? errors.join(", ") : String(errors);
+        });
+    }
+
+    async function loadAddresses() {
+        try {
+            const payload = await apiRequest(API_URL);
+
+            if (!Array.isArray(payload.data)) {
+                throw new Error("Dữ liệu địa chỉ từ máy chủ không hợp lệ.");
+            }
+
+            addressData = payload.data.map(normalizeAddress);
+
+            renderAddresses();
+        } catch (error) {
+            showMessage(error.message);
+        }
+    }
+
+    document.getElementById("addAddressBtn").addEventListener(
+        "click",
+        () => openAddressModal()
+    );
+
+    document.getElementById("closeAddressModal").addEventListener(
+        "click",
+        closeAddressModal
+    );
+
+    document.getElementById("cancelAddressBtn").addEventListener(
+        "click",
+        closeAddressModal
+    );
+
+    addressModal.addEventListener("click", event => {
+        if (event.target === addressModal) {
+            closeAddressModal();
+        }
+    });
+
+    addressForm.addEventListener("submit", async event => {
+        event.preventDefault();
+
+        const data = getFormData();
+
+        if (!validateForm(data)) return;
+
+        const editingId = document.getElementById("addressId").value;
+        const saveButton = document.querySelector(".address-modal-save");
+
+        saveButton.disabled = true;
+
+        try {
+            if (editingId) {
+                await apiRequest(
+                    `${API_URL}${encodeURIComponent(editingId)}/`,
+                    "PATCH",
+                    data
+                );
+            } else {
+                await apiRequest(API_URL, "POST", {
+                    ...data,
+                    mac_dinh: data.mac_dinh || addressData.length === 0
+                });
+            }
+
+            await loadAddresses();
+            closeAddressModal();
+
+            showMessage(
+                editingId
+                    ? "Cập nhật địa chỉ thành công."
+                    : "Thêm địa chỉ thành công."
+            );
+        } catch (error) {
+            showMessage(error.message);
+        } finally {
+            saveButton.disabled = false;
+        }
+    });
+
+    addressList.addEventListener("click", async event => {
+        const card = event.target.closest(".address-card");
+
+        if (!card) return;
+
+        const id = card.dataset.id;
+
+        const address = addressData.find(item => item.id === id);
+
+        if (!address) return;
+
+        if (event.target.closest(".edit-address-btn")) {
+            openAddressModal(address);
+            return;
+        }
+
+        if (event.target.closest(".set-default-btn")) {
+            try {
+                await apiRequest(
+                    `${API_URL}${encodeURIComponent(id)}/`,
+                    "PATCH",
+                    { mac_dinh: true }
+                );
+
+                await loadAddresses();
+                showMessage("Đã đặt địa chỉ mặc định.");
+            } catch (error) {
+                showMessage(error.message);
+            }
+
+            return;
+        }
+
+        if (event.target.closest(".delete-address-btn")) {
+            deletingId = id;
+            deleteModal.hidden = false;
+        }
+    });
+
+    document.getElementById("cancelDeleteBtn").addEventListener(
+        "click",
+        () => {
+            deletingId = null;
+            deleteModal.hidden = true;
+        }
+    );
+
+    document.getElementById("confirmDeleteBtn").addEventListener(
+        "click",
+        async () => {
+            if (!deletingId) return;
+
+            const deleteButton =
+                document.getElementById("confirmDeleteBtn");
+
+            deleteButton.disabled = true;
+
+            try {
+                await apiRequest(
+                    `${API_URL}${encodeURIComponent(deletingId)}/`,
+                    "DELETE"
+                );
+
+                await loadAddresses();
+
+                deletingId = null;
+                deleteModal.hidden = true;
+
+                showMessage("Xóa địa chỉ thành công.");
+            } catch (error) {
+                showMessage(error.message);
+            } finally {
+                deleteButton.disabled = false;
+            }
+        }
+    );
+
+    deleteModal.addEventListener("click", event => {
+        if (event.target === deleteModal) {
+            deletingId = null;
+            deleteModal.hidden = true;
+        }
+    });
+
+    document.addEventListener("keydown", event => {
+        if (event.key === "Escape") {
+            closeAddressModal();
+
+            deletingId = null;
+            deleteModal.hidden = true;
+        }
+    });
+
+    loadAddresses();
+});
+
+</script>
+
+{% endblock %}
