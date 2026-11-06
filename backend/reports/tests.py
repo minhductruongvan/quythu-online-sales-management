@@ -21,8 +21,12 @@ class Module5ReportsTestCase(TestCase):
         self.now = timezone.now()
         
         # 1. Setup LoaiKhachHang & TaiKhoan
-        self.loai_le = LoaiKhachHang.objects.create(ma_loai_kh="LE", ten_loai_kh="Khách lẻ")
-        self.loai_si = LoaiKhachHang.objects.create(ma_loai_kh="SI", ten_loai_kh="Khách sỉ")
+        self.loai_le = LoaiKhachHang.objects.get(
+            ma_loai_kh="LKH001"
+        )
+        self.loai_si = LoaiKhachHang.objects.get(
+            ma_loai_kh="LKH002"
+        )
         
         self.user_manager = TaiKhoan.objects.create(
             ma_tk="TK001",
