@@ -1,0 +1,96 @@
+
+{% extends "base.html" %}
+
+{% block title %}Tổng quan | Quý Thu{% endblock %}
+
+{% block content %}
+
+<div class="page-heading">
+    <div>
+        <span class="page-eyebrow">OVERVIEW</span>
+        <h2>Tổng quan hệ thống</h2>
+        <p>Chào mừng bạn đến với hệ thống quản lý bán hàng Quý Thu.</p>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+
+    <div class="stat-card">
+        <div class="stat-top">
+            <span>Khách hàng</span>
+            <span class="stat-icon purple">♙</span>
+        </div>
+        <h3>1.250</h3>
+        <small>Dữ liệu minh họa</small>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-top">
+            <span>Sản phẩm</span>
+            <span class="stat-icon blue">▣</span>
+        </div>
+        <h3>368</h3>
+        <small>Dữ liệu minh họa</small>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-top">
+            <span>Đơn hàng</span>
+            <span class="stat-icon orange">▤</span>
+        </div>
+        <h3>856</h3>
+        <small>Dữ liệu minh họa</small>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-top">
+            <span>Doanh thu</span>
+            <span class="stat-icon green">₫</span>
+        </div>
+        <h3>125,8 triệu</h3>
+        <small>Dữ liệu minh họa</small>
+    </div>
+
+</div>
+
+<div class="dashboard-bottom">
+
+    <div class="dashboard-panel">
+        <h5>Hoạt động hệ thống</h5>
+        <p>Quản lý thông tin khách hàng, sản phẩm và đơn hàng tại một nơi.</p>
+
+        <div class="activity-item">
+            <span class="activity-dot purple-dot"></span>
+            <div>
+                <strong>Quản lý khách hàng</strong>
+                <p>Theo dõi hồ sơ và phân loại khách hàng.</p>
+            </div>
+        </div>
+
+        <div class="activity-item">
+            <span class="activity-dot blue-dot"></span>
+            <div>
+                <strong>Quản lý sản phẩm</strong>
+                <p>Cập nhật sản phẩm, danh mục và giá bán.</p>
+            </div>
+        </div>
+
+        <div class="activity-item">
+            <span class="activity-dot orange-dot"></span>
+            <div>
+                <strong>Quản lý đơn hàng</strong>
+                <p>Theo dõi quá trình xử lý đơn hàng.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-panel welcome-panel">
+        <div class="welcome-icon">Q</div>
+        <h4>Quý Thu Management</h4>
+        <p>Nền tảng quản lý bán hàng trực tuyến tập trung.</p>
+        <span class="system-status">● Hệ thống giao diện thử nghiệm</span>
+    </div>
+
+</div>
+
+{% endblock %}

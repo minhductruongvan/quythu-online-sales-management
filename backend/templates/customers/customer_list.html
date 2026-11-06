@@ -1,0 +1,598 @@
+
+{% extends "base.html" %}
+
+{% block title %}Quản lý khách hàng | Quý Thu{% endblock %}
+
+{% block extra_css %}
+<style>
+.customer-page {
+    color: #3E3028;
+}
+
+.customer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.customer-header h2 {
+    font-size: 25px;
+    font-weight: 800;
+    margin-bottom: 6px;
+}
+
+.customer-subtitle {
+    color: #766A61;
+    font-size: 14px;
+}
+
+.customer-demo {
+    background: #FFF3DC;
+    color: #94621D;
+    border: 1px solid #EBD5A8;
+    border-radius: 8px;
+    padding: 9px 13px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.customer-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+    margin-bottom: 24px;
+}
+
+.customer-stat {
+    background: #fff;
+    border: 1px solid #F0E6DB;
+    border-radius: 12px;
+    padding: 18px;
+    box-shadow: 0 3px 12px rgba(62,48,40,.04);
+}
+
+.customer-stat-label {
+    color: #766A61;
+    font-size: 13px;
+    margin-bottom: 10px;
+}
+
+.customer-stat-value {
+    font-size: 26px;
+    font-weight: 800;
+    color: #6F452B;
+}
+
+.customer-stat-note {
+    font-size: 12px;
+    color: #91847A;
+    margin-top: 5px;
+}
+
+.customer-panel {
+    background: #fff;
+    border: 1px solid #F0E6DB;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.customer-toolbar {
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+    border-bottom: 1px solid #F0E6DB;
+}
+
+.customer-toolbar h5 {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.customer-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.customer-input,
+.customer-select {
+    border: 1px solid #E6D8CA;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+    outline: none;
+    background: #FFFEFC;
+    color: #3E3028;
+}
+
+.customer-input {
+    min-width: 230px;
+}
+
+.customer-input:focus,
+.customer-select:focus {
+    border-color: #8B5E3C;
+    box-shadow: 0 0 0 3px rgba(139,94,60,.1);
+}
+
+.customer-table-wrap {
+    overflow-x: auto;
+}
+
+.customer-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 850px;
+}
+
+.customer-table th {
+    background: #FFF8EC;
+    color: #766A61;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 14px 16px;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.customer-table td {
+    padding: 15px 16px;
+    border-top: 1px solid #F3EAE1;
+    font-size: 13px;
+    vertical-align: middle;
+}
+
+.customer-table tbody tr:hover td {
+    background: #FFFCF7;
+}
+
+.customer-id {
+    color: #8B5E3C;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.customer-name {
+    font-weight: 700;
+    color: #3E3028;
+}
+
+.customer-contact {
+    color: #766A61;
+    line-height: 1.7;
+}
+
+.customer-type,
+.customer-status {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.type-retail {
+    background: #EAF1FF;
+    color: #496A9D;
+}
+
+.type-wholesale {
+    background: #F2E9FA;
+    color: #8054A3;
+}
+
+.status-active {
+    background: #E7F4E9;
+    color: #4F8A5B;
+}
+
+.status-inactive {
+    background: #FCE9E7;
+    color: #C94C4C;
+}
+
+.customer-view-btn {
+    border: 1px solid #DCC9B8;
+    background: #fff;
+    color: #8B5E3C;
+    padding: 7px 12px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.customer-view-btn:hover {
+    background: #FFF8EC;
+    border-color: #8B5E3C;
+}
+
+.customer-empty {
+    display: none;
+    padding: 45px 20px;
+    text-align: center;
+    color: #766A61;
+}
+
+.customer-pagination {
+    padding: 15px 20px;
+    border-top: 1px solid #F3EAE1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    color: #766A61;
+    font-size: 12px;
+}
+
+.customer-count {
+    font-weight: 600;
+}
+
+.customer-modal-label {
+    color: #766A61;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.customer-modal-value {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 17px;
+    overflow-wrap: anywhere;
+}
+
+.customer-demo-note {
+    background: #FFF8EC;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 12px;
+    color: #766A61;
+}
+
+@media (max-width: 1000px) {
+    .customer-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .customer-header {
+        flex-direction: column;
+    }
+
+    .customer-stats {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .customer-toolbar {
+        align-items: stretch;
+    }
+
+    .customer-filters {
+        width: 100%;
+    }
+
+    .customer-input,
+    .customer-select {
+        width: 100%;
+    }
+
+    .customer-pagination {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="customer-page">
+
+    <div class="customer-header">
+        <div>
+            <h2>Quản lý khách hàng</h2>
+            <div class="customer-subtitle">
+                Theo dõi thông tin, phân loại và trạng thái khách hàng.
+            </div>
+        </div>
+
+        <div class="customer-demo">DỮ LIỆU MINH HỌA</div>
+    </div>
+
+    <!-- Thống kê -->
+    <div class="customer-stats">
+        <div class="customer-stat">
+            <div class="customer-stat-label">Tổng khách hàng</div>
+            <div class="customer-stat-value">{{ total_customers }}</div>
+            <div class="customer-stat-note">Tất cả khách hàng</div>
+        </div>
+
+        <div class="customer-stat">
+            <div class="customer-stat-label">Khách hàng lẻ</div>
+            <div class="customer-stat-value">{{ retail_customers }}</div>
+            <div class="customer-stat-note">Nhóm khách hàng cá nhân</div>
+        </div>
+
+        <div class="customer-stat">
+            <div class="customer-stat-label">Khách hàng sỉ</div>
+            <div class="customer-stat-value">{{ wholesale_customers }}</div>
+            <div class="customer-stat-note">Nhóm khách hàng mua sỉ</div>
+        </div>
+
+        <div class="customer-stat">
+            <div class="customer-stat-label">Ngừng hoạt động</div>
+            <div class="customer-stat-value">{{ inactive_customers }}</div>
+            <div class="customer-stat-note">Theo trạng thái khách hàng</div>
+        </div>
+    </div>
+
+    <!-- Danh sách -->
+    <div class="customer-panel">
+        <div class="customer-toolbar">
+            <h5>Danh sách khách hàng</h5>
+            <a href="{% url 'employee-customer-add' %}"
+               class="btn btn-primary">
+                + Thêm khách hàng
+            </a>
+            <div class="customer-filters">
+                <input
+                    type="text"
+                    id="customerSearch"
+                    class="customer-input"
+                    placeholder="Tìm mã, tên, email, số điện thoại..."
+                >
+
+                <select id="customerType" class="customer-select">
+                    <option value="">Tất cả loại khách</option>
+                    <option value="retail">Khách lẻ</option>
+                    <option value="wholesale">Khách sỉ</option>
+                </select>
+
+                <select id="customerStatus" class="customer-select">
+                    <option value="">Tất cả trạng thái</option>
+                    <option value="active">Đang hoạt động</option>
+                    <option value="inactive">Ngừng hoạt động</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="customer-table-wrap">
+            <table class="customer-table">
+                <thead>
+                    <tr>
+                        <th>Mã khách hàng</th>
+                        <th>Thông tin khách hàng</th>
+                        <th>Loại khách</th>
+                        <th>Ngày tạo</th>
+                        <th>Trạng thái</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+
+                <tbody id="customerTableBody">
+                    {% for customer in customers %}
+                    <tr
+                        class="customer-row"
+                        data-search="{{ customer.ma_kh }} {{ customer.ho_ten }} {{ customer.email }} {{ customer.so_dien_thoai }}"
+                        data-type="{{ customer.type_key }}"
+                        data-status="{{ customer.status_key }}"
+                    >
+                        <td class="customer-id">
+                            {{ customer.ma_kh }}
+                        </td>
+
+                        <td>
+                            <div class="customer-name">{{ customer.ho_ten }}</div>
+                            <div class="customer-contact">
+                                {{ customer.email }}<br>
+                                {{ customer.so_dien_thoai }}
+                            </div>
+                        </td>
+
+                        <td>
+                            <span class="customer-type {{ customer.type_class }}">
+                                {{ customer.loai_khach_hang }}
+                            </span>
+                        </td>
+
+                        <td>{{ customer.ngay_tao }}</td>
+
+                        <td>
+                            <span class="customer-status {{ customer.status_class }}">
+                                {{ customer.trang_thai }}
+                            </span>
+                        </td>
+
+                        <td>
+                            <button
+                                type="button"
+                                class="customer-view-btn"
+                                data-bs-toggle="modal"
+                                data-bs-target="#customerDetailModal"
+                                data-id="{{ customer.ma_kh }}"
+                                data-name="{{ customer.ho_ten }}"
+                                data-email="{{ customer.email }}"
+                                data-phone="{{ customer.so_dien_thoai }}"
+                                data-type="{{ customer.loai_khach_hang }}"
+                                data-date="{{ customer.ngay_tao }}"
+                                data-status="{{ customer.trang_thai }}"
+                                data-address="{{ customer.dia_chi }}"
+                            >
+                                Xem hồ sơ
+                            </button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            Chưa có khách hàng nào.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="customer-empty" id="customerEmpty">
+            <div style="font-size:34px;margin-bottom:10px;">⌕</div>
+            <strong>Không tìm thấy khách hàng</strong>
+            <p class="mb-0 mt-1">Thử thay đổi từ khóa hoặc bộ lọc.</p>
+        </div>
+
+        <div class="customer-pagination">
+            <span id="customerResultCount" class="customer-count"></span>
+            <span>Danh sách dữ liệu minh họa</span>
+        </div>
+    </div>
+
+    <div class="customer-demo-note mt-3">
+        <strong>Lưu ý:</strong> Trang này sử dụng dữ liệu demo.
+        Chức năng tìm kiếm và lọc hoạt động trên trình duyệt.
+        Chưa thực hiện thêm, sửa, xóa hoặc thay đổi trạng thái trong database.
+    </div>
+</div>
+
+<!-- Modal xem hồ sơ -->
+<div class="modal fade" id="customerDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border:0;border-radius:12px;">
+
+            <div class="modal-header" style="background:#FFF8EC;">
+                <h5 class="modal-title fw-bold">Hồ sơ khách hàng</h5>
+                <button type="button" class="btn-close"
+                        data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body p-4">
+                <div class="row">
+                    <div class="col-6">
+                        <div class="customer-modal-label">Mã khách hàng</div>
+                        <div class="customer-modal-value" id="detailId"></div>
+                    </div>
+
+                    <div class="col-6">
+                        <div class="customer-modal-label">Họ và tên</div>
+                        <div class="customer-modal-value" id="detailName"></div>
+                    </div>
+
+                    <div class="col-6">
+                        <div class="customer-modal-label">Email</div>
+                        <div class="customer-modal-value" id="detailEmail"></div>
+                    </div>
+
+                    <div class="col-6">
+                        <div class="customer-modal-label">Số điện thoại</div>
+                        <div class="customer-modal-value" id="detailPhone"></div>
+                    </div>
+
+                    <div class="col-6">
+                        <div class="customer-modal-label">Loại khách hàng</div>
+                        <div class="customer-modal-value" id="detailType"></div>
+                    </div>
+
+                    <div class="col-6">
+                        <div class="customer-modal-label">Ngày tạo</div>
+                        <div class="customer-modal-value" id="detailDate"></div>
+                    </div>
+
+                    <div class="col-6">
+                        <div class="customer-modal-label">Trạng thái khách hàng</div>
+                        <div class="customer-modal-value" id="detailStatus"></div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="customer-modal-label">Địa chỉ</div>
+                        <div class="customer-modal-value" id="detailAddress"></div>
+                    </div>
+                </div>
+
+                <div class="customer-demo-note">
+                    Đây là hồ sơ minh họa. Thông tin thực tế sẽ được lấy từ API M1.
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">
+                    Đóng
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const searchInput = document.getElementById("customerSearch");
+    const typeSelect = document.getElementById("customerType");
+    const statusSelect = document.getElementById("customerStatus");
+    const rows = Array.from(document.querySelectorAll(".customer-row"));
+    const emptyState = document.getElementById("customerEmpty");
+    const resultCount = document.getElementById("customerResultCount");
+
+    function filterCustomers() {
+        const keyword = searchInput.value.trim().toLowerCase();
+        const selectedType = typeSelect.value;
+        const selectedStatus = statusSelect.value;
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const searchData = (row.dataset.search || "").toLowerCase();
+
+            const matchKeyword = searchData.includes(keyword);
+            const matchType = !selectedType || row.dataset.type === selectedType;
+            const matchStatus = !selectedStatus || row.dataset.status === selectedStatus;
+
+            const visible = matchKeyword && matchType && matchStatus;
+
+            row.style.display = visible ? "" : "none";
+
+            if (visible) visibleCount++;
+        });
+
+        emptyState.style.display =
+            rows.length > 0 && visibleCount === 0 ? "block" : "none";
+
+        resultCount.textContent =
+            `Hiển thị ${visibleCount} / ${rows.length} khách hàng`;
+    }
+
+    searchInput.addEventListener("input", filterCustomers);
+    typeSelect.addEventListener("change", filterCustomers);
+    statusSelect.addEventListener("change", filterCustomers);
+
+    filterCustomers();
+
+    const detailModal = document.getElementById("customerDetailModal");
+
+    detailModal.addEventListener("show.bs.modal", function (event) {
+        const button = event.relatedTarget;
+
+        const fields = {
+            detailId: "id",
+            detailName: "name",
+            detailEmail: "email",
+            detailPhone: "phone",
+            detailType: "type",
+            detailDate: "date",
+            detailStatus: "status",
+            detailAddress: "address"
+        };
+
+        Object.entries(fields).forEach(([elementId, dataKey]) => {
+            document.getElementById(elementId).textContent =
+                button.dataset[dataKey] || "Chưa cập nhật";
+        });
+    });
+});
+</script>
+{% endblock %}

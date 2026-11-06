@@ -1,0 +1,352 @@
+
+{% extends "base.html" %}
+
+{% block title %}Thêm khách hàng | Quý Thu{% endblock %}
+
+{% block content %}
+<style>
+    .add-customer-page {
+        max-width: 1050px;
+        margin: 0 auto;
+    }
+
+    .add-customer-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+    }
+
+    .add-customer-title {
+        font-size: 25px;
+        font-weight: 750;
+        color: #172033;
+        margin: 0 0 6px;
+    }
+
+    .add-customer-subtitle {
+        color: #718096;
+        font-size: 14px;
+        margin: 0;
+    }
+
+    .add-customer-card {
+        background: #fff;
+        border: 1px solid #e8edf3;
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 4px 18px rgba(20, 35, 60, .04);
+    }
+
+    .add-customer-card-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid #edf0f4;
+    }
+
+    .add-customer-card-header h5 {
+        margin: 0 0 5px;
+        font-size: 16px;
+        font-weight: 700;
+        color: #263449;
+    }
+
+    .add-customer-card-header p {
+        margin: 0;
+        color: #8792a2;
+        font-size: 13px;
+    }
+
+    .add-customer-form {
+        padding: 26px 24px;
+    }
+
+    .add-customer-label {
+        display: block;
+        font-size: 13px;
+        font-weight: 650;
+        color: #344054;
+        margin-bottom: 8px;
+    }
+
+    .add-customer-label .required {
+        color: #dc3545;
+    }
+
+    .add-customer-input {
+        width: 100%;
+        min-height: 45px;
+        border: 1px solid #dce2ea;
+        border-radius: 8px;
+        padding: 10px 13px;
+        font-size: 14px;
+        outline: none;
+        transition: .2s;
+    }
+
+    .add-customer-input:focus {
+        border-color: #4f7cff;
+        box-shadow: 0 0 0 3px rgba(79, 124, 255, .1);
+    }
+
+    .add-customer-help {
+        font-size: 12px;
+        color: #98a2b3;
+        margin-top: 7px;
+    }
+
+    .add-customer-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        padding-top: 24px;
+        margin-top: 28px;
+        border-top: 1px solid #edf0f4;
+    }
+
+    .add-customer-btn {
+        min-height: 42px;
+        padding: 9px 18px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 650;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid transparent;
+        cursor: pointer;
+    }
+
+    .add-customer-btn-cancel {
+        background: #fff;
+        color: #526071;
+        border-color: #dce2ea;
+    }
+
+    .add-customer-btn-save {
+        background: #315efb;
+        color: #fff;
+    }
+
+    .add-customer-btn-save:hover {
+        background: #244bd5;
+        color: #fff;
+    }
+
+    .add-customer-note {
+        background: #f5f8ff;
+        border: 1px solid #e1eaff;
+        border-radius: 9px;
+        padding: 13px 15px;
+        color: #536783;
+        font-size: 13px;
+        line-height: 1.6;
+        margin-bottom: 24px;
+    }
+
+    .add-customer-message {
+        display: none;
+        border-radius: 8px;
+        padding: 12px 15px;
+        margin-bottom: 18px;
+        font-size: 13px;
+    }
+
+    .add-customer-message.success {
+        display: block;
+        background: #ecfdf3;
+        color: #067647;
+        border: 1px solid #abefc6;
+    }
+
+    @media (max-width: 576px) {
+        .add-customer-form {
+            padding: 20px 16px;
+        }
+
+        .add-customer-card-header {
+            padding: 18px 16px;
+        }
+
+        .add-customer-actions {
+            flex-direction: column-reverse;
+        }
+
+        .add-customer-btn {
+            width: 100%;
+        }
+    }
+</style>
+
+<div class="add-customer-page">
+    <div class="add-customer-header">
+        <div>
+            <div class="text-muted small mb-2">
+                Quản lý khách hàng / Thêm khách hàng
+            </div>
+            <h1 class="add-customer-title">Thêm khách hàng</h1>
+            <p class="add-customer-subtitle">
+                Nhập thông tin để tạo hồ sơ khách hàng mới trong hệ thống.
+            </p>
+        </div>
+
+        <a href="{% url 'employee-customer-list' %}"
+           class="add-customer-btn add-customer-btn-cancel">
+            ← Quay lại danh sách
+        </a>
+    </div>
+
+    <div class="add-customer-note">
+        <strong>Lưu ý:</strong> Đây là chức năng tạo hồ sơ khách hàng.
+        Hồ sơ này không tự động tạo tài khoản đăng nhập cho khách hàng.
+    </div>
+
+    <div class="add-customer-card">
+        <div class="add-customer-card-header">
+            <h5>Thông tin khách hàng</h5>
+            <p>Các trường có dấu <span class="text-danger">*</span> là bắt buộc.</p>
+        </div>
+
+        <form id="customerForm" method="post">
+            {% csrf_token %}
+
+            <div id="addCustomerMessage" class="add-customer-message"
+                 role="alert"></div>
+
+            <div class="row g-4">
+                <div class="col-md-12">
+                    <label for="customerName" class="add-customer-label">
+                        Họ và tên <span class="required">*</span>
+                    </label>
+                    <input
+                        type="text"
+                        id="customerName"
+                        name="ho_ten"
+                        class="add-customer-input"
+                        placeholder="Ví dụ: Nguyễn Văn An"
+                        maxlength="100"
+                        required
+                    >
+                    <div class="add-customer-help">
+                        Nhập họ và tên đầy đủ của khách hàng.
+                    </div>
+                </div>
+
+                <div class="col-md-12">
+                    <label for="customerPhone" class="add-customer-label">
+                        Số điện thoại
+                    </label>
+                    <input
+                        type="tel"
+                        id="customerPhone"
+                        name="so_dien_thoai"
+                        class="add-customer-input"
+                        placeholder="Ví dụ: 0901234567"
+                        maxlength="15"
+                    >
+                    <div class="add-customer-help">
+                        Có thể để trống nếu khách hàng chưa cung cấp số điện thoại.
+                    </div>
+                </div>
+            </div>
+
+            <div class="add-customer-actions">
+                <a href="{% url 'employee-customer-list' %}"
+                   class="add-customer-btn add-customer-btn-cancel">
+                    Hủy
+                </a>
+
+                <button type="submit"
+                        class="add-customer-btn add-customer-btn-save">
+                    + Tạo khách hàng
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function () {
+    const form = document.getElementById("customerForm");
+
+    if (!form) return;
+
+    form.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        const submitButton = form.querySelector(
+            'button[type="submit"]'
+        );
+
+        const hoTen = form.querySelector('[name="ho_ten"]')?.value.trim();
+        const soDienThoai = form.querySelector(
+            '[name="so_dien_thoai"]'
+        )?.value.trim() || "";
+
+        if (!hoTen) {
+            alert("Vui lòng nhập họ và tên khách hàng.");
+            return;
+        }
+
+        const csrfToken = form.querySelector(
+            '[name="csrfmiddlewaretoken"]'
+        )?.value;
+
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.textContent = "Đang xử lý...";
+        }
+
+        try {
+            const response = await fetch("/api/customers/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": csrfToken,
+                    "Accept": "application/json"
+                },
+                body: JSON.stringify({
+                    ho_ten: hoTen,
+                    so_dien_thoai: soDienThoai
+                })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                const errors = result.errors
+                    ? Object.entries(result.errors)
+                        .map(([field, messages]) =>
+                            `${field}: ${messages.join(", ")}`
+                        )
+                        .join("\n")
+                    : result.message || "Không thể thêm khách hàng.";
+
+                alert(errors);
+                return;
+            }
+
+            alert(
+                `${result.message}\nMã khách hàng: ${result.data.ma_kh}`
+            );
+
+            window.location.href =
+                "{% url 'employee-customer-list' %}";
+
+        } catch (error) {
+            console.error("Lỗi thêm khách hàng:", error);
+            alert("Không thể kết nối đến máy chủ. Vui lòng thử lại.");
+        } finally {
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = "Thêm khách hàng";
+            }
+        }
+    });
+});
+
+</script>
+{% endblock %}
