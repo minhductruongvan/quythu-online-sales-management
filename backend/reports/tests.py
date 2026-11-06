@@ -21,8 +21,12 @@ class Module5ReportsTestCase(TestCase):
         self.now = timezone.now()
         
         # 1. Setup LoaiKhachHang & TaiKhoan
-        self.loai_le = LoaiKhachHang.objects.create(ma_loai_kh="LE", ten_loai_kh="Khách lẻ")
-        self.loai_si = LoaiKhachHang.objects.create(ma_loai_kh="SI", ten_loai_kh="Khách sỉ")
+        self.loai_le = LoaiKhachHang.objects.get(
+            ma_loai_kh="LKH001"
+        )
+        self.loai_si = LoaiKhachHang.objects.get(
+            ma_loai_kh="LKH002"
+        )
         
         self.user_manager = TaiKhoan.objects.create(
             ma_tk="TK001",
@@ -43,15 +47,11 @@ class Module5ReportsTestCase(TestCase):
         )
 
         # 2. Setup TinhThanh & PTTT
-        self.tinh_danang = TinhThanh.objects.create(
-            ma_tinh="DN",
-            ten_tinh="Đà Nẵng",
-            vung_mien=TinhThanh.VungMien.TRUNG,
-            phi_van_chuyen=Decimal("20000"),
+        self.tinh_danang = TinhThanh.objects.get(
+            ma_tinh="TT021"
         )
-        self.pttt = PhuongThucThanhToan.objects.create(
-            ma_pttt="PT001",
-            ten_pttt="Chuyển khoản ngân hàng",
+        self.pttt = PhuongThucThanhToan.objects.get(
+            ma_pttt="PT001"
         )
 
         # 3. Setup Products & Variants
