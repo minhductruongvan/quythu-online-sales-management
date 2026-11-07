@@ -10,7 +10,7 @@
     margin: 0;
     background: #fff;
     color: var(--customer-text);
-    font-family: 'Inter', sans-serif;
+    font-family: "Be Vietnam Pro", Arial, sans-serif;
 }
 
 .customer-announcement {
@@ -201,7 +201,7 @@
     margin: 0;
     background: var(--qt-background);
     color: var(--qt-text);
-    font-family: "Segoe UI", Arial, sans-serif;
+    font-family: "Be Vietnam Pro", Arial, sans-serif;
 }
 
 .qt-storefront *,
@@ -278,7 +278,7 @@
     border-radius: 12px;
     background: var(--qt-primary);
     color: #fff;
-    font-family: Georgia, serif;
+    font-family: var(--qt-font-body);
     font-size: 29px;
     font-weight: 700;
     box-shadow: 0 4px 12px rgba(32, 59, 53, .13);
@@ -291,7 +291,7 @@
 }
 
 .qt-brand-text strong {
-    font-family: Georgia, "Times New Roman", serif;
+    font-family: var(--qt-font-body);
     font-size: 23px;
     letter-spacing: 2px;
     font-weight: 700;

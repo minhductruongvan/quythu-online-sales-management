@@ -1,11 +1,41 @@
-from django.shortcuts import render
+import csv
+import io
+import re
+
+from django.contrib import messages
+from django.core.exceptions import ValidationError
+from django.core.validators import EmailValidator
+from django.db import IntegrityError, transaction
+from django.db.models import Count, Min, Prefetch, Q
+from django.http import HttpResponse, HttpResponseForbidden
+from django.shortcuts import get_object_or_404, redirect, render
+from django.contrib.auth import logout
+from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from .decorators import role_required
-from django.db.models import Prefetch
-from customers.models import TaiKhoan, KhachHang, DiaChiKH
-from django.contrib.auth import logout
-from django.shortcuts import redirect
-from django.views.decorators.http import require_POST
+from customers.models import (
+    DiaChiKH,
+    GhiChuKhachHang,
+    KhachHang,
+    LichSuKhachHang,
+    LoaiKhachHang,
+    NhanVien,
+    TaiKhoan,
+)
+from customers.services import (
+    DichVuLichSuHoSo,
+    DichVuTrangThaiTaiKhoan,
+    LoiNghiepVuTaiKhoan,
+    LoiQuyenTaiKhoan,
+)
+from orders.models import DonHang, TrangThaiDonHang
+from products.models import (
+    BienTheSanPham,
+    DanhMucSanPham,
+    HinhAnhSanPham,
+    SanPham,
+)
 
 def dashboard(request):
     return render(request, "dashboard/index.html")
@@ -66,63 +96,55 @@ def customer_profile_page(request):
 
 @role_required(TaiKhoan.VaiTro.CUSTOMER)
 def customer_purchase_history_page(request):
-    demo_orders = [
-        {
-            "ma_don_hang": "DH2026001",
-            "ngay_dat": "01/11/2026",
-            "san_pham": "Áo sơ mi nam, Quần kaki",
-            "tong_tien": 650000,
-            "trang_thai": "Hoàn thành",
-            "status_key": "completed",
-            "status_class": "status-completed",
-            "dia_chi": "123 Nguyễn Văn Linh, Hải Châu, Đà Nẵng",
-        },
-        {
-            "ma_don_hang": "DH2026002",
-            "ngay_dat": "02/11/2026",
-            "san_pham": "Giày thể thao",
-            "tong_tien": 850000,
-            "trang_thai": "Đang giao",
-            "status_key": "shipping",
-            "status_class": "status-shipping",
-            "dia_chi": "123 Nguyễn Văn Linh, Hải Châu, Đà Nẵng",
-        },
-        {
-            "ma_don_hang": "DH2026003",
-            "ngay_dat": "03/11/2026",
-            "san_pham": "Áo thun nam",
-            "tong_tien": 250000,
-            "trang_thai": "Chờ xác nhận",
-            "status_key": "pending",
-            "status_class": "status-pending",
-            "dia_chi": "45 Lê Duẩn, Hải Châu, Đà Nẵng",
-        },
-        {
-            "ma_don_hang": "DH2026004",
-            "ngay_dat": "04/11/2026",
-            "san_pham": "Balo thời trang",
-            "tong_tien": 420000,
-            "trang_thai": "Đã hủy",
-            "status_key": "cancelled",
-            "status_class": "status-cancelled",
-            "dia_chi": "123 Nguyễn Văn Linh, Hải Châu, Đà Nẵng",
-        },
-    ]
-
-    completed_orders = [
-        order for order in demo_orders
-        if order["status_key"] == "completed"
-    ]
+    orders = DonHang.objects.filter(
+        khach_hang=request.user.khach_hang
+    ).order_by("-ngay_dat")
+    completed_orders = orders.filter(
+        trang_thai__in=[
+            TrangThaiDonHang.HOAN_THANH,
+            TrangThaiDonHang.GIAO_THANH_CONG,
+        ]
+    )
+    status_styles = {
+        TrangThaiDonHang.HOAN_THANH: ("completed", "status-completed"),
+        TrangThaiDonHang.GIAO_THANH_CONG: (
+            "completed",
+            "status-completed",
+        ),
+        TrangThaiDonHang.DANG_GIAO: ("shipping", "status-shipping"),
+        TrangThaiDonHang.DA_HUY: ("cancelled", "status-cancelled"),
+    }
+    order_rows = []
+    for order in orders:
+        products = order.chi_tiet.select_related(
+            "bien_the__san_pham"
+        ).values_list("bien_the__san_pham__ten_sp", flat=True)
+        order_rows.append({
+            "ma_don_hang": order.ma_dh,
+            "ngay_dat": order.ngay_dat.strftime("%d/%m/%Y"),
+            "san_pham": ", ".join(products[:3]) or "Không có chi tiết sản phẩm",
+            "tong_tien": order.tong_thanh_toan,
+            "trang_thai": order.get_trang_thai_display(),
+            "status_key": status_styles.get(
+                order.trang_thai,
+                ("pending", "status-pending"),
+            )[0],
+            "status_class": status_styles.get(
+                order.trang_thai,
+                ("pending", "status-pending"),
+            )[1],
+            "dia_chi": order.dia_chi_giao_hang,
+        })
 
     return render(
         request,
         "storefront/accounts/purchase_history.html",
         {
-            "orders": demo_orders,
-            "total_orders": len(demo_orders),
-            "completed_orders": len(completed_orders),
+            "orders": order_rows,
+            "total_orders": orders.count(),
+            "completed_orders": completed_orders.count(),
             "total_spent": sum(
-                order["tong_tien"] for order in completed_orders
+                order.tong_thanh_toan for order in completed_orders
             ),
         }
     )
@@ -131,18 +153,13 @@ def customer_purchase_history_page(request):
     TaiKhoan.VaiTro.EMPLOYEE,
     TaiKhoan.VaiTro.MANAGER
 )
-@role_required(
-    TaiKhoan.VaiTro.EMPLOYEE,
-    TaiKhoan.VaiTro.MANAGER
-)
 def employee_customer_list_page(request):
-
+    all_customers = KhachHang.objects.select_related(
+        "tai_khoan",
+        "loai_khach_hang",
+    )
     customers_queryset = (
-        KhachHang.objects
-        .select_related(
-            "tai_khoan",
-            "loai_khach_hang"
-        )
+        all_customers
         .prefetch_related(
             Prefetch(
                 "dia_chi",
@@ -154,6 +171,29 @@ def employee_customer_list_page(request):
         )
         .order_by("-ngay_tao")
     )
+    keyword = request.GET.get("q", "").strip()
+    customer_type = request.GET.get("type", "").strip()
+    customer_status = request.GET.get("status", "").strip()
+    if keyword:
+        customers_queryset = customers_queryset.filter(
+            Q(ma_kh__icontains=keyword)
+            | Q(ho_ten__icontains=keyword)
+            | Q(email__icontains=keyword)
+            | Q(tai_khoan__email__icontains=keyword)
+            | Q(so_dien_thoai__icontains=keyword)
+        )
+    if customer_type in {"retail", "wholesale"}:
+        type_text = "Khách sỉ" if customer_type == "wholesale" else "Khách lẻ"
+        customers_queryset = customers_queryset.filter(
+            loai_khach_hang__ten_loai_kh=type_text
+        )
+    if customer_status in {
+        KhachHang.TrangThai.ACTIVE,
+        KhachHang.TrangThai.INACTIVE,
+    }:
+        customers_queryset = customers_queryset.filter(
+            trang_thai=customer_status
+        )
 
     customers = []
 
@@ -162,7 +202,9 @@ def employee_customer_list_page(request):
         # Email
         email = (
             kh.tai_khoan.email
-            if kh.tai_khoan
+            if kh.tai_khoan and kh.tai_khoan.email
+            else kh.email
+            if kh.email
             else "Chưa có email"
         )
 
@@ -239,6 +281,11 @@ def employee_customer_list_page(request):
             "status_class": status_class,
 
             "dia_chi": dia_chi,
+            "tai_khoan_trang_thai": (
+                kh.tai_khoan.trang_thai
+                if kh.tai_khoan_id
+                else None
+            ),
         })
 
     return render(
@@ -246,19 +293,24 @@ def employee_customer_list_page(request):
         "customers/customer_list.html",
         {
             "customers": customers,
-            "total_customers": len(customers),
+            "total_customers": all_customers.count(),
             "retail_customers": sum(
-                c["type_key"] == "retail"
-                for c in customers
+                c.loai_khach_hang.ten_loai_kh == "Khách lẻ"
+                for c in all_customers.select_related("loai_khach_hang")
             ),
             "wholesale_customers": sum(
-                c["type_key"] == "wholesale"
-                for c in customers
+                c.loai_khach_hang.ten_loai_kh == "Khách sỉ"
+                for c in all_customers.select_related("loai_khach_hang")
             ),
             "inactive_customers": sum(
-                c["status_key"] == "inactive"
-                for c in customers
+                c.trang_thai == KhachHang.TrangThai.INACTIVE
+                for c in all_customers
             ),
+            "customers": customers,
+            "search_query": keyword,
+            "selected_type": customer_type,
+            "selected_status": customer_status,
+            "is_manager": request.user.vai_tro == TaiKhoan.VaiTro.MANAGER,
         }
     )
 
@@ -267,23 +319,717 @@ def employee_customer_list_page(request):
     TaiKhoan.VaiTro.MANAGER
 )
 def employee_customer_add_page(request):
+    if request.method == "POST":
+        name = request.POST.get("ho_ten", "").strip()
+        email = request.POST.get("email", "").strip().lower()
+        phone = request.POST.get("so_dien_thoai", "").strip()
+        type_name = request.POST.get("loai_khach_hang", "Khách lẻ").strip()
+        errors = []
+
+        if not name:
+            errors.append("Vui lòng nhập họ tên khách hàng.")
+        if email:
+            try:
+                EmailValidator()(email)
+            except ValidationError:
+                errors.append("Email không đúng định dạng.")
+            if (
+                TaiKhoan.objects.filter(email__iexact=email).exists()
+                or KhachHang.objects.filter(email__iexact=email).exists()
+            ):
+                errors.append("Email đã được sử dụng.")
+        if phone and not re.fullmatch(r"\+?[0-9\s().-]{8,15}", phone):
+            errors.append("Số điện thoại không đúng định dạng.")
+        if phone and (
+            KhachHang.objects.filter(so_dien_thoai=phone).exists()
+            or TaiKhoan.objects.filter(so_dien_thoai=phone).exists()
+        ):
+            errors.append("Số điện thoại đã được sử dụng.")
+        customer_type = LoaiKhachHang.objects.filter(
+            ten_loai_kh=type_name
+        ).first()
+        if customer_type is None:
+            errors.append("Loại khách hàng không hợp lệ.")
+
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            return render(
+                request,
+                "customers/customer_add.html",
+                {"form_data": request.POST},
+            )
+
+        with transaction.atomic():
+            customer = KhachHang.objects.create(
+                ma_kh=_next_customer_code(),
+                tai_khoan=None,
+                loai_khach_hang=customer_type,
+                ho_ten=name,
+                email=email or None,
+                so_dien_thoai=phone or None,
+            )
+            LichSuKhachHang.objects.create(
+                ma_lich_su=DichVuLichSuHoSo.tao_ma_lich_su(),
+                khach_hang=customer,
+                nguoi_thuc_hien=request.user,
+                loai_thay_doi=LichSuKhachHang.LoaiThayDoi.PROFILE_CREATE,
+                noi_dung_moi="Tạo hồ sơ khách hàng.",
+            )
+        messages.success(request, "Đã tạo hồ sơ khách hàng.")
+        return redirect("employee-customer-detail", ma_kh=customer.ma_kh)
+
     return render(
         request,
-        "customers/customer_add.html"
+        "customers/customer_add.html",
+        {"customer_types": LoaiKhachHang.objects.all()},
     )
-@role_required(TaiKhoan.VaiTro.CUSTOMER)
+
+
+def _next_customer_code():
+    sequence = KhachHang.objects.count() + 1
+    while True:
+        code = f"KH{sequence:03d}"
+        if not KhachHang.objects.filter(ma_kh=code).exists():
+            return code
+        sequence += 1
+
+
+def _record_customer_update(customer, user, old_data):
+    new_data = DichVuLichSuHoSo.lay_du_lieu_hien_tai(customer)
+    DichVuLichSuHoSo.ghi_lich_su_cap_nhat(
+        khach_hang=customer,
+        nguoi_thuc_hien=user,
+        du_lieu_cu=old_data,
+        du_lieu_moi=new_data,
+    )
+
+
+@role_required(
+    TaiKhoan.VaiTro.EMPLOYEE,
+    TaiKhoan.VaiTro.MANAGER,
+)
+def employee_customer_detail_page(request, ma_kh):
+    customer = get_object_or_404(
+        KhachHang.objects.select_related("tai_khoan", "loai_khach_hang"),
+        ma_kh=ma_kh,
+    )
+    is_manager = request.user.vai_tro == TaiKhoan.VaiTro.MANAGER
+
+    if request.method == "POST":
+        action = request.POST.get("action", "")
+        if action == "update":
+            name = request.POST.get("ho_ten", "").strip()
+            email = request.POST.get("email", "").strip().lower()
+            phone = request.POST.get("so_dien_thoai", "").strip()
+            type_name = request.POST.get("loai_khach_hang", "").strip()
+            errors = []
+
+            if not name:
+                errors.append("Họ tên khách hàng không được để trống.")
+            if email:
+                try:
+                    EmailValidator()(email)
+                except ValidationError:
+                    errors.append("Email không đúng định dạng.")
+                account_emails = TaiKhoan.objects.filter(
+                    email__iexact=email
+                )
+                if customer.tai_khoan_id:
+                    account_emails = account_emails.exclude(
+                        pk=customer.tai_khoan_id
+                    )
+                profile_emails = KhachHang.objects.filter(
+                    email__iexact=email
+                ).exclude(pk=customer.pk)
+                if account_emails.exists() or profile_emails.exists():
+                    errors.append("Email đã được sử dụng.")
+            elif customer.tai_khoan_id:
+                email = customer.tai_khoan.email
+
+            if phone:
+                if not re.fullmatch(r"\+?[0-9\s().-]{8,15}", phone):
+                    errors.append("Số điện thoại không đúng định dạng.")
+                account_phones = TaiKhoan.objects.filter(
+                    so_dien_thoai=phone
+                )
+                if customer.tai_khoan_id:
+                    account_phones = account_phones.exclude(
+                        pk=customer.tai_khoan_id
+                    )
+                profile_phones = KhachHang.objects.filter(
+                    so_dien_thoai=phone
+                ).exclude(pk=customer.pk)
+                if account_phones.exists() or profile_phones.exists():
+                    errors.append("Số điện thoại đã được sử dụng.")
+
+            customer_type = LoaiKhachHang.objects.filter(
+                ten_loai_kh=type_name
+            ).first()
+            if customer_type is None:
+                errors.append("Loại khách hàng không hợp lệ.")
+
+            if errors:
+                for error in errors:
+                    messages.error(request, error)
+                return redirect(
+                    "employee-customer-detail",
+                    ma_kh=customer.ma_kh,
+                )
+
+            old_data = DichVuLichSuHoSo.lay_du_lieu_hien_tai(customer)
+            old_type = customer.loai_khach_hang
+            with transaction.atomic():
+                customer.ho_ten = name
+                customer.email = email or None
+                customer.so_dien_thoai = phone or None
+                customer.loai_khach_hang = customer_type
+                customer.save()
+                if customer.tai_khoan_id:
+                    customer.tai_khoan.email = email
+                    customer.tai_khoan.so_dien_thoai = phone or None
+                    customer.tai_khoan.save(
+                        update_fields=["email", "so_dien_thoai"]
+                    )
+                _record_customer_update(customer, request.user, old_data)
+                if old_type.pk != customer_type.pk:
+                    LichSuKhachHang.objects.create(
+                        ma_lich_su=DichVuLichSuHoSo.tao_ma_lich_su(),
+                        khach_hang=customer,
+                        nguoi_thuc_hien=request.user,
+                        loai_thay_doi=(
+                            LichSuKhachHang.LoaiThayDoi.CUSTOMER_TYPE
+                        ),
+                        noi_dung_cu=old_type.ten_loai_kh,
+                        noi_dung_moi=customer_type.ten_loai_kh,
+                    )
+            messages.success(request, "Đã cập nhật hồ sơ khách hàng.")
+
+        elif action == "status":
+            new_status = request.POST.get("trang_thai", "")
+            reason = request.POST.get("ly_do", "").strip()
+            if new_status not in {
+                KhachHang.TrangThai.ACTIVE,
+                KhachHang.TrangThai.INACTIVE,
+            }:
+                messages.error(request, "Trạng thái khách hàng không hợp lệ.")
+            elif (
+                new_status == KhachHang.TrangThai.INACTIVE
+                and customer.trang_thai != new_status
+                and not reason
+            ):
+                messages.error(
+                    request,
+                    "Vui lòng nhập lý do ngừng hoạt động.",
+                )
+            elif new_status != customer.trang_thai:
+                old_status = customer.trang_thai
+                customer.trang_thai = new_status
+                customer.save(update_fields=["trang_thai", "ngay_cap_nhat"])
+                LichSuKhachHang.objects.create(
+                    ma_lich_su=DichVuLichSuHoSo.tao_ma_lich_su(),
+                    khach_hang=customer,
+                    nguoi_thuc_hien=request.user,
+                    loai_thay_doi=LichSuKhachHang.LoaiThayDoi.STATUS,
+                    noi_dung_cu=old_status,
+                    noi_dung_moi="; ".join(filter(None, [new_status, reason])),
+                )
+                messages.success(request, "Đã cập nhật trạng thái khách hàng.")
+
+        elif action == "account_status":
+            if not is_manager:
+                return HttpResponseForbidden(
+                    "Chỉ quản lý mới được khóa hoặc mở khóa tài khoản."
+                )
+            try:
+                DichVuTrangThaiTaiKhoan.thay_doi_trang_thai(
+                    khach_hang=customer,
+                    nguoi_thuc_hien=request.user,
+                    hanh_dong=request.POST.get("hanh_dong", ""),
+                )
+                messages.success(request, "Đã cập nhật trạng thái tài khoản.")
+            except (LoiNghiepVuTaiKhoan, LoiQuyenTaiKhoan) as error:
+                messages.error(request, str(error))
+
+        elif action == "note":
+            note = request.POST.get("noi_dung", "").strip()
+            if not note:
+                messages.error(request, "Nội dung ghi chú không được để trống.")
+            elif len(note) > 2000:
+                messages.error(request, "Ghi chú không được vượt quá 2.000 ký tự.")
+            else:
+                GhiChuKhachHang.objects.create(
+                    khach_hang=customer,
+                    nguoi_tao=request.user,
+                    noi_dung=note,
+                )
+                messages.success(request, "Đã thêm ghi chú nội bộ.")
+        else:
+            messages.error(request, "Thao tác không hợp lệ.")
+
+        return redirect(
+            "employee-customer-detail",
+            ma_kh=customer.ma_kh,
+        )
+
+    orders = DonHang.objects.filter(khach_hang=customer).order_by("-ngay_dat")
+    context = {
+        "customer": customer,
+        "customer_email": (
+            customer.tai_khoan.email
+            if customer.tai_khoan_id
+            else customer.email
+        ),
+        "customer_phone": (
+            customer.tai_khoan.so_dien_thoai
+            if customer.tai_khoan_id
+            else customer.so_dien_thoai
+        ),
+        "addresses": customer.dia_chi.all().order_by("-mac_dinh", "-ngay_tao"),
+        "customer_types": LoaiKhachHang.objects.all(),
+        "is_manager": is_manager,
+        "orders": orders,
+        "history": customer.lich_su_thay_doi.select_related(
+            "nguoi_thuc_hien"
+        ),
+        "notes": customer.ghi_chu_noi_bo.select_related("nguoi_tao"),
+    }
+    return render(request, "customers/customer_detail.html", context)
+
+
+def _filtered_customers(request):
+    customers = KhachHang.objects.select_related(
+        "tai_khoan",
+        "loai_khach_hang",
+    ).order_by("ma_kh")
+    keyword = request.GET.get("q", "").strip()
+    customer_type = request.GET.get("type", "").strip()
+    customer_status = request.GET.get("status", "").strip()
+    if keyword:
+        customers = customers.filter(
+            Q(ma_kh__icontains=keyword)
+            | Q(ho_ten__icontains=keyword)
+            | Q(email__icontains=keyword)
+            | Q(tai_khoan__email__icontains=keyword)
+            | Q(so_dien_thoai__icontains=keyword)
+        )
+    if customer_type in {"retail", "wholesale"}:
+        name = "Khách sỉ" if customer_type == "wholesale" else "Khách lẻ"
+        customers = customers.filter(loai_khach_hang__ten_loai_kh=name)
+    if customer_status in {
+        KhachHang.TrangThai.ACTIVE,
+        KhachHang.TrangThai.INACTIVE,
+    }:
+        customers = customers.filter(trang_thai=customer_status)
+    return customers
+
+
+@role_required(
+    TaiKhoan.VaiTro.EMPLOYEE,
+    TaiKhoan.VaiTro.MANAGER,
+)
+def employee_customer_export_page(request):
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = (
+        'attachment; filename="danh-sach-khach-hang.csv"'
+    )
+    response.write("\ufeff")
+    writer = csv.writer(response)
+    writer.writerow([
+        "ma_kh",
+        "ho_ten",
+        "email",
+        "so_dien_thoai",
+        "loai_khach_hang",
+        "trang_thai",
+        "ngay_tao",
+    ])
+    for customer in _filtered_customers(request):
+        values = [
+            customer.ma_kh,
+            customer.ho_ten,
+            customer.tai_khoan.email if customer.tai_khoan_id else customer.email,
+            (
+                customer.tai_khoan.so_dien_thoai
+                if customer.tai_khoan_id
+                else customer.so_dien_thoai
+            ),
+            customer.loai_khach_hang.ten_loai_kh,
+            customer.get_trang_thai_display(),
+            customer.ngay_tao.strftime("%Y-%m-%d"),
+        ]
+        writer.writerow([
+            "'" + value if isinstance(value, str) and value[:1] in "=+-@" else value
+            for value in values
+        ])
+    return response
+
+
+@role_required(
+    TaiKhoan.VaiTro.EMPLOYEE,
+    TaiKhoan.VaiTro.MANAGER,
+)
+def employee_customer_import_page(request):
+    import_errors = []
+    imported_count = 0
+    if request.method == "POST":
+        upload = request.FILES.get("file")
+        if upload is None:
+            import_errors.append("Vui lòng chọn tệp CSV để nhập.")
+        elif upload.size > 2_000_000:
+            import_errors.append("Tệp CSV không được vượt quá 2 MB.")
+        else:
+            try:
+                text = upload.read().decode("utf-8-sig")
+                reader = csv.DictReader(io.StringIO(text))
+                headers = {
+                    header.strip().lower()
+                    for header in (reader.fieldnames or [])
+                    if header
+                }
+                required = {"ho_ten"}
+                if not required.issubset(headers):
+                    import_errors.append(
+                        "Thiếu cột bắt buộc ho_ten trong tệp CSV."
+                    )
+                else:
+                    accepted_rows = []
+                    seen_emails = set()
+                    seen_phones = set()
+                    for row_number, raw_row in enumerate(reader, start=2):
+                        row = {
+                            (key or "").strip().lower(): (value or "").strip()
+                            for key, value in raw_row.items()
+                        }
+                        row_errors = []
+                        name = row.get("ho_ten", "")
+                        email = row.get("email", "").lower()
+                        phone = row.get("so_dien_thoai", "")
+                        raw_type = row.get("loai_khach_hang", "Khách lẻ")
+                        raw_status = row.get("trang_thai", "ACTIVE").upper()
+                        if not name or len(name) > 100:
+                            row_errors.append("Họ tên bắt buộc, tối đa 100 ký tự.")
+                        if email:
+                            try:
+                                EmailValidator()(email)
+                            except ValidationError:
+                                row_errors.append("Email không hợp lệ.")
+                            if (
+                                TaiKhoan.objects.filter(email__iexact=email).exists()
+                                or KhachHang.objects.filter(email__iexact=email).exists()
+                                or email in seen_emails
+                            ):
+                                row_errors.append("Email bị trùng.")
+                        if phone:
+                            if (
+                                len(phone) > 15
+                                or not re.fullmatch(r"\+?[0-9\s().-]{8,15}", phone)
+                            ):
+                                row_errors.append("Số điện thoại không hợp lệ.")
+                            if (
+                                TaiKhoan.objects.filter(so_dien_thoai=phone).exists()
+                                or KhachHang.objects.filter(so_dien_thoai=phone).exists()
+                                or phone in seen_phones
+                            ):
+                                row_errors.append("Số điện thoại bị trùng.")
+                        normalized_type = raw_type.casefold()
+                        if normalized_type in {"retail", "khách lẻ"}:
+                            type_name = "Khách lẻ"
+                        elif normalized_type in {"wholesale", "khách sỉ"}:
+                            type_name = "Khách sỉ"
+                        else:
+                            type_name = ""
+                            row_errors.append(
+                                "Loại khách hàng phải là Khách lẻ hoặc Khách sỉ."
+                            )
+                        status_aliases = {
+                            "ACTIVE": KhachHang.TrangThai.ACTIVE,
+                            "HOẠT ĐỘNG": KhachHang.TrangThai.ACTIVE,
+                            "INACTIVE": KhachHang.TrangThai.INACTIVE,
+                            "NGỪNG HOẠT ĐỘNG": KhachHang.TrangThai.INACTIVE,
+                        }
+                        status_value = status_aliases.get(raw_status)
+                        if status_value is None:
+                            row_errors.append(
+                                "Trạng thái phải là ACTIVE hoặc INACTIVE."
+                            )
+                        if row_errors:
+                            import_errors.append(
+                                f"Dòng {row_number}: {' '.join(row_errors)}"
+                            )
+                        else:
+                            if email:
+                                seen_emails.add(email)
+                            if phone:
+                                seen_phones.add(phone)
+                            accepted_rows.append(
+                                (name, email, phone, type_name, status_value)
+                            )
+
+                    for name, email, phone, type_name, status_value in accepted_rows:
+                        customer_type = LoaiKhachHang.objects.get(
+                            ten_loai_kh=type_name
+                        )
+                        try:
+                            with transaction.atomic():
+                                customer = KhachHang.objects.create(
+                                    ma_kh=_next_customer_code(),
+                                    tai_khoan=None,
+                                    loai_khach_hang=customer_type,
+                                    ho_ten=name,
+                                    email=email or None,
+                                    so_dien_thoai=phone or None,
+                                    trang_thai=status_value,
+                                )
+                                LichSuKhachHang.objects.create(
+                                    ma_lich_su=DichVuLichSuHoSo.tao_ma_lich_su(),
+                                    khach_hang=customer,
+                                    nguoi_thuc_hien=request.user,
+                                    loai_thay_doi=(
+                                        LichSuKhachHang.LoaiThayDoi.IMPORT
+                                    ),
+                                    noi_dung_moi=(
+                                        f"Nhập từ CSV; trạng thái: {status_value}"
+                                    ),
+                                )
+                        except IntegrityError:
+                            import_errors.append(
+                                f"{name}: dữ liệu bị trùng với bản ghi vừa nhập."
+                            )
+                        else:
+                            imported_count += 1
+            except UnicodeDecodeError:
+                import_errors.append(
+                    "Không đọc được tệp. Hãy lưu CSV theo mã hóa UTF-8."
+                )
+            except csv.Error as error:
+                import_errors.append(f"Tệp CSV không hợp lệ: {error}")
+        if imported_count:
+            messages.success(
+                request,
+                f"Đã nhập thành công {imported_count} hồ sơ khách hàng.",
+            )
+    return render(
+        request,
+        "customers/customer_import.html",
+        {
+            "import_errors": import_errors,
+            "imported_count": imported_count,
+        },
+    )
+
+
+@role_required(TaiKhoan.VaiTro.MANAGER)
+def manager_role_permissions_page(request):
+    if request.method == "POST":
+        account_id = request.POST.get("tai_khoan_id", "")
+        new_role = request.POST.get("vai_tro", "")
+        account = get_object_or_404(
+            TaiKhoan.objects.filter(
+                vai_tro__in=[
+                    TaiKhoan.VaiTro.EMPLOYEE,
+                    TaiKhoan.VaiTro.MANAGER,
+                ]
+            ),
+            pk=account_id,
+        )
+        if account.pk == request.user.pk:
+            messages.error(request, "Không thể đổi vai trò của chính mình.")
+        elif new_role not in {
+            TaiKhoan.VaiTro.EMPLOYEE,
+            TaiKhoan.VaiTro.MANAGER,
+        }:
+            messages.error(request, "Vai trò nhân viên không hợp lệ.")
+        elif (
+            account.vai_tro == TaiKhoan.VaiTro.MANAGER
+            and new_role == TaiKhoan.VaiTro.EMPLOYEE
+            and TaiKhoan.objects.filter(
+                vai_tro=TaiKhoan.VaiTro.MANAGER,
+                is_active=True,
+                trang_thai=TaiKhoan.TrangThai.ACTIVE,
+            ).count() <= 1
+        ):
+            messages.error(request, "Hệ thống cần ít nhất một quản lý hoạt động.")
+        else:
+            account.vai_tro = new_role
+            account.is_staff = new_role == TaiKhoan.VaiTro.MANAGER
+            account.save(update_fields=["vai_tro", "is_staff"])
+            messages.success(request, "Đã cập nhật vai trò nhân viên.")
+        return redirect("manager-role-permissions")
+
+    staff = NhanVien.objects.select_related("tai_khoan").filter(
+        tai_khoan__vai_tro__in=[
+            TaiKhoan.VaiTro.EMPLOYEE,
+            TaiKhoan.VaiTro.MANAGER,
+        ]
+    ).order_by("tai_khoan__vai_tro", "ho_ten")
+    return render(
+        request,
+        "customers/role_permissions.html",
+        {
+            "staff": staff,
+            "is_manager": True,
+        },
+    )
 def storefront_home_page(request):
-    return render(request, "storefront/home.html")
+    search_query = request.GET.get("q", "").strip()
+    category_products = (
+        SanPham.objects.filter(
+            trang_thai="ACTIVE",
+            bienthesanpham__trang_thai="ACTIVE",
+        )
+        .order_by("ten_sp")
+        .prefetch_related(
+            Prefetch(
+                "hinhanhsanpham_set",
+                queryset=HinhAnhSanPham.objects.order_by(
+                    "-anh_chinh",
+                    "ma_hinh_anh",
+                ),
+                to_attr="home_images",
+            )
+        )
+        .distinct()
+    )
+    categories = (
+        DanhMucSanPham.objects.filter(trang_thai="ACTIVE")
+        .annotate(
+            active_product_count=Count(
+                "sanpham",
+                filter=Q(
+                    sanpham__trang_thai="ACTIVE",
+                    sanpham__bienthesanpham__trang_thai="ACTIVE",
+                ),
+                distinct=True,
+            )
+        )
+        .filter(active_product_count__gt=0)
+        .order_by("ten_dm")
+        .prefetch_related(
+            Prefetch(
+                "sanpham_set",
+                queryset=category_products,
+                to_attr="home_products",
+            )
+        )
+    )
+    products = (
+        SanPham.objects.filter(
+            trang_thai="ACTIVE",
+            bienthesanpham__trang_thai="ACTIVE",
+        )
+        .select_related("danh_muc")
+        .annotate(
+            home_price=Min(
+                "bienthesanpham__gia_ban_le",
+                filter=Q(bienthesanpham__trang_thai="ACTIVE"),
+            ),
+            active_variant_count=Count(
+                "bienthesanpham",
+                filter=Q(bienthesanpham__trang_thai="ACTIVE"),
+                distinct=True,
+            ),
+        )
+        .prefetch_related(
+            Prefetch(
+                "hinhanhsanpham_set",
+                queryset=HinhAnhSanPham.objects.order_by(
+                    "-anh_chinh",
+                    "ma_hinh_anh",
+                ),
+                to_attr="home_images",
+            )
+        )
+        .distinct()
+        .order_by("-ngay_tao", "ten_sp")
+    )
+
+    if search_query:
+        products = products.filter(
+            Q(ten_sp__icontains=search_query)
+            | Q(ma_sp__icontains=search_query)
+            | Q(danh_muc__ten_dm__icontains=search_query)
+            | Q(
+                bienthesanpham__barcode__icontains=search_query,
+                bienthesanpham__trang_thai="ACTIVE",
+            )
+            | Q(
+                bienthesanpham__huong_vi__icontains=search_query,
+                bienthesanpham__trang_thai="ACTIVE",
+            )
+            | Q(
+                bienthesanpham__quy_cach__icontains=search_query,
+                bienthesanpham__trang_thai="ACTIVE",
+            )
+        ).distinct()
+
+    return render(
+        request,
+        "storefront/home.html",
+        {
+            "categories": categories,
+            "products": products[:8],
+            "search_query": search_query,
+        },
+    )
 
 
 @role_required(TaiKhoan.VaiTro.EMPLOYEE)
 def employee_dashboard_page(request):
-    return render(request, "dashboard/employee.html")
+    customers = KhachHang.objects.all()
+    return render(
+        request,
+        "dashboard/employee.html",
+        {
+            "total_customers": customers.count(),
+            "active_customers": customers.filter(
+                trang_thai=KhachHang.TrangThai.ACTIVE
+            ).count(),
+            "new_customers_today": customers.filter(
+                ngay_tao__date=timezone.localdate()
+            ).count(),
+            "wholesale_customers": customers.filter(
+                loai_khach_hang__ten_loai_kh="Khách sỉ"
+            ).count(),
+            "recent_changes": LichSuKhachHang.objects.select_related(
+                "khach_hang",
+                "nguoi_thuc_hien",
+            )[:8],
+        },
+    )
 
 
 @role_required(TaiKhoan.VaiTro.MANAGER)
 def manager_dashboard_page(request):
-    return render(request, "dashboard/manager.html")
+    customers = KhachHang.objects.all()
+    return render(
+        request,
+        "dashboard/manager.html",
+        {
+            "total_customers": customers.count(),
+            "active_customers": customers.filter(
+                trang_thai=KhachHang.TrangThai.ACTIVE
+            ).count(),
+            "inactive_customers": customers.filter(
+                trang_thai=KhachHang.TrangThai.INACTIVE
+            ).count(),
+            "wholesale_customers": customers.filter(
+                loai_khach_hang__ten_loai_kh="Khách sỉ"
+            ).count(),
+            "locked_accounts": TaiKhoan.objects.filter(
+                vai_tro=TaiKhoan.VaiTro.CUSTOMER,
+                trang_thai=TaiKhoan.TrangThai.LOCKED,
+            ).count(),
+            "active_staff": NhanVien.objects.filter(
+                trang_thai=NhanVien.TrangThai.ACTIVE,
+                tai_khoan__is_active=True,
+            ).count(),
+            "recent_changes": LichSuKhachHang.objects.select_related(
+                "khach_hang",
+                "nguoi_thuc_hien",
+            )[:10],
+        },
+    )
 
 @require_POST
 def logout_page(request):

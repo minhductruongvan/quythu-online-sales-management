@@ -1,0 +1,50 @@
+{% extends "layouts/base_customer.html" %}
+{% load static %}
+{% block title %}Thanh toán | Quý Thu{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}"><link rel="stylesheet" href="{% static 'css/checkout.css' %}?v=1">{% endblock %}
+{% block content %}
+<main class="module-page" id="checkout-page" data-api="/api/orders/checkout/" data-cart-api="/api/orders/cart/" data-order-api="/api/orders/" data-address-api="/api/customers/addresses/">
+    {% csrf_token %}
+    <header class="module-heading"><div><span class="module-eyebrow">HOÀN TẤT ĐẶT HÀNG</span><h1>Thanh toán</h1><p>Kiểm tra địa chỉ, sản phẩm và phương thức thanh toán trước khi đặt.</p></div><a class="module-link-button secondary" href="{% url 'cart-page' %}">← Giỏ hàng</a></header>
+    <div id="checkout-message" role="status"></div>
+    <div class="module-grid checkout-layout">
+        <section class="module-panel">
+            <h2>Địa chỉ giao hàng</h2>
+            <div class="checkout-address-toolbar">
+                <div><label for="checkout-address">Địa chỉ nhận hàng</label><select id="checkout-address" disabled></select></div>
+                <button class="module-button secondary" type="button" id="checkout-add-address">＋ Thêm địa chỉ mới</button>
+            </div>
+            <div id="checkout-no-address" class="module-alert" hidden>
+                Bạn chưa có địa chỉ giao hàng. Thêm địa chỉ ngay tại đây để tiếp tục đặt hàng.
+            </div>
+            <div id="checkout-address-summary" class="module-alert"></div>
+            <h2>Phương thức thanh toán</h2><div id="checkout-payments" class="module-form-grid"></div>
+            <h2>Đơn hàng</h2><div id="checkout-items"></div>
+        </section>
+        <aside class="module-panel"><span class="module-eyebrow">TÓM TẮT</span><div class="module-summary"><span>Tiền hàng</span><strong id="checkout-subtotal">—</strong></div><div class="module-summary"><span>Phí giao hàng</span><strong id="checkout-shipping">—</strong></div><hr><div class="module-summary"><span class="module-total">Tổng thanh toán</span><strong class="module-total" id="checkout-total">—</strong></div><button id="place-order-button" class="module-button" type="button" style="width:100%;margin-top:18px" disabled>Đặt hàng</button><p class="module-muted" style="margin-top:12px">Tổng tiền sẽ được xác nhận lại từ dữ liệu hệ thống khi đặt hàng.</p></aside>
+    </div>
+    <dialog class="checkout-address-dialog" id="checkout-address-dialog" aria-labelledby="checkout-address-title">
+        <form id="checkout-address-form" class="module-panel" novalidate>
+            <div class="checkout-dialog-heading">
+                <div><span class="module-eyebrow">ĐỊA CHỈ NHẬN HÀNG</span><h2 id="checkout-address-title">Thêm địa chỉ mới</h2></div>
+                <button type="button" class="checkout-dialog-close" id="checkout-address-close" aria-label="Đóng">×</button>
+            </div>
+            <div id="checkout-address-form-message" role="status" aria-live="polite"></div>
+            <div class="checkout-address-fields">
+                <div><label for="checkout-recipient">Tên người nhận *</label><input id="checkout-recipient" name="ten_nguoi_nhan" maxlength="100" required autocomplete="name"></div>
+                <div><label for="checkout-phone">Số điện thoại *</label><input id="checkout-phone" name="so_dien_thoai" type="tel" maxlength="15" required autocomplete="tel"></div>
+                <div class="checkout-address-wide"><label for="checkout-street">Địa chỉ chi tiết *</label><input id="checkout-street" name="dia_chi_chi_tiet" maxlength="255" placeholder="Số nhà, tên đường" required autocomplete="street-address"></div>
+                <div><label for="checkout-ward">Phường / Xã</label><input id="checkout-ward" name="phuong_xa" maxlength="100"></div>
+                <div><label for="checkout-district">Quận / Huyện</label><input id="checkout-district" name="quan_huyen" maxlength="100"></div>
+                <div class="checkout-address-wide"><label for="checkout-province">Tỉnh / Thành phố *</label><input id="checkout-province" name="tinh_thanh" maxlength="100" list="checkout-province-options" required autocomplete="address-level1"><datalist id="checkout-province-options">{% for province in shipping_provinces %}<option value="{{ province.ten_tinh }}">{% endfor %}</datalist></div>
+            </div>
+            <label class="checkout-default-address"><input type="checkbox" name="mac_dinh" value="true"> Đặt làm địa chỉ mặc định</label>
+            <div class="checkout-dialog-actions">
+                <button type="button" class="module-link-button secondary" id="checkout-address-cancel">Hủy</button>
+                <button type="submit" class="module-button" id="checkout-address-save">Lưu địa chỉ và tiếp tục</button>
+            </div>
+        </form>
+    </dialog>
+</main>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/storefront.js' %}?v=2" defer></script>{% endblock %}

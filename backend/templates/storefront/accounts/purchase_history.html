@@ -269,10 +269,10 @@
             </div>
         </div>
 
-        <div class="purchase-demo">
-            DỮ LIỆU MINH HỌA
-        </div>
+        <div class="purchase-demo">LỊCH SỬ ĐƠN HÀNG</div>
     </div>
+
+    {% include "components/customer_account_nav.html" with active="orders" %}
 
     <div class="purchase-stats">
         <div class="purchase-stat">
@@ -292,7 +292,7 @@
             <div class="purchase-stat-value">
                 {{ total_spent|floatformat:0 }}đ
             </div>
-            <div class="purchase-stat-note">Giá trị đơn hoàn thành (demo)</div>
+            <div class="purchase-stat-note">Giá trị đơn đã hoàn thành</div>
         </div>
     </div>
 
@@ -375,8 +375,12 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="text-center py-5 text-muted">
-                            Chưa có đơn hàng nào.
+                        <td colspan="6" class="text-center py-5">
+                            <div class="purchase-empty-state">
+                                <strong>Bạn chưa có đơn hàng nào</strong>
+                                <p>Khám phá sản phẩm và đơn hàng sẽ được lưu tại đây.</p>
+                                <a href="{% url 'storefront-home' %}#san-pham">Khám phá sản phẩm <span aria-hidden="true">→</span></a>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -391,11 +395,6 @@
         </div>
     </div>
 
-    <div class="purchase-demo-note mt-3">
-        <strong>Lưu ý:</strong> Đây là dữ liệu minh họa phục vụ xây dựng giao diện
-        M1. Lịch sử đơn hàng thực tế sẽ được kết nối với module M3 sau khi
-        thống nhất API và trạng thái đơn hàng.
-    </div>
 </div>
 
 <!-- Modal chi tiết đơn hàng -->
@@ -442,9 +441,6 @@
                     </div>
                 </div>
 
-                <div class="purchase-demo-note">
-                    Thông tin đơn hàng chỉ là dữ liệu minh họa, chưa kết nối M3.
-                </div>
             </div>
 
             <div class="modal-footer">

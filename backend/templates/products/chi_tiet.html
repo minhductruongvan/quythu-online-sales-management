@@ -1,0 +1,158 @@
+{% extends "layouts/base_customer.html" %}
+{% load static %}
+{% block title %}{{ san_pham.ten_sp }} | Quý Thu{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}">{% endblock %}
+{% block content %}
+<main class="module-page product-detail" data-product-detail>
+    <nav class="product-breadcrumb" aria-label="Đường dẫn">
+        <a href="{% url 'storefront-home' %}">Trang chủ</a><span aria-hidden="true">/</span>
+        <a href="{% url 'products:danh_sach' %}">Danh mục sản phẩm</a><span aria-hidden="true">/</span>
+        <span>{{ san_pham.ten_sp }}</span>
+    </nav>
+
+    <section class="product-detail-layout">
+        <div class="product-gallery">
+            <div class="product-image-placeholder" role="img" aria-label="Ảnh sản phẩm đang được cập nhật">
+                <span class="product-placeholder-mark" aria-hidden="true">Q</span>
+                <span>Hình ảnh sản phẩm sẽ được cập nhật</span>
+            </div>
+            <div class="product-gallery-caption">
+                <span class="product-gallery-dot" aria-hidden="true"></span>
+                Đặc sản chính hãng từ Quý Thu
+            </div>
+        </div>
+
+        <div class="product-detail-card">
+            <div class="product-detail-meta">
+                <span class="catalog-category">{{ san_pham.danh_muc.ten_dm }}</span>
+                <span>Mã sản phẩm: {{ san_pham.ma_sp }}</span>
+            </div>
+            <h1>{{ san_pham.ten_sp }}</h1>
+            <p class="product-detail-description">{{ san_pham.mo_ta|default:"Đặc sản Quý Thu với hương vị truyền thống, phù hợp để thưởng thức hoặc làm quà tặng." }}</p>
+
+            {% if la_khach_si %}
+            <div class="module-alert success product-wholesale-note">Tài khoản khách sỉ của bạn được áp dụng giá sỉ theo quy cách và số lượng tối thiểu.</div>
+            {% endif %}
+
+            {% if danh_sach_bien_the %}
+            {% with variant=danh_sach_bien_the|first %}
+            <div class="product-price-panel">
+                <span>Giá bán lẻ</span>
+                <strong id="product-retail-price" aria-live="polite">{{ variant.gia_ban_le|floatformat:0 }} ₫</strong>
+                {% if la_khach_si %}
+                <p id="product-wholesale-line" {% if not variant.gia_ban_si %}hidden{% endif %}>
+                    Giá sỉ <strong id="product-wholesale-price">{% if variant.gia_ban_si %}{{ variant.gia_ban_si|floatformat:0 }} ₫{% endif %}</strong>
+                    <span>· tối thiểu <span id="product-wholesale-min">{{ variant.so_luong_toi_thieu_si }}</span> gói</span>
+                </p>
+                {% endif %}
+            </div>
+            {% endwith %}
+
+            <div class="product-variant-picker">
+                <label for="product-variant">Chọn phiên bản để đặt hàng</label>
+                <select id="product-variant" data-product-variant-picker>
+                    {% for variant in danh_sach_bien_the %}
+                    <option value="{{ variant.ma_bien_the }}"
+                            data-retail-price="{{ variant.gia_ban_le }}"
+                            data-wholesale-price="{{ variant.gia_ban_si|default_if_none:'' }}"
+                            data-wholesale-min="{{ variant.so_luong_toi_thieu_si }}"
+                            {% if forloop.first %}selected{% endif %}>
+                        {{ variant.huong_vi }} · {{ variant.quy_cach }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            {% if request.user.is_authenticated and request.user.vai_tro == "CUSTOMER" %}
+            <form class="product-purchase-form js-add-to-cart" data-api="/api/orders/cart/">
+                {% csrf_token %}
+                <input type="hidden" name="ma_bien_the" value="{{ danh_sach_bien_the.0.ma_bien_the }}" data-selected-variant>
+                <label for="product-quantity">Số lượng</label>
+                <div class="product-purchase-controls">
+                    <input id="product-quantity" type="number" name="so_luong" min="1" value="1" required>
+                    <button class="module-button" type="submit">Thêm vào giỏ hàng</button>
+                </div>
+            </form>
+            {% elif not request.user.is_authenticated %}
+            <a class="module-link-button product-login-link" href="{% url 'login-page' %}?next={{ request.path|urlencode }}">Đăng nhập để mua hàng</a>
+            {% elif request.user.vai_tro == "MANAGER" %}
+            <a class="module-link-button secondary product-login-link" href="{% url 'manager-dashboard' %}">Mở không gian quản lý</a>
+            {% else %}
+            <a class="module-link-button secondary product-login-link" href="{% url 'employee-dashboard' %}">Mở không gian nhân viên</a>
+            {% endif %}
+            <div class="js-form-message" role="status" aria-live="polite"></div>
+            {% else %}
+            <div class="module-panel module-empty">Sản phẩm hiện chưa có biến thể đang bán.</div>
+            {% endif %}
+
+            <div class="product-service-notes">
+                <span><b aria-hidden="true">✓</b> Sản phẩm được quản lý trực tiếp bởi Quý Thu</span>
+                <span><b aria-hidden="true">✓</b> Giá và quy cách được cập nhật theo từng lựa chọn</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="product-information">
+        <nav class="product-information-nav" aria-label="Thông tin sản phẩm">
+            <a href="#product-description">Mô tả sản phẩm</a>
+            <a href="#product-ingredients">Thành phần</a>
+            <a href="#product-specifications">Hương vị và quy cách</a>
+        </nav>
+        <div class="product-information-grid">
+            <section class="product-info-description" id="product-description">
+                <span class="product-info-kicker">CÂU CHUYỆN SẢN PHẨM</span>
+                <h2>Mô tả sản phẩm</h2>
+                <p>{{ san_pham.mo_ta|default:"Đặc sản Quý Thu với hương vị truyền thống, phù hợp để thưởng thức hoặc làm quà tặng."|linebreaksbr }}</p>
+                <ul class="product-info-highlights">
+                    <li>Thông tin giá được cập nhật theo phiên bản bạn chọn.</li>
+                    <li>Kiểm tra hương vị và số lượng gói trước khi đặt hàng.</li>
+                </ul>
+            </section>
+            <section class="product-info-ingredients" id="product-ingredients">
+                <span class="product-info-kicker">THÔNG TIN MINH BẠCH</span>
+                <h2>Thành phần</h2>
+                <p>Danh sách thành phần chi tiết chưa được cung cấp trong dữ liệu sản phẩm. Để kiểm tra nguyên liệu hoặc thành phần có thể gây dị ứng, vui lòng xem nhãn trên bao bì hoặc liên hệ Quý Thu trước khi sử dụng.</p>
+            </section>
+            <section class="product-info-variants" id="product-specifications">
+                <div class="product-info-section-heading">
+                    <div>
+                        <span class="product-info-kicker">CÁC LỰA CHỌN ĐANG BÁN</span>
+                        <h2>Hương vị và quy cách</h2>
+                    </div>
+                    {% if danh_sach_bien_the %}
+                    <span class="product-info-count">{{ danh_sach_bien_the|length }} phiên bản</span>
+                    {% endif %}
+                </div>
+                {% if danh_sach_bien_the %}
+                <div class="product-variant-cards">
+                    {% for variant in danh_sach_bien_the %}
+                    <button class="product-variant-card" type="button"
+                            data-product-variant-select="{{ variant.ma_bien_the }}"
+                            data-product-retail-price="{{ variant.gia_ban_le }}"
+                            data-product-wholesale-price="{{ variant.gia_ban_si|default_if_none:'' }}"
+                            data-product-wholesale-min="{{ variant.so_luong_toi_thieu_si }}"
+                            aria-pressed="{% if forloop.first %}true{% else %}false{% endif %}">
+                        <span class="product-variant-card-top">
+                            <span class="product-variant-flavor">{{ variant.huong_vi }}</span>
+                            <span class="product-variant-check" aria-hidden="true">✓</span>
+                        </span>
+                        <span class="product-variant-pack-label">Quy cách đóng gói</span>
+                        <strong class="product-variant-pack">{{ variant.quy_cach }}</strong>
+                        <span class="product-variant-price-label">Giá bán lẻ</span>
+                        <strong class="product-variant-price" data-product-variant-price>{{ variant.gia_ban_le|floatformat:0 }} ₫</strong>
+                        {% if variant.gia_ban_si %}
+                        <span class="product-variant-wholesale">Giá sỉ: <strong data-product-variant-wholesale-price>{{ variant.gia_ban_si|floatformat:0 }} ₫</strong>{% if variant.so_luong_toi_thieu_si %}, từ {{ variant.so_luong_toi_thieu_si }} gói{% endif %}</span>
+                        {% endif %}
+                    </button>
+                    {% endfor %}
+                </div>
+                <p class="product-variant-hint">Chọn một phiên bản để cập nhật giá và áp dụng vào đơn hàng.</p>
+                {% else %}
+                <p class="product-info-empty">Sản phẩm hiện chưa có phiên bản đang bán.</p>
+                {% endif %}
+            </section>
+        </div>
+    </section>
+</main>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/storefront.js' %}" defer></script>{% endblock %}

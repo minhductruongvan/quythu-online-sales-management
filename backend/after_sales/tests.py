@@ -581,3 +581,6 @@ class KiemThuApiDoiTra(NenHauMai, TestCase):
         r = self.api.get(f"/api/after-sales/doi-tra/dong/{self.don.ma_dh}/")
         self.assertEqual(r.status_code, 200, r.data)
         self.assertEqual(len(r.data["data"]), 2)
+        self.assertTrue(all(dong["bien_the_thay_the"] for dong in r.data["data"]))
+        self.assertTrue(all("ma_bien_the" in bien_the for dong in r.data["data"]
+                            for bien_the in dong["bien_the_thay_the"]))

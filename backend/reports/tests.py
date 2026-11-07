@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.test import TestCase, Client
 from django.utils import timezone
 
-from customers.models import TaiKhoan, KhachHang, LoaiKhachHang
+from customers.models import KhachHang, LoaiKhachHang, NhanVien, TaiKhoan
 from orders.models import (
     DonHang,
     ChiTietDonHang,
@@ -18,7 +18,7 @@ from reports import services
 
 class Module5ReportsTestCase(TestCase):
     def setUp(self):
-        self.now = timezone.now()
+        self.now = timezone.localtime()
         
         # 1. Setup LoaiKhachHang & TaiKhoan
         self.loai_le = LoaiKhachHang.objects.get(
@@ -32,6 +32,11 @@ class Module5ReportsTestCase(TestCase):
             ma_tk="TK001",
             email="manager@quythu.vn",
             vai_tro=TaiKhoan.VaiTro.MANAGER,
+        )
+        NhanVien.objects.create(
+            ma_nv="NV001",
+            tai_khoan=self.user_manager,
+            ho_ten="Quản lý kiểm thử",
         )
         self.user_cust = TaiKhoan.objects.create(
             ma_tk="TK002",
@@ -182,11 +187,88 @@ class Module5ReportsTestCase(TestCase):
     def test_views_status_codes(self):
         """Kiểm tra view trả về HTTP 200 OK"""
         client = Client()
+        client.force_login(self.user_manager)
         resp_dashboard = client.get("/reports/dashboard/")
-        self.assertEqual(resp_dashboard.status_code, 200)
+        self.assertEqual(resp_dashboard.status_code, 200, resp_dashboard.get("Location"))
 
         resp_detail = client.get("/reports/chi-tiet/?tab=revenue")
         self.assertEqual(resp_detail.status_code, 200)
 
         resp_api = client.get("/reports/api/dashboard-data/")
         self.assertEqual(resp_api.status_code, 200)
+
+    def test_product_and_revenue_filters_apply_to_reports(self):
+        client = Client()
+        client.force_login(self.user_manager)
+
+        dashboard = client.get(
+            "/reports/dashboard/",
+            {"product": "SP01", "amount_min": "50000", "amount_max": "100000"},
+        )
+        self.assertEqual(dashboard.status_code, 200)
+        self.assertEqual(dashboard.context["kpis"]["revenue"]["value"], 80000)
+        self.assertEqual(dashboard.context["kpis"]["orders"]["value"], 1)
+
+        detail = client.get(
+            "/reports/chi-tiet/",
+            {
+                "tab": "revenue",
+                "product": "SP01",
+                "amount_min": "50000",
+                "q": "DH001",
+            },
+        )
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.context["order_details"]["total_records"], 1)
+        self.assertContains(detail, "q=DH001")
+        self.assertContains(detail, 'action="/reports/chi-tiet/"')
+        self.assertContains(detail, 'name="amount_min" min="0" step="1"')
+
+        for tab in ("products", "recent", "area"):
+            response = client.get(
+                "/reports/chi-tiet/",
+                {"tab": tab, "product": "SP01", "pttt": "PT001"},
+            )
+            self.assertEqual(response.status_code, 200, tab)
+
+        export = client.get(
+            "/reports/export/csv/",
+            {"tab": "products", "product": "SP01", "pttt": "PT001"},
+        )
+        self.assertEqual(export.status_code, 200)
+        self.assertIn("text/csv", export["Content-Type"])
+
+        no_match = client.get(
+            "/reports/chi-tiet/",
+            {"tab": "revenue", "product": "SP01", "amount_min": "100001"},
+        )
+        self.assertEqual(no_match.status_code, 200)
+        self.assertEqual(no_match.context["order_details"]["total_records"], 0)
+
+        invalid_range = client.get(
+            "/reports/dashboard/",
+            {"amount_min": "100000", "amount_max": "50000"},
+        )
+        self.assertEqual(invalid_range.status_code, 400)
+        self.assertContains(invalid_range, "Không thể áp dụng bộ lọc", status_code=400)
+
+        invalid_product = client.get(
+            "/reports/chi-tiet/",
+            {"product": "DOES_NOT_EXIST"},
+        )
+        self.assertEqual(invalid_product.status_code, 400)
+        self.assertContains(invalid_product, "Quay lại báo cáo chi tiết", status_code=400)
+
+        api_error = client.get(
+            "/reports/api/detail-data/",
+            {"product": "DOES_NOT_EXIST"},
+        )
+        self.assertEqual(api_error.status_code, 400)
+        self.assertEqual(api_error.json()["status"], "error")
+
+        invalid_dates = client.get(
+            "/reports/chi-tiet/",
+            {"preset": "custom", "start_date": "2026-11-06", "end_date": "2026-11-01"},
+        )
+        self.assertEqual(invalid_dates.status_code, 400)
+        self.assertContains(invalid_dates, "Ngày bắt đầu không được sau ngày kết thúc.", status_code=400)

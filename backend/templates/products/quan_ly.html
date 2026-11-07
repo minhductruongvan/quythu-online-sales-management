@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Danh mục sản phẩm | Quý Thu{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}">{% endblock %}
+{% block content %}
+<main class="module-page">
+    <header class="module-heading"><div><span class="module-eyebrow">DANH MỤC CỬA HÀNG</span><h1>Quản lý sản phẩm</h1><p>Quản lý danh mục, biến thể, giá, mã vạch và hình ảnh trong một nơi.</p></div><a class="module-button" href="{% url 'products:them' %}">＋ Thêm sản phẩm</a></header>
+    <form method="get" class="module-toolbar">
+        <input style="max-width:420px" name="q" value="{{ tu_khoa }}" placeholder="Tìm tên, mã sản phẩm hoặc mã vạch">
+        <select name="status" style="max-width:220px"><option value="">Tất cả trạng thái</option><option value="ACTIVE" {% if trang_thai_loc == "ACTIVE" %}selected{% endif %}>Đang kinh doanh</option><option value="INACTIVE" {% if trang_thai_loc == "INACTIVE" %}selected{% endif %}>Ngừng kinh doanh</option></select>
+        <button class="module-button">Tìm kiếm</button><a href="{% url 'products:quan_ly' %}">Xóa lọc</a><a href="{% url 'products:quan_ly_danh_muc' %}">Quản lý danh mục →</a>
+    </form>
+    <section class="module-card module-table-wrap"><table class="module-table"><thead><tr><th>Sản phẩm</th><th>Danh mục</th><th>Giá từ</th><th>Trạng thái</th><th>Quản lý</th></tr></thead><tbody>
+        {% for product in danh_sach_sp %}<tr><td><strong>{{ product.ten_sp }}</strong><br><small>{{ product.ma_sp }}</small></td><td>{{ product.danh_muc.ten_dm }}</td><td>{{ product.lay_gia_thap_nhat|floatformat:0 }} ₫</td><td><span class="module-pill {% if product.trang_thai != 'ACTIVE' %}warning{% endif %}">{{ product.get_trang_thai_display|default:product.trang_thai }}</span></td><td><div class="module-inline-form"><a href="{% url 'products:sua' product.ma_sp %}">Sửa</a><a href="{% url 'products:danh_sach_bien_the' product.ma_sp %}">Biến thể</a><a href="{% url 'products:quan_ly_gia' product.ma_sp %}">Giá</a><a href="{% url 'products:quan_ly_ma_vach' product.ma_sp %}">Mã vạch</a><a href="{% url 'products:quan_ly_hinh_anh' product.ma_sp %}">Hình ảnh</a><form method="post" action="{% url 'products:doi_trang_thai' product.ma_sp %}">{% csrf_token %}<button class="module-button secondary" type="submit">{% if product.trang_thai == 'ACTIVE' %}Ngừng bán{% else %}Mở bán{% endif %}</button></form></div></td></tr>{% empty %}<tr><td colspan="5" class="module-empty">Chưa có sản phẩm. Hãy thêm mới hoặc chạy lệnh nạp dữ liệu mẫu.</td></tr>{% endfor %}
+    </tbody></table></section>
+</main>
+{% endblock %}

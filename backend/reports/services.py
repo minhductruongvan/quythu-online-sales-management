@@ -1,7 +1,7 @@
 from datetime import datetime, time, timedelta
 from decimal import Decimal
 from django.db import models
-from django.db.models import Count, Sum, F, Q, Value, DecimalField
+from django.db.models import Count, Exists, OuterRef, Sum, F, Q, Value, DecimalField
 from django.db.models.functions import Coalesce, TruncDate, TruncWeek, TruncMonth
 from django.utils import timezone
 
@@ -17,6 +17,41 @@ from orders.models import (
 from products.models import SanPham, BienTheSanPham, DanhMucSanPham
 
 
+def _filter_orders(
+    qs,
+    product_id=None,
+    amount_min=None,
+    amount_max=None,
+    category_id=None,
+    pttt_id=None,
+    search_kw=None,
+):
+    if product_id or category_id:
+        matching_lines = ChiTietDonHang.objects.filter(don_hang_id=OuterRef("pk"))
+        if product_id:
+            matching_lines = matching_lines.filter(bien_the__san_pham_id=product_id)
+        if category_id:
+            matching_lines = matching_lines.filter(
+                bien_the__san_pham__danh_muc_id=category_id
+            )
+        qs = qs.filter(Exists(matching_lines))
+    if amount_min is not None:
+        qs = qs.filter(tong_thanh_toan__gte=amount_min)
+    if amount_max is not None:
+        qs = qs.filter(tong_thanh_toan__lte=amount_max)
+    if pttt_id and pttt_id != "ALL":
+        qs = qs.filter(phuong_thuc_thanh_toan_id=pttt_id)
+    if search_kw:
+        keyword = search_kw.strip()
+        qs = qs.filter(
+            Q(ma_dh__icontains=keyword)
+            | Q(khach_hang__ho_ten__icontains=keyword)
+            | Q(ho_ten_nguoi_nhan__icontains=keyword)
+            | Q(sdt_nguoi_nhan__icontains=keyword)
+        )
+    return qs
+
+
 def parse_date_range(preset=None, start_date_str=None, end_date_str=None):
     """
     Quy tắc M5-BR09:
@@ -27,7 +62,7 @@ def parse_date_range(preset=None, start_date_str=None, end_date_str=None):
     - Trả về: (start_dt, end_dt, prev_start_dt, prev_end_dt, preset_used)
     """
     now = timezone.now()
-    today = now.date()
+    today = timezone.localdate(now)
 
     if preset == "today":
         start_d = today
@@ -106,7 +141,7 @@ def calc_percentage_change(current_val, prev_val):
     return round(((curr - prev) / prev) * 100, 1)
 
 
-def get_dashboard_kpis(date_range, customer_type=None):
+def get_dashboard_kpis(date_range, customer_type=None, product_id=None, amount_min=None, amount_max=None, category_id=None):
     """
     Quy tắc M5-BR01, M5-BR02, M5-BR04, M5-BR05:
     1. Doanh thu thuần: Đơn HOAN_THANH theo thoi_diem_hoan_thanh
@@ -122,20 +157,51 @@ def get_dashboard_kpis(date_range, customer_type=None):
     prev_end_dt = date_range["prev_end_dt"]
 
     # Filter base
-    qs_orders = DonHang.objects.all()
+    qs_orders = _filter_orders(
+        DonHang.objects.all(), product_id, amount_min, amount_max, category_id
+    )
     if customer_type and customer_type != "ALL":
         qs_orders = qs_orders.filter(loai_khach_hang_ap_dung_id=customer_type)
 
     # 1. Doanh thu thuần (M5-BR01)
-    rev_curr = qs_orders.filter(
+    rev_curr_orders = qs_orders.filter(
         trang_thai=TrangThaiDonHang.HOAN_THANH,
         thoi_diem_hoan_thanh__range=(start_dt, end_dt),
-    ).aggregate(total=Coalesce(Sum("tong_thanh_toan"), Value(Decimal(0))))["total"]
-
-    rev_prev = qs_orders.filter(
+    )
+    rev_prev_orders = qs_orders.filter(
         trang_thai=TrangThaiDonHang.HOAN_THANH,
         thoi_diem_hoan_thanh__range=(prev_start_dt, prev_end_dt),
-    ).aggregate(total=Coalesce(Sum("tong_thanh_toan"), Value(Decimal(0))))["total"]
+    )
+    if product_id or category_id:
+        current_lines = ChiTietDonHang.objects.filter(
+            don_hang__in=rev_curr_orders,
+        )
+        previous_lines = ChiTietDonHang.objects.filter(
+            don_hang__in=rev_prev_orders,
+        )
+        if product_id:
+            current_lines = current_lines.filter(bien_the__san_pham_id=product_id)
+            previous_lines = previous_lines.filter(bien_the__san_pham_id=product_id)
+        if category_id:
+            current_lines = current_lines.filter(
+                bien_the__san_pham__danh_muc_id=category_id
+            )
+            previous_lines = previous_lines.filter(
+                bien_the__san_pham__danh_muc_id=category_id
+            )
+        rev_curr = current_lines.aggregate(
+            total=Coalesce(Sum("thanh_tien"), Value(Decimal(0)))
+        )["total"]
+        rev_prev = previous_lines.aggregate(
+            total=Coalesce(Sum("thanh_tien"), Value(Decimal(0)))
+        )["total"]
+    else:
+        rev_curr = rev_curr_orders.aggregate(
+            total=Coalesce(Sum("tong_thanh_toan"), Value(Decimal(0)))
+        )["total"]
+        rev_prev = rev_prev_orders.aggregate(
+            total=Coalesce(Sum("tong_thanh_toan"), Value(Decimal(0)))
+        )["total"]
 
     # 2. Số đơn hàng đặt (M5-BR02)
     orders_curr = qs_orders.filter(
@@ -147,8 +213,13 @@ def get_dashboard_kpis(date_range, customer_type=None):
     ).exclude(trang_thai=TrangThaiDonHang.DA_HUY).count()
 
     # 3. Khách hàng mới (M5-BR04)
-    new_customers_curr = KhachHang.objects.filter(ngay_tao__range=(start_dt, end_dt)).count()
-    new_customers_prev = KhachHang.objects.filter(ngay_tao__range=(prev_start_dt, prev_end_dt)).count()
+    new_customers_curr_qs = KhachHang.objects.filter(ngay_tao__range=(start_dt, end_dt))
+    new_customers_prev_qs = KhachHang.objects.filter(ngay_tao__range=(prev_start_dt, prev_end_dt))
+    if customer_type and customer_type != "ALL":
+        new_customers_curr_qs = new_customers_curr_qs.filter(loai_khach_hang_id=customer_type)
+        new_customers_prev_qs = new_customers_prev_qs.filter(loai_khach_hang_id=customer_type)
+    new_customers_curr = new_customers_curr_qs.count()
+    new_customers_prev = new_customers_prev_qs.count()
 
     # 4. Tỉ lệ chuyển đổi (M5-BR05)
     # Khách có đặt đơn trong kỳ
@@ -157,9 +228,12 @@ def get_dashboard_kpis(date_range, customer_type=None):
     ).values("khach_hang_id").distinct().count()
 
     # Khách tương tác trong kỳ: có giỏ hàng cập nhật hoặc có đặt đơn
-    carts_active = GioHang.objects.filter(
+    carts_active_qs = GioHang.objects.filter(
         ngay_cap_nhat__range=(start_dt, end_dt)
-    ).values("khach_hang_id").distinct().count()
+    )
+    if customer_type and customer_type != "ALL":
+        carts_active_qs = carts_active_qs.filter(khach_hang__loai_khach_hang_id=customer_type)
+    carts_active = carts_active_qs.values("khach_hang_id").distinct().count()
     
     total_active_customers = max(customers_ordered, carts_active, 1) if (customers_ordered or carts_active) else 0
     conv_rate_curr = round((customers_ordered / total_active_customers * 100), 1) if total_active_customers > 0 else 0.0
@@ -168,9 +242,12 @@ def get_dashboard_kpis(date_range, customer_type=None):
     cust_ord_prev = qs_orders.filter(
         ngay_dat__range=(prev_start_dt, prev_end_dt)
     ).values("khach_hang_id").distinct().count()
-    carts_prev = GioHang.objects.filter(
+    carts_prev_qs = GioHang.objects.filter(
         ngay_cap_nhat__range=(prev_start_dt, prev_end_dt)
-    ).values("khach_hang_id").distinct().count()
+    )
+    if customer_type and customer_type != "ALL":
+        carts_prev_qs = carts_prev_qs.filter(khach_hang__loai_khach_hang_id=customer_type)
+    carts_prev = carts_prev_qs.values("khach_hang_id").distinct().count()
     tot_prev = max(cust_ord_prev, carts_prev, 1) if (cust_ord_prev or carts_prev) else 0
     conv_rate_prev = round((cust_ord_prev / tot_prev * 100), 1) if tot_prev > 0 else 0.0
 
@@ -236,7 +313,17 @@ def get_dashboard_kpis(date_range, customer_type=None):
     }
 
 
-def get_revenue_timeline(date_range, customer_type=None, group_by="day"):
+def get_revenue_timeline(
+    date_range,
+    customer_type=None,
+    group_by="day",
+    product_id=None,
+    amount_min=None,
+    amount_max=None,
+    category_id=None,
+    pttt_id=None,
+    search_kw=None,
+):
     """
     Biểu đồ doanh thu theo thời gian và số đơn đặt.
     Hỗ trợ group_by: 'day', 'week', 'month'
@@ -255,6 +342,12 @@ def get_revenue_timeline(date_range, customer_type=None, group_by="day"):
     if customer_type and customer_type != "ALL":
         qs_completed = qs_completed.filter(loai_khach_hang_ap_dung_id=customer_type)
         qs_placed = qs_placed.filter(loai_khach_hang_ap_dung_id=customer_type)
+    qs_completed = _filter_orders(
+        qs_completed, product_id, amount_min, amount_max, category_id, pttt_id, search_kw
+    )
+    qs_placed = _filter_orders(
+        qs_placed, product_id, amount_min, amount_max, category_id, pttt_id, search_kw
+    )
 
     if group_by == "month":
         trunc_fn = TruncMonth
@@ -267,12 +360,29 @@ def get_revenue_timeline(date_range, customer_type=None, group_by="day"):
         date_format = "%d/%m"
 
     # Aggregations
-    rev_by_date = (
-        qs_completed.annotate(period=trunc_fn("thoi_diem_hoan_thanh"))
+    if product_id or category_id:
+        revenue_source = ChiTietDonHang.objects.filter(
+            don_hang__in=qs_completed,
+        )
+        if product_id:
+            revenue_source = revenue_source.filter(bien_the__san_pham_id=product_id)
+        if category_id:
+            revenue_source = revenue_source.filter(
+                bien_the__san_pham__danh_muc_id=category_id
+            )
+        rev_by_date = (
+            revenue_source.annotate(period=trunc_fn("don_hang__thoi_diem_hoan_thanh"))
+            .values("period")
+            .annotate(total_rev=Coalesce(Sum("thanh_tien"), Value(Decimal(0))))
+            .order_by("period")
+        )
+    else:
+        rev_by_date = (
+            qs_completed.annotate(period=trunc_fn("thoi_diem_hoan_thanh"))
         .values("period")
         .annotate(total_rev=Coalesce(Sum("tong_thanh_toan"), Value(Decimal(0))))
         .order_by("period")
-    )
+        )
 
     orders_by_date = (
         qs_placed.annotate(period=trunc_fn("ngay_dat"))
@@ -329,7 +439,7 @@ def get_revenue_timeline(date_range, customer_type=None, group_by="day"):
     }
 
 
-def get_customer_type_ratio(date_range):
+def get_customer_type_ratio(date_range, customer_type=None, product_id=None, amount_min=None, amount_max=None, category_id=None):
     """
     Tỉ trọng doanh thu sỉ / lẻ từ các đơn Hoàn thành
     M5-BR08: Khách lẻ vs Khách sỉ
@@ -337,18 +447,37 @@ def get_customer_type_ratio(date_range):
     start_dt = date_range["start_dt"]
     end_dt = date_range["end_dt"]
 
-    qs = (
-        DonHang.objects.filter(
+    completed_orders = _filter_orders(DonHang.objects.filter(
             trang_thai=TrangThaiDonHang.HOAN_THANH,
             thoi_diem_hoan_thanh__range=(start_dt, end_dt),
+        ), product_id, amount_min, amount_max, category_id)
+    if customer_type and customer_type != "ALL":
+        completed_orders = completed_orders.filter(
+            loai_khach_hang_ap_dung_id=customer_type
         )
-        .values("loai_khach_hang_ap_dung__ten_loai_kh")
-        .annotate(total=Sum("tong_thanh_toan"))
-    )
+    if product_id or category_id:
+        customer_type_field = "don_hang__loai_khach_hang_ap_dung__ten_loai_kh"
+        qs = ChiTietDonHang.objects.filter(
+            don_hang__in=completed_orders,
+        )
+        if product_id:
+            qs = qs.filter(bien_the__san_pham_id=product_id)
+        if category_id:
+            qs = qs.filter(bien_the__san_pham__danh_muc_id=category_id)
+        qs = qs.values(customer_type_field).annotate(
+            total=Sum("thanh_tien")
+        )
+    else:
+        customer_type_field = "loai_khach_hang_ap_dung__ten_loai_kh"
+        qs = (
+            completed_orders
+            .values(customer_type_field)
+            .annotate(total=Sum("tong_thanh_toan"))
+        )
 
     data = {"Khách sỉ": 0, "Khách lẻ": 0}
     for row in qs:
-        name = row["loai_khach_hang_ap_dung__ten_loai_kh"] or "Khách lẻ"
+        name = row[customer_type_field] or "Khách lẻ"
         val = int(row["total"] or 0)
         if "sỉ" in name.lower() or "si" in name.lower():
             data["Khách sỉ"] += val
@@ -356,8 +485,8 @@ def get_customer_type_ratio(date_range):
             data["Khách lẻ"] += val
 
     total = data["Khách sỉ"] + data["Khách lẻ"]
-    pct_si = round((data["Khách sỉ"] / total * 100), 1) if total > 0 else 50.0
-    pct_le = round(100.0 - pct_si, 1) if total > 0 else 50.0
+    pct_si = round((data["Khách sỉ"] / total * 100), 1) if total > 0 else 0.0
+    pct_le = round(100.0 - pct_si, 1) if total > 0 else 0.0
 
     return {
         "labels": ["Khách sỉ", "Khách lẻ"],
@@ -366,7 +495,7 @@ def get_customer_type_ratio(date_range):
     }
 
 
-def get_order_status_distribution(date_range, customer_type=None):
+def get_order_status_distribution(date_range, customer_type=None, product_id=None, amount_min=None, amount_max=None, category_id=None):
     """
     Thống kê đơn hàng theo 9 trạng thái (M5-UC01, M5-UC03)
     """
@@ -376,6 +505,7 @@ def get_order_status_distribution(date_range, customer_type=None):
     qs = DonHang.objects.filter(ngay_dat__range=(start_dt, end_dt))
     if customer_type and customer_type != "ALL":
         qs = qs.filter(loai_khach_hang_ap_dung_id=customer_type)
+    qs = _filter_orders(qs, product_id, amount_min, amount_max, category_id)
 
     counts = dict(qs.values("trang_thai").annotate(c=Count("ma_dh")).values_list("trang_thai", "c"))
 
@@ -410,7 +540,18 @@ def get_order_status_distribution(date_range, customer_type=None):
     return result
 
 
-def get_top_selling_products(date_range, top_n=5, sort_by="sl", group_level="variant", category_id=None, customer_type=None):
+def get_top_selling_products(
+    date_range,
+    top_n=5,
+    sort_by="sl",
+    group_level="variant",
+    category_id=None,
+    customer_type=None,
+    product_id=None,
+    amount_min=None,
+    amount_max=None,
+    pttt_id=None,
+):
     """
     Quy tắc M5-BR03:
     - Chỉ tính trên đơn HOAN_THANH
@@ -430,6 +571,14 @@ def get_top_selling_products(date_range, top_n=5, sort_by="sl", group_level="var
 
     if category_id:
         qs = qs.filter(bien_the__san_pham__danh_muc_id=category_id)
+    if product_id:
+        qs = qs.filter(bien_the__san_pham_id=product_id)
+    if amount_min is not None:
+        qs = qs.filter(don_hang__tong_thanh_toan__gte=amount_min)
+    if amount_max is not None:
+        qs = qs.filter(don_hang__tong_thanh_toan__lte=amount_max)
+    if pttt_id and pttt_id != "ALL":
+        qs = qs.filter(don_hang__phuong_thuc_thanh_toan_id=pttt_id)
 
     total_revenue_all = qs.aggregate(t=Coalesce(Sum("thanh_tien"), Value(Decimal(0))))["t"]
 
@@ -513,11 +662,20 @@ def get_top_selling_products(date_range, top_n=5, sort_by="sl", group_level="var
     return result
 
 
-def get_recent_products(limit=10, category_id=None):
+def get_recent_products(
+    limit=10,
+    category_id=None,
+    product_id=None,
+    date_range=None,
+    customer_type=None,
+    pttt_id=None,
+    amount_min=None,
+    amount_max=None,
+):
     """
     Quy tắc M5-BR15:
     - Sản phẩm bán gần đây: lấy từ các đơn đặt mới nhất không hủy (-ngay_dat)
-    - Không phụ thuộc bộ lọc thời gian
+    - Áp dụng các bộ lọc báo cáo đang chọn.
     """
     qs = (
         ChiTietDonHang.objects.exclude(don_hang__trang_thai=TrangThaiDonHang.DA_HUY)
@@ -527,6 +685,23 @@ def get_recent_products(limit=10, category_id=None):
 
     if category_id:
         qs = qs.filter(bien_the__san_pham__danh_muc_id=category_id)
+    if product_id:
+        qs = qs.filter(bien_the__san_pham_id=product_id)
+    if date_range:
+        qs = qs.filter(
+            don_hang__ngay_dat__range=(
+                date_range["start_dt"],
+                date_range["end_dt"],
+            )
+        )
+    if customer_type and customer_type != "ALL":
+        qs = qs.filter(don_hang__loai_khach_hang_ap_dung_id=customer_type)
+    if pttt_id and pttt_id != "ALL":
+        qs = qs.filter(don_hang__phuong_thuc_thanh_toan_id=pttt_id)
+    if amount_min is not None:
+        qs = qs.filter(don_hang__tong_thanh_toan__gte=amount_min)
+    if amount_max is not None:
+        qs = qs.filter(don_hang__tong_thanh_toan__lte=amount_max)
 
     qs = qs[:limit]
 
@@ -556,7 +731,15 @@ def get_recent_products(limit=10, category_id=None):
     return result
 
 
-def get_revenue_by_area(date_range, customer_type=None):
+def get_revenue_by_area(
+    date_range,
+    customer_type=None,
+    product_id=None,
+    amount_min=None,
+    amount_max=None,
+    category_id=None,
+    pttt_id=None,
+):
     """
     Quy tắc M5-BR07:
     - Thống kê theo Tỉnh/Thành nhận hàng từ các đơn Hoàn thành
@@ -581,22 +764,48 @@ def get_revenue_by_area(date_range, customer_type=None):
         qs_curr = qs_curr.filter(loai_khach_hang_ap_dung_id=customer_type)
         qs_prev = qs_prev.filter(loai_khach_hang_ap_dung_id=customer_type)
 
-    total_rev = qs_curr.aggregate(t=Coalesce(Sum("tong_thanh_toan"), Value(Decimal(0))))["t"]
-
-    curr_agg = (
-        qs_curr.values("tinh_thanh__ten_tinh")
-        .annotate(
+    qs_curr = _filter_orders(qs_curr, product_id, amount_min, amount_max, category_id, pttt_id)
+    qs_prev = _filter_orders(qs_prev, product_id, amount_min, amount_max, category_id, pttt_id)
+    if product_id or category_id:
+        curr_source = ChiTietDonHang.objects.filter(
+            don_hang__in=qs_curr,
+        )
+        prev_source = ChiTietDonHang.objects.filter(
+            don_hang__in=qs_prev,
+        )
+        if product_id:
+            curr_source = curr_source.filter(bien_the__san_pham_id=product_id)
+            prev_source = prev_source.filter(bien_the__san_pham_id=product_id)
+        if category_id:
+            curr_source = curr_source.filter(
+                bien_the__san_pham__danh_muc_id=category_id
+            )
+            prev_source = prev_source.filter(
+                bien_the__san_pham__danh_muc_id=category_id
+            )
+        total_rev = curr_source.aggregate(t=Coalesce(Sum("thanh_tien"), Value(Decimal(0))))["t"]
+        curr_agg = curr_source.values("don_hang__tinh_thanh__ten_tinh").annotate(
+            count=Count("don_hang_id", distinct=True),
+            revenue=Sum("thanh_tien"),
+        ).order_by("-revenue")
+        prev_agg = dict(
+            prev_source.values("don_hang__tinh_thanh__ten_tinh")
+            .annotate(revenue=Sum("thanh_tien"))
+            .values_list("don_hang__tinh_thanh__ten_tinh", "revenue")
+        )
+        province_key = "don_hang__tinh_thanh__ten_tinh"
+    else:
+        total_rev = qs_curr.aggregate(t=Coalesce(Sum("tong_thanh_toan"), Value(Decimal(0))))["t"]
+        curr_agg = qs_curr.values("tinh_thanh__ten_tinh").annotate(
             count=Count("ma_dh"),
             revenue=Sum("tong_thanh_toan"),
+        ).order_by("-revenue")
+        prev_agg = dict(
+            qs_prev.values("tinh_thanh__ten_tinh")
+            .annotate(revenue=Sum("tong_thanh_toan"))
+            .values_list("tinh_thanh__ten_tinh", "revenue")
         )
-        .order_by("-revenue")
-    )
-
-    prev_agg = dict(
-        qs_prev.values("tinh_thanh__ten_tinh")
-        .annotate(revenue=Sum("tong_thanh_toan"))
-        .values_list("tinh_thanh__ten_tinh", "revenue")
-    )
+        province_key = "tinh_thanh__ten_tinh"
 
     max_rev = curr_agg[0]["revenue"] if curr_agg else Decimal(1)
     if not max_rev or max_rev == 0:
@@ -604,13 +813,13 @@ def get_revenue_by_area(date_range, customer_type=None):
 
     result = []
     for row in curr_agg:
-        tinh_name = row["tinh_thanh__ten_tinh"] or "Chưa xác định"
+        tinh_name = row[province_key] or "Chưa xác định"
         rev = int(row["revenue"] or 0)
         cnt = row["count"]
         avg = int(rev / cnt) if cnt > 0 else 0
         pct_total = round((rev / float(total_rev) * 100), 1) if total_rev > 0 else 0.0
 
-        prev_rev = int(prev_agg.get(row["tinh_thanh__ten_tinh"], 0) or 0)
+        prev_rev = int(prev_agg.get(row[province_key], 0) or 0)
         pct_change = calc_percentage_change(rev, prev_rev)
         bar_pct = round((rev / float(max_rev)) * 100, 1)
 
@@ -628,7 +837,7 @@ def get_revenue_by_area(date_range, customer_type=None):
     return result
 
 
-def get_order_details(date_range, customer_type=None, pttt_id=None, search_kw=None, page=1, page_size=10):
+def get_order_details(date_range, customer_type=None, pttt_id=None, search_kw=None, page=1, page_size=10, product_id=None, amount_min=None, amount_max=None, category_id=None):
     """
     Quy tắc M5-BR06: Bảng chi tiết doanh thu
     - Các đơn Hoàn thành trong kỳ
@@ -648,6 +857,7 @@ def get_order_details(date_range, customer_type=None, pttt_id=None, search_kw=No
 
     if customer_type and customer_type != "ALL":
         qs = qs.filter(loai_khach_hang_ap_dung_id=customer_type)
+    qs = _filter_orders(qs, product_id, amount_min, amount_max, category_id)
 
     if pttt_id and pttt_id != "ALL":
         qs = qs.filter(phuong_thuc_thanh_toan_id=pttt_id)

@@ -1,149 +1,65 @@
-
-{% extends "layouts/base_employee.html" %}
+{% extends "base.html" %}
 
 {% block title %}Tổng quan nhân viên | Quý Thu{% endblock %}
 
+{% block extra_css %}
+<style>
+    .dashboard-hero { background:linear-gradient(120deg,#173b30,#367153); color:#fff; border-radius:18px; padding:28px; }
+    .dashboard-stat { height:100%; border:1px solid #e8edf3; border-radius:14px; background:#fff; padding:20px; box-shadow:0 6px 20px rgba(30,45,70,.04); }
+    .dashboard-stat strong { display:block; font-size:1.75rem; color:#1e293b; }
+    .dashboard-stat span { color:#64748b; font-size:.9rem; }
+</style>
+{% endblock %}
+
 {% block content %}
-
-<div class="page-heading d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
-    <div>
-        <h4 class="fw-bold mb-1">Tổng quan công việc</h4>
-        <p>Xin chào, {{ request.user.email }}. Đây là không gian làm việc của bạn.</p>
-    </div>
-
-    <div class="text-muted small">
-        <span class="me-1">📅</span>
-        Nhân viên bán hàng
-    </div>
-</div>
-
-<!-- THÔNG BÁO DỮ LIỆU -->
-<div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="alert">
-    <span>ℹ️</span>
-    <div>
-        <strong>Giao diện đang trong giai đoạn hoàn thiện.</strong>
-        <div class="small">
-            Các chỉ số sẽ được kết nối với dữ liệu thực tế khi các module nghiệp vụ hoàn thành.
-        </div>
-    </div>
-</div>
-
-<!-- THỐNG KÊ CÔNG VIỆC -->
-<div class="dashboard-grid">
-
-    <div class="stat-card">
-        <div class="stat-top">
-            <span>Đơn hàng chờ xử lý</span>
-            <div class="stat-icon orange">▤</div>
-        </div>
-        <h3>—</h3>
-        <small>Đang chờ kết nối dữ liệu</small>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-top">
-            <span>Đơn hàng hôm nay</span>
-            <div class="stat-icon blue">▣</div>
-        </div>
-        <h3>—</h3>
-        <small>Đang chờ kết nối dữ liệu</small>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-top">
-            <span>Khách hàng mới</span>
-            <div class="stat-icon purple">♙</div>
-        </div>
-        <h3>—</h3>
-        <small>Đang chờ kết nối dữ liệu</small>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-top">
-            <span>Yêu cầu hậu mãi</span>
-            <div class="stat-icon green">↩</div>
-        </div>
-        <h3>—</h3>
-        <small>Đang chờ kết nối dữ liệu</small>
-    </div>
-
-</div>
-
-<!-- KHU VỰC CÔNG VIỆC -->
-<div class="dashboard-bottom">
-
-    <section class="dashboard-panel">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <div>
-                <h5 class="mb-1">Đơn hàng cần quan tâm</h5>
-                <p class="mb-0">Theo dõi và xử lý các đơn hàng</p>
-            </div>
-
-            <a href="{% url 'order-list' %}" class="btn btn-sm btn-outline-success">
-                Xem tất cả
-            </a>
-        </div>
-
-        <div class="text-center py-5">
-            <div class="fs-1 mb-2">📦</div>
-            <h6 class="fw-semibold">Chưa có dữ liệu đơn hàng</h6>
-            <p class="text-muted small mb-0">
-                Danh sách đơn hàng sẽ hiển thị tại đây khi module đơn hàng được tích hợp.
-            </p>
-        </div>
+<div class="container-fluid py-3 m1-admin-page">
+    <section class="dashboard-hero mb-4">
+        <div class="text-uppercase small opacity-75">Nhân viên · Vận hành hằng ngày</div>
+        <h1 class="h3 fw-bold mt-2">Xin chào, {{ request.user.email }}</h1>
+        <p class="mb-0 opacity-75">Tiếp nhận khách hàng và phối hợp xử lý đơn hàng mỗi ngày.</p>
     </section>
 
-    <section class="dashboard-panel">
-        <h5>Thao tác nhanh</h5>
-        <p>Truy cập nhanh các chức năng thường sử dụng</p>
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-xl-3"><div class="dashboard-stat"><span>Tổng khách hàng</span><strong>{{ total_customers }}</strong><small class="text-muted">Hồ sơ trong hệ thống</small></div></div>
+        <div class="col-sm-6 col-xl-3"><div class="dashboard-stat"><span>Đang hoạt động</span><strong>{{ active_customers }}</strong><small class="text-muted">Có thể giao dịch</small></div></div>
+        <div class="col-sm-6 col-xl-3"><div class="dashboard-stat"><span>Khách sỉ</span><strong>{{ wholesale_customers }}</strong><small class="text-muted">Được phân loại</small></div></div>
+        <div class="col-sm-6 col-xl-3"><div class="dashboard-stat"><span>Hồ sơ tạo hôm nay</span><strong>{{ new_customers_today }}</strong><small class="text-muted">Cập nhật theo ngày</small></div></div>
+    </div>
 
-        <div class="d-grid gap-3 mt-4">
-
-            <a href="{% url 'order-list' %}"
-               class="btn btn-outline-success text-start py-3">
-                <strong>▤ &nbsp; Quản lý đơn hàng</strong>
-                <div class="small text-muted mt-1">
-                    Theo dõi và xử lý đơn hàng
+    <div class="row g-4">
+        <div class="col-lg-5">
+            <section class="card border-0 shadow-sm h-100">
+                <div class="card-body p-4">
+                    <h2 class="h5 fw-bold">Thao tác khách hàng</h2>
+                    <p class="text-muted">Tiếp nhận khách hàng, cập nhật hồ sơ và hỗ trợ các đơn đang xử lý.</p>
+                    <div class="d-grid gap-2 mt-3">
+                        <a class="btn btn-primary" href="{% url 'employee-customer-list' %}">Mở danh sách khách hàng</a>
+                        <a class="btn btn-outline-primary" href="{% url 'employee-customer-add' %}">Tạo hồ sơ mới</a>
+                        <a class="btn btn-outline-secondary" href="{% url 'employee-customer-import' %}">Nhập từ tệp CSV</a>
+                    </div>
                 </div>
-            </a>
-
-            <a href="{% url 'employee-customer-list' %}"
-               class="btn btn-outline-success text-start py-3">
-                <strong>♙ &nbsp; Quản lý khách hàng</strong>
-                <div class="small text-muted mt-1">
-                    Xem thông tin khách hàng
-                </div>
-            </a>
-
-            <a href="{% url 'employee-customer-add' %}"
-               class="btn btn-outline-success text-start py-3">
-                <strong>＋ &nbsp; Thêm khách hàng</strong>
-                <div class="small text-muted mt-1">
-                    Tạo hồ sơ khách hàng mới
-                </div>
-            </a>
-
+            </section>
         </div>
-    </section>
-
+        <div class="col-lg-7">
+            <section class="card border-0 shadow-sm h-100">
+                <div class="card-body p-4">
+                    <h2 class="h5 fw-bold">Lịch sử thay đổi gần đây</h2>
+                    <div class="list-group list-group-flush">
+                        {% for event in recent_changes %}
+                        <a class="list-group-item px-0" href="{% url 'employee-customer-detail' event.khach_hang_id %}">
+                            <div class="d-flex justify-content-between gap-3">
+                                <strong>{{ event.khach_hang.ho_ten }} · {{ event.get_loai_thay_doi_display }}</strong>
+                                <small class="text-muted text-nowrap">{{ event.thoi_gian|date:"d/m/Y H:i" }}</small>
+                            </div>
+                            <small class="text-muted">{{ event.nguoi_thuc_hien.email|default:"Hệ thống" }}{% if event.noi_dung_moi %} · {{ event.noi_dung_moi }}{% endif %}</small>
+                        </a>
+                        {% empty %}
+                        <p class="text-muted mb-0 py-3">Chưa có hoạt động mới được ghi nhận.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
 </div>
-
-<!-- HOẠT ĐỘNG GẦN ĐÂY -->
-<section class="dashboard-panel mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <div>
-            <h5 class="mb-1">Hoạt động gần đây</h5>
-            <p class="mb-0">Lịch sử hoạt động trong hệ thống</p>
-        </div>
-    </div>
-
-    <div class="text-center py-4">
-        <div class="fs-1 mb-2">🕘</div>
-        <h6 class="fw-semibold">Chưa có hoạt động được ghi nhận</h6>
-        <p class="text-muted small mb-0">
-            Nhật ký hoạt động sẽ được cập nhật khi chức năng tương ứng được triển khai.
-        </p>
-    </div>
-</section>
-
 {% endblock %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Mã vạch · {{ san_pham.ten_sp }} | Quý Thu{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}">{% endblock %}
+{% block content %}
+<main class="module-page">
+    <header class="module-heading"><div><span class="module-eyebrow">THÔNG TIN SẢN PHẨM</span><h1>Mã vạch · {{ san_pham.ten_sp }}</h1><p>Mã vạch EAN-13 duy nhất cho từng biến thể.</p></div><a class="module-link-button secondary" href="{% url 'products:quan_ly' %}">← Sản phẩm</a></header>
+    <section class="module-panel">
+        {% for variant in danh_sach_bien_the %}<div class="module-toolbar" style="border:1px solid var(--line);border-radius:12px;margin:12px 0">
+            <div><strong>{{ variant.huong_vi }} · {{ variant.quy_cach }}</strong><br><small>{{ variant.ma_bien_the }}</small></div>
+            <form method="post" class="module-inline-form">{% csrf_token %}<input type="hidden" name="ma_bien_the" value="{{ variant.ma_bien_the }}"><input name="barcode" value="{{ variant.barcode }}" maxlength="13" pattern="[0-9]{13}" aria-label="Mã vạch EAN-13"><button class="module-button" type="submit">Lưu mã vạch</button></form>
+            <form method="post">{% csrf_token %}<input type="hidden" name="thao_tac" value="sinh_tu_dong"><input type="hidden" name="ma_bien_the" value="{{ variant.ma_bien_the }}"><button class="module-button secondary" type="submit">Tạo EAN-13</button></form>
+        </div>{% empty %}<p class="module-empty">Hãy tạo biến thể trước khi quản lý mã vạch.</p>{% endfor %}
+    </section>
+</main>
+{% endblock %}

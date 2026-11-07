@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Hình ảnh · {{ san_pham.ten_sp }} | Quý Thu{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}">{% endblock %}
+{% block content %}
+<main class="module-page">
+    <header class="module-heading"><div><span class="module-eyebrow">THÔNG TIN SẢN PHẨM</span><h1>Hình ảnh · {{ san_pham.ten_sp }}</h1><p>Tải ảnh JPG, PNG hoặc WEBP tối đa 5 MB và chọn ảnh đại diện.</p></div><a class="module-link-button secondary" href="{% url 'products:quan_ly' %}">← Sản phẩm</a></header>
+    <section class="module-panel" style="margin-bottom:20px"><form method="post" enctype="multipart/form-data" class="module-form-grid">{% csrf_token %}<input type="hidden" name="thao_tac" value="them_anh"><div><label for="photo">Ảnh sản phẩm</label><input id="photo" type="file" name="tep_anh" accept=".jpg,.jpeg,.png,.webp" required></div><label><input type="checkbox" name="anh_chinh"> Đặt làm ảnh chính</label><button class="module-button" type="submit">Tải ảnh lên</button></form></section>
+    <section class="module-grid">{% for image in danh_sach_anh %}<article class="module-product-card"><div class="module-product-art"><img src="{{ image.duong_dan }}" alt="{{ san_pham.ten_sp }}" loading="lazy"></div><div class="module-product-body"><p>{% if image.anh_chinh %}<span class="module-pill">Ảnh đại diện</span>{% else %}<span class="module-pill warning">Ảnh phụ</span>{% endif %}</p><div class="module-inline-form">{% if not image.anh_chinh %}<form method="post">{% csrf_token %}<input type="hidden" name="thao_tac" value="dat_lam_anh_chinh"><input type="hidden" name="ma_hinh_anh" value="{{ image.ma_hinh_anh }}"><button class="module-button secondary" type="submit">Đặt làm ảnh chính</button></form>{% endif %}<form method="post">{% csrf_token %}<input type="hidden" name="thao_tac" value="xoa_anh"><input type="hidden" name="ma_hinh_anh" value="{{ image.ma_hinh_anh }}"><button class="module-button danger" type="submit" onclick="return confirm('Xóa ảnh này?')">Xóa ảnh</button></form></div></div></article>{% empty %}<div class="module-panel module-empty">Chưa có hình ảnh. Ảnh mẫu thương hiệu sẽ được hiển thị trên trang sản phẩm.</div>{% endfor %}</section>
+</main>
+{% endblock %}

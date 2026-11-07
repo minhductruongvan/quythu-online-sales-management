@@ -1,863 +1,179 @@
-
 {% extends "layouts/base_customer.html" %}
 
-{% block title %}Trang chủ | Quý Thu Online Shopping{% endblock %}
+{% block title %}Quý Thu | Đặc sản dừa nướng{% endblock %}
 
 {% block extra_css %}
-<style>
-/* =========================================
-   QUY THU - HOMEPAGE
-========================================= */
-
-.qt-home {
-    --home-primary: #203b35;
-    --home-dark: #172d28;
-    --home-gold: #c6a779;
-    --home-bg: #f8f7f3;
-    --home-text: #252b29;
-    --home-muted: #7b827d;
-    color: var(--home-text);
-}
-
-.qt-home a {
-    text-decoration: none;
-}
-
-/* CONTAINER */
-
-.qt-home-container {
-    width: min(1240px, calc(100% - 48px));
-    margin: 0 auto;
-}
-
-.qt-home-section {
-    padding: 68px 0;
-}
-
-.qt-home-section-header {
-    display: flex;
-    align-items: end;
-    justify-content: space-between;
-    gap: 20px;
-    margin-bottom: 30px;
-}
-
-.qt-home-eyebrow {
-    display: inline-block;
-    margin-bottom: 10px;
-    color: #a08355;
-    font-size: 11px;
-    font-weight: 750;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-}
-
-.qt-home-heading {
-    margin: 0;
-    color: var(--home-dark);
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: clamp(26px, 3vw, 36px);
-    font-weight: 700;
-}
-
-.qt-home-description {
-    max-width: 570px;
-    margin: 12px 0 0;
-    color: var(--home-muted);
-    font-size: 14px;
-    line-height: 1.8;
-}
-
-/* HERO */
-
-.qt-hero {
-    position: relative;
-    min-height: 455px;
-    margin: 30px auto 0;
-    overflow: hidden;
-    border-radius: 5px;
-    background:
-        radial-gradient(ellipse at 85% 30%, rgba(198,167,121,.24), transparent 35%),
-        linear-gradient(115deg, #172d28 0%, #29483e 58%, #516c59 100%);
-    color: #fff;
-}
-
-.qt-hero-content {
-    position: relative;
-    z-index: 3;
-    width: 58%;
-    padding: 76px 65px;
-}
-
-.qt-hero-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    color: #dfc69e;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-}
-
-.qt-hero-label::before {
-    content: "";
-    width: 28px;
-    height: 1px;
-    background: #dfc69e;
-}
-
-.qt-hero h1 {
-    max-width: 560px;
-    margin: 22px 0 18px;
-    color: #fff;
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: clamp(38px, 5vw, 61px);
-    font-weight: 500;
-    line-height: 1.13;
-    letter-spacing: -.8px;
-}
-
-.qt-hero p {
-    max-width: 450px;
-    margin-bottom: 30px;
-    color: #d5dfd7;
-    font-size: 14px;
-    line-height: 1.9;
-}
-
-.qt-hero-actions {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 13px;
-}
-
-.qt-btn-primary {
-    display: inline-flex;
-    min-height: 47px;
-    align-items: center;
-    justify-content: center;
-    padding: 0 25px;
-    border: 1px solid #dfc69e;
-    background: #dfc69e;
-    color: #203b35;
-    font-size: 12px;
-    font-weight: 750;
-    letter-spacing: .4px;
-    transition: .25s;
-}
-
-.qt-btn-primary:hover {
-    border-color: #fff;
-    background: #fff;
-    color: #203b35;
-}
-
-.qt-btn-outline {
-    display: inline-flex;
-    min-height: 47px;
-    align-items: center;
-    justify-content: center;
-    padding: 0 23px;
-    border: 1px solid rgba(255,255,255,.45);
-    color: #fff;
-    font-size: 12px;
-    font-weight: 650;
-    transition: .25s;
-}
-
-.qt-btn-outline:hover {
-    background: #fff;
-    color: var(--home-dark);
-}
-
-.qt-hero-art {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 48%;
-    height: 100%;
-    overflow: hidden;
-}
-
-.qt-hero-circle {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 360px;
-    height: 360px;
-    border: 1px solid rgba(239,221,188,.32);
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-}
-
-.qt-hero-circle::before,
-.qt-hero-circle::after {
-    content: "";
-    position: absolute;
-    border: 1px solid rgba(239,221,188,.2);
-    border-radius: 50%;
-}
-
-.qt-hero-circle::before {
-    inset: 25px;
-}
-
-.qt-hero-circle::after {
-    inset: 55px;
-}
-
-.qt-hero-art-card {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 205px;
-    height: 275px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid rgba(255,255,255,.28);
-    background: linear-gradient(145deg, #d8c6a6, #a18b6c);
-    box-shadow: 0 25px 60px rgba(0,0,0,.2);
-    transform: translate(-50%, -50%) rotate(8deg);
-}
-
-.qt-hero-art-inner {
-    width: 165px;
-    height: 235px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid rgba(255,255,255,.55);
-    color: #fff;
-}
-
-.qt-hero-art-inner span {
-    font-family: Georgia, serif;
-    font-size: 76px;
-    line-height: 1;
-}
-
-.qt-hero-art-inner small {
-    margin-top: 14px;
-    font-size: 9px;
-    letter-spacing: 3px;
-}
-
-/* BENEFITS */
-
-.qt-benefits {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    border: 1px solid #e9e7df;
-    background: #fff;
-}
-
-.qt-benefit {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 23px 20px;
-    border-right: 1px solid #eeece6;
-}
-
-.qt-benefit:last-child {
-    border-right: 0;
-}
-
-.qt-benefit-icon {
-    width: 42px;
-    height: 42px;
-    display: grid;
-    place-items: center;
-    flex-shrink: 0;
-    border-radius: 50%;
-    background: #f3f0e8;
-    color: var(--home-primary);
-    font-size: 19px;
-}
-
-.qt-benefit strong {
-    display: block;
-    margin-bottom: 4px;
-    color: var(--home-dark);
-    font-size: 12px;
-}
-
-.qt-benefit small {
-    color: var(--home-muted);
-    font-size: 10px;
-}
-
-/* CATEGORY */
-
-.qt-category-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 18px;
-}
-
-.qt-category-card {
-    position: relative;
-    min-height: 235px;
-    display: flex;
-    align-items: end;
-    overflow: hidden;
-    padding: 23px;
-    background: #e9e5da;
-    color: #fff;
-    isolation: isolate;
-    transition: transform .3s;
-}
-
-.qt-category-card:hover {
-    transform: translateY(-5px);
-    color: #fff;
-}
-
-.qt-category-card::before {
-    content: "";
-    position: absolute;
-    z-index: -2;
-    inset: 0;
-    background: var(--category-bg);
-    transition: transform .5s;
-}
-
-.qt-category-card:hover::before {
-    transform: scale(1.07);
-}
-
-.qt-category-card::after {
-    content: "";
-    position: absolute;
-    z-index: -1;
-    inset: 0;
-    background: linear-gradient(0deg, rgba(15,31,25,.75), transparent 75%);
-}
-
-.qt-category-card:nth-child(1) {
-    --category-bg:
-        radial-gradient(ellipse at 70% 35%, #c6b9a1 0 15%, transparent 16%),
-        linear-gradient(145deg, #8c9a87, #354c40);
-}
-
-.qt-category-card:nth-child(2) {
-    --category-bg:
-        radial-gradient(ellipse at 65% 40%, #d1b58c 0 17%, transparent 18%),
-        linear-gradient(145deg, #9b8069, #55483c);
-}
-
-.qt-category-card:nth-child(3) {
-    --category-bg:
-        radial-gradient(ellipse at 65% 40%, #e0b5a2 0 16%, transparent 17%),
-        linear-gradient(145deg, #c58d82, #704b4b);
-}
-
-.qt-category-card:nth-child(4) {
-    --category-bg:
-        radial-gradient(ellipse at 65% 40%, #c7bfae 0 18%, transparent 19%),
-        linear-gradient(145deg, #9a9d8b, #4e5b4d);
-}
-
-.qt-category-number {
-    position: absolute;
-    top: 17px;
-    left: 20px;
-    color: rgba(255,255,255,.72);
-    font-family: Georgia, serif;
-    font-size: 13px;
-}
-
-.qt-category-name {
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: 23px;
-    font-weight: 600;
-}
-
-.qt-category-subtitle {
-    display: block;
-    margin-top: 5px;
-    color: rgba(255,255,255,.75);
-    font-size: 10px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-}
-
-/* PRODUCTS */
-
-.qt-product-empty {
-    padding: 65px 20px;
-    border: 1px dashed #d9d7cd;
-    background: #fff;
-    text-align: center;
-}
-
-.qt-product-empty-icon {
-    width: 58px;
-    height: 58px;
-    display: grid;
-    place-items: center;
-    margin: 0 auto 18px;
-    border-radius: 50%;
-    background: #f1efe8;
-    color: var(--home-primary);
-    font-size: 25px;
-}
-
-.qt-product-empty h4 {
-    margin-bottom: 9px;
-    color: var(--home-dark);
-    font-family: Georgia, serif;
-    font-size: 22px;
-}
-
-.qt-product-empty p {
-    margin: 0;
-    color: var(--home-muted);
-    font-size: 13px;
-}
-
-/* PROMOTION */
-
-.qt-promo {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 30px;
-    min-height: 250px;
-    overflow: hidden;
-    padding: 45px 55px;
-    background:
-        radial-gradient(circle at 90% 20%, rgba(198,167,121,.22), transparent 28%),
-        #eae8df;
-}
-
-.qt-promo-content {
-    position: relative;
-    z-index: 2;
-    max-width: 570px;
-}
-
-.qt-promo h3 {
-    margin: 8px 0 12px;
-    color: var(--home-dark);
-    font-family: Georgia, serif;
-    font-size: clamp(26px, 3vw, 37px);
-}
-
-.qt-promo p {
-    margin: 0 0 23px;
-    color: #6d756f;
-    font-size: 13px;
-    line-height: 1.8;
-}
-
-.qt-promo-decoration {
-    position: absolute;
-    top: 50%;
-    right: 80px;
-    width: 180px;
-    height: 180px;
-    border: 1px solid rgba(32,59,53,.18);
-    border-radius: 50%;
-    transform: translateY(-50%);
-}
-
-.qt-promo-decoration::before,
-.qt-promo-decoration::after {
-    content: "";
-    position: absolute;
-    border: 1px solid rgba(32,59,53,.14);
-    border-radius: 50%;
-}
-
-.qt-promo-decoration::before {
-    inset: 20px;
-}
-
-.qt-promo-decoration::after {
-    inset: 42px;
-}
-
-/* RESPONSIVE */
-
-@media (max-width: 992px) {
-    .qt-hero-content {
-        width: 65%;
-        padding: 65px 40px;
-    }
-
-    .qt-hero-art {
-        width: 40%;
-    }
-
-    .qt-hero-art-card {
-        width: 160px;
-        height: 220px;
-    }
-
-    .qt-hero-art-inner {
-        width: 130px;
-        height: 185px;
-    }
-
-    .qt-hero-art-inner span {
-        font-size: 58px;
-    }
-
-    .qt-benefits {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .qt-benefit:nth-child(2) {
-        border-right: 0;
-    }
-
-    .qt-benefit:nth-child(-n+2) {
-        border-bottom: 1px solid #eeece6;
-    }
-
-    .qt-category-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-@media (max-width: 768px) {
-    .qt-home-container {
-        width: calc(100% - 30px);
-    }
-
-    .qt-home-section {
-        padding: 45px 0;
-    }
-
-    .qt-hero {
-        min-height: 420px;
-        margin-top: 18px;
-    }
-
-    .qt-hero-content {
-        width: 100%;
-        padding: 48px 25px;
-    }
-
-    .qt-hero h1 {
-        max-width: 420px;
-        font-size: 39px;
-    }
-
-    .qt-hero p {
-        max-width: 390px;
-    }
-
-    .qt-hero-art {
-        right: -100px;
-        width: 65%;
-        opacity: .2;
-    }
-
-    .qt-hero-art-card {
-        display: none;
-    }
-
-    .qt-home-section-header {
-        align-items: flex-start;
-        flex-direction: column;
-    }
-
-    .qt-category-card {
-        min-height: 185px;
-        padding: 17px;
-    }
-
-    .qt-category-name {
-        font-size: 19px;
-    }
-
-    .qt-benefit {
-        padding: 16px 12px;
-        gap: 9px;
-    }
-
-    .qt-benefit-icon {
-        width: 35px;
-        height: 35px;
-        font-size: 16px;
-    }
-
-    .qt-benefit strong {
-        font-size: 10px;
-    }
-
-    .qt-benefit small {
-        font-size: 9px;
-    }
-
-    .qt-promo {
-        min-height: 0;
-        padding: 35px 25px;
-    }
-
-    .qt-promo-decoration {
-        right: -70px;
-        opacity: .5;
-    }
-}
-
-@media (max-width: 420px) {
-    .qt-hero h1 {
-        font-size: 33px;
-    }
-
-    .qt-hero-content {
-        padding: 40px 20px;
-    }
-
-    .qt-category-grid {
-        gap: 10px;
-    }
-
-    .qt-category-card {
-        min-height: 155px;
-        padding: 13px;
-    }
-
-    .qt-category-name {
-        font-size: 17px;
-    }
-
-    .qt-benefit {
-        align-items: flex-start;
-        flex-direction: column;
-    }
-
-    .qt-promo {
-        padding: 30px 20px;
-    }
-}
-</style>
+{% load static %}
+<link rel="stylesheet" href="{% static 'css/home.css' %}?v=3">
 {% endblock %}
 
-
 {% block content %}
-
 <div class="qt-home">
-
-    <div class="qt-home-container">
-
-        <!-- HERO BANNER -->
-        <section class="qt-hero">
-
-            <div class="qt-hero-content">
-
-                <span class="qt-hero-label">
-                    QUÝ THU ONLINE SHOPPING
-                </span>
-
-                <h1>
-                    Khám phá phong cách mua sắm của riêng bạn.
-                </h1>
-
-                <p>
-                    Khám phá những lựa chọn phù hợp với phong cách
-                    và nhu cầu của bạn. Trải nghiệm mua sắm trực tuyến
-                    thuận tiện cùng Quý Thu.
-                </p>
-
-                <div class="qt-hero-actions">
-                    <a href="#san-pham" class="qt-btn-primary">
-                        KHÁM PHÁ SẢN PHẨM →
-                    </a>
-
-                    <a href="#danh-muc" class="qt-btn-outline">
-                        XEM DANH MỤC
-                    </a>
-                </div>
-
-            </div>
-
-            <div class="qt-hero-art" aria-hidden="true">
-                <div class="qt-hero-circle"></div>
-
-                <div class="qt-hero-art-card">
-                    <div class="qt-hero-art-inner">
-                        <span>Q</span>
-                        <small>QUÝ THU</small>
-                    </div>
-                </div>
-            </div>
-
+    <div class="home-container">
+        <section class="home-hero" aria-label="Bánh dừa nướng Quý Thu">
+            <a class="home-hero-link" href="#san-pham" aria-label="Khám phá sản phẩm Quý Thu">
+                <img class="home-hero-image" src="{% static 'images/quythu-banner.png' %}"
+                     alt="Bánh dừa nướng Quý Thu, giòn thơm vị dừa, đặc sản Việt Nam">
+            </a>
         </section>
 
-
-        <!-- BENEFITS -->
-        <section style="margin-top: 25px;">
-            <div class="qt-benefits">
-
-                <div class="qt-benefit">
-                    <div class="qt-benefit-icon">◇</div>
-                    <div>
-                        <strong>Trải nghiệm tiện lợi</strong>
-                        <small>Mua sắm trực tuyến dễ dàng</small>
-                    </div>
-                </div>
-
-                <div class="qt-benefit">
-                    <div class="qt-benefit-icon">✓</div>
-                    <div>
-                        <strong>Thông tin minh bạch</strong>
-                        <small>Thông tin sản phẩm rõ ràng</small>
-                    </div>
-                </div>
-
-                <div class="qt-benefit">
-                    <div class="qt-benefit-icon">♡</div>
-                    <div>
-                        <strong>Chăm sóc khách hàng</strong>
-                        <small>Đồng hành trong mua sắm</small>
-                    </div>
-                </div>
-
-                <div class="qt-benefit">
-                    <div class="qt-benefit-icon">↗</div>
-                    <div>
-                        <strong>Quản lý đơn hàng</strong>
-                        <small>Theo dõi đơn mua thuận tiện</small>
-                    </div>
-                </div>
-
-            </div>
+        <section class="home-benefits" aria-label="Điểm nổi bật">
+            <article class="home-benefit">
+                <span class="home-benefit-icon" aria-hidden="true">▰</span>
+                <div><strong>Giao hàng tiện lợi</strong><small>Theo dõi đơn ngay trong tài khoản</small></div>
+            </article>
+            <article class="home-benefit">
+                <span class="home-benefit-icon" aria-hidden="true">◆</span>
+                <div><strong>Thanh toán an toàn</strong><small>COD hoặc chuyển khoản</small></div>
+            </article>
+            <article class="home-benefit">
+                <span class="home-benefit-icon" aria-hidden="true">✿</span>
+                <div><strong>Quà tặng ý nghĩa</strong><small>Đặc sản dành tặng người thân</small></div>
+            </article>
+            <article class="home-benefit">
+                <span class="home-benefit-icon" aria-hidden="true">☏</span>
+                <div><strong>Hỗ trợ khách hàng</strong><small>Đồng hành trong từng đơn hàng</small></div>
+            </article>
         </section>
 
-
-        <!-- CATEGORIES -->
-        <section class="qt-home-section" id="danh-muc">
-
-            <div class="qt-home-section-header">
+        <section class="home-section" id="danh-muc" aria-labelledby="categories-title">
+            <div class="home-section-heading">
                 <div>
-                    <span class="qt-home-eyebrow">EXPLORE COLLECTIONS</span>
-                    <h2 class="qt-home-heading">Khám phá danh mục</h2>
-                    <p class="qt-home-description">
-                        Tìm kiếm cảm hứng mua sắm từ những nhóm sản phẩm
-                        phù hợp với nhu cầu hằng ngày.
+                    <span class="home-eyebrow home-eyebrow-gold">KHÁM PHÁ QUÝ THU</span>
+                    <h2 id="categories-title">Danh mục sản phẩm</h2>
+                    <p>Những danh mục đang được Quý Thu kinh doanh.</p>
+                </div>
+                <a class="home-text-link" href="{% url 'products:danh_sach' %}">
+                    Xem tất cả <span aria-hidden="true">→</span>
+                </a>
+            </div>
+
+            {% if categories %}
+            <div class="home-category-grid">
+                {% for category in categories %}
+                <a class="home-category-card"
+                   href="{% url 'products:danh_sach' %}?category={{ category.ma_dm|urlencode }}">
+                    <span class="home-category-number">0{{ forloop.counter|stringformat:"s" }}</span>
+                    <span class="home-category-art">
+                        {% if category.home_products.0.home_images %}
+                        <img src="{{ category.home_products.0.home_images.0.duong_dan }}" alt="" loading="lazy">
+                        {% else %}
+                        <span class="home-category-leaf"></span>
+                        <span class="home-category-fruit"></span>
+                        {% endif %}
+                    </span>
+                    <span class="home-category-copy">
+                        <strong>{{ category.ten_dm }}</strong>
+                        {% if category.mo_ta %}<small>{{ category.mo_ta|truncatechars:56 }}</small>
+                        {% else %}<small>{{ category.active_product_count }} sản phẩm đang bán</small>{% endif %}
+                    </span>
+                    <span class="home-category-arrow" aria-hidden="true">↗</span>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="home-empty home-empty-category">
+                <span class="home-empty-mark" aria-hidden="true">◇</span>
+                <div>
+                    <strong>Danh mục đang được cập nhật</strong>
+                    <p>Quý Thu sẽ sớm giới thiệu các danh mục sản phẩm tại đây.</p>
+                </div>
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="home-section home-products-section" id="san-pham" aria-labelledby="products-title">
+            <div class="home-section-heading">
+                <div>
+                    <span class="home-eyebrow home-eyebrow-gold">
+                        {% if search_query %}KẾT QUẢ TÌM KIẾM{% else %}GỢI Ý TỪ QUÝ THU{% endif %}
+                    </span>
+                    <h2 id="products-title">
+                        {% if search_query %}Sản phẩm phù hợp{% else %}Sản phẩm nổi bật{% endif %}
+                    </h2>
+                    <p>
+                        {% if search_query %}
+                            Kết quả cho “{{ search_query }}”.
+                        {% else %}
+                            Sản phẩm đang kinh doanh, cùng thông tin giá và quy cách hiện có.
+                        {% endif %}
                     </p>
                 </div>
-            </div>
-
-            <div class="qt-category-grid">
-
-                <a href="#san-pham" class="qt-category-card">
-                    <span class="qt-category-number">01 / COLLECTION</span>
-                    <div>
-                        <div class="qt-category-name">Thời trang</div>
-                        <span class="qt-category-subtitle">Fashion collection</span>
-                    </div>
+                <a class="home-text-link" href="{% url 'products:danh_sach' %}">
+                    Tất cả sản phẩm <span aria-hidden="true">→</span>
                 </a>
-
-                <a href="#san-pham" class="qt-category-card">
-                    <span class="qt-category-number">02 / COLLECTION</span>
-                    <div>
-                        <div class="qt-category-name">Phụ kiện</div>
-                        <span class="qt-category-subtitle">Accessories</span>
-                    </div>
-                </a>
-
-                <a href="#san-pham" class="qt-category-card">
-                    <span class="qt-category-number">03 / COLLECTION</span>
-                    <div>
-                        <div class="qt-category-name">Làm đẹp</div>
-                        <span class="qt-category-subtitle">Beauty & care</span>
-                    </div>
-                </a>
-
-                <a href="#san-pham" class="qt-category-card">
-                    <span class="qt-category-number">04 / COLLECTION</span>
-                    <div>
-                        <div class="qt-category-name">Đời sống</div>
-                        <span class="qt-category-subtitle">Home & lifestyle</span>
-                    </div>
-                </a>
-
-            </div>
-
-        </section>
-
-
-        <!-- PRODUCTS -->
-        <section class="qt-home-section" id="san-pham">
-
-            <div class="qt-home-section-header">
-                <div>
-                    <span class="qt-home-eyebrow">OUR SELECTION</span>
-                    <h2 class="qt-home-heading">Sản phẩm dành cho bạn</h2>
-                    <p class="qt-home-description">
-                        Khám phá những sản phẩm được lựa chọn
-                        cho trải nghiệm mua sắm của bạn.
-                    </p>
-                </div>
             </div>
 
             {% if products %}
-                <div class="row g-4">
-                    {% for product in products %}
-                        <!--
-                        Khu vực này sẽ được kết nối với dữ liệu sản phẩm
-                        sau khi xác định chính xác các field của model.
-                        -->
-                    {% endfor %}
-                </div>
-            {% else %}
-                <div class="qt-product-empty">
-                    <div class="qt-product-empty-icon">◇</div>
-                    <h4>Sản phẩm đang được cập nhật</h4>
-                    <p>
-                        Quý Thu đang chuẩn bị những lựa chọn phù hợp.
-                        Vui lòng quay lại trong thời gian tới.
-                    </p>
-                </div>
-            {% endif %}
-
-        </section>
-
-
-        <!-- PROMOTION / ACCOUNT -->
-        <section class="qt-home-section" id="uu-dai">
-
-            <div class="qt-promo">
-
-                <div class="qt-promo-content">
-
-                    <span class="qt-home-eyebrow">
-                        YOUR SHOPPING EXPERIENCE
-                    </span>
-
-                    <h3>Mua sắm thuận tiện, quản lý dễ dàng.</h3>
-
-                    <p>
-                        Quản lý thông tin cá nhân, địa chỉ giao hàng
-                        và theo dõi lịch sử mua hàng ngay trong tài khoản
-                        Quý Thu của bạn.
-                    </p>
-
-                    <a href="{% url 'customer-profile-page' %}"
-                       class="qt-btn-primary">
-                        KHÁM PHÁ TÀI KHOẢN →
+            <div class="home-product-grid">
+                {% for product in products %}
+                <article class="home-product-card">
+                    <a class="home-product-image" href="{% url 'products:chi_tiet' product.ma_sp %}" aria-label="Xem {{ product.ten_sp }}">
+                        {% if product.home_images %}
+                        <img src="{{ product.home_images.0.duong_dan }}" alt="{{ product.ten_sp }}" loading="lazy">
+                        {% else %}
+                        <span class="home-image-fallback" aria-hidden="true">
+                            <span class="home-fallback-leaf"></span>
+                            <img src="{% static 'images/logo-quy-thu.png' %}" alt="Logo Quý Thu" loading="lazy">
+                            <small>{{ product.danh_muc.ten_dm }}</small>
+                        </span>
+                        {% endif %}
+                        <span class="home-product-category">{{ product.danh_muc.ten_dm }}</span>
+                        <span class="home-product-open" aria-hidden="true">↗</span>
                     </a>
-
-                </div>
-
-                <div class="qt-promo-decoration" aria-hidden="true"></div>
-
+                    <div class="home-product-info">
+                        <span class="home-product-code">{{ product.ma_sp }}</span>
+                        <h3><a href="{% url 'products:chi_tiet' product.ma_sp %}">{{ product.ten_sp }}</a></h3>
+                        <div class="home-product-meta">
+                            <span>{{ product.active_variant_count }} quy cách / hương vị</span>
+                            <span class="home-product-price">
+                                {% if product.home_price %}{{ product.home_price|floatformat:0 }} ₫{% else %}Liên hệ{% endif %}
+                            </span>
+                        </div>
+                        <a class="home-product-link" href="{% url 'products:chi_tiet' product.ma_sp %}">
+                            Xem chi tiết <span aria-hidden="true">→</span>
+                        </a>
+                    </div>
+                </article>
+                {% endfor %}
             </div>
-
+            {% else %}
+            <div class="home-empty home-empty-products">
+                <span class="home-empty-mark" aria-hidden="true">◇</span>
+                <div>
+                    <strong>{% if search_query %}Chưa tìm thấy sản phẩm phù hợp{% else %}Sản phẩm đang được cập nhật{% endif %}</strong>
+                    <p>
+                        {% if search_query %}
+                            Thử tên sản phẩm, mã sản phẩm hoặc một từ khóa khác.
+                        {% else %}
+                            Hiện chưa có sản phẩm đang bán trong danh mục. Quý Thu sẽ cập nhật khi có dữ liệu.
+                        {% endif %}
+                    </p>
+                    {% if search_query %}
+                    <a class="home-text-link" href="{% url 'storefront-home' %}#san-pham">Xóa tìm kiếm <span aria-hidden="true">→</span></a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
         </section>
 
+        <section class="home-account-promo" id="gioi-thieu" aria-labelledby="account-promo-title">
+            <div class="home-promo-art" aria-hidden="true">
+                <span class="home-promo-orbit"></span>
+                <span class="home-promo-box"><img src="{% static 'images/logo-quy-thu.png' %}" alt="" loading="lazy"></span>
+                <span class="home-promo-leaf"></span>
+            </div>
+            <div class="home-promo-copy">
+                <span class="home-eyebrow">TRẢI NGHIỆM MUA SẮM</span>
+                <h2 id="account-promo-title">Mua sắm dễ dàng,<br><em>thông tin luôn trong tầm tay.</em></h2>
+                <p>Lưu địa chỉ nhận hàng, cập nhật hồ sơ và xem lịch sử mua hàng trong tài khoản Quý Thu.</p>
+                <a class="home-button home-button-light" href="{% if request.user.is_authenticated %}{% url 'customer-profile-page' %}{% else %}{% url 'register-page' %}{% endif %}">
+                    {% if request.user.is_authenticated %}Quản lý tài khoản{% else %}Tạo tài khoản{% endif %}
+                    <span aria-hidden="true">→</span>
+                </a>
+            </div>
+            <span class="home-promo-stamp" aria-hidden="true">QUÝ THU<br><small>TẬN TÂM TỪNG ĐƠN HÀNG</small></span>
+        </section>
     </div>
-
 </div>
-
 {% endblock %}

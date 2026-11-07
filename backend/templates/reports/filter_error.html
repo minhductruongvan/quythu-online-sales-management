@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ page_title }} | Quý Thu{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/modules.css' %}">
+<link rel="stylesheet" href="{% static 'css/reports.css' %}?v=1">
+{% endblock %}
+{% block content %}
+<main class="report-page">
+    <section class="report-filter-error" role="alert">
+        <span class="module-eyebrow">BỘ LỌC BÁO CÁO</span>
+        <h1>Không thể áp dụng bộ lọc</h1>
+        <p>{{ error_message }}</p>
+        <div class="report-filter-actions">
+            <a class="module-button" href="{% url 'reports:detail' %}">Quay lại báo cáo chi tiết</a>
+            <a class="module-link-button secondary" href="{% url 'reports:dashboard' %}">Tổng quan</a>
+        </div>
+    </section>
+</main>
+{% endblock %}

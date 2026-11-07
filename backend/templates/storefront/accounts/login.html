@@ -1,32 +1,34 @@
 {% extends "auth_base.html" %}
+{% load static %}
 
 {% block title %}Đăng nhập | Quý Thu{% endblock %}
 
 {% block content %}
 
-<div class="auth-container">
+<div class="auth-container auth-login-container">
 
     <section class="auth-brand">
+        <img class="auth-brand-image" src="{% static 'images/quythu-banner.png' %}" alt="">
         <div class="auth-brand-content">
 
             <div class="auth-logo">
-                <span class="auth-logo-icon">Q</span>
-                <span>QUÝ THU</span>
+                <a href="{% url 'storefront-home' %}" class="auth-logo-link">
+                    <img class="auth-logo-image" src="{% static 'images/logo-quy-thu.png' %}" alt="Logo Quý Thu">
+                </a>
             </div>
 
             <div class="auth-brand-text">
-                <span class="auth-eyebrow">ONLINE SALES MANAGEMENT</span>
+                <span class="auth-eyebrow">ĐẶC SẢN DỪA NƯỚNG · QUÝ THU</span>
 
-                <h1>Quản lý kinh doanh<br>thông minh và hiệu quả.</h1>
+                <h1>Giòn thơm vị dừa,<br>thân quen vị quê nhà.</h1>
 
                 <p>
-                    Nền tảng quản lý khách hàng và hoạt động kinh doanh
-                    tập trung dành cho Quý Thu.
+                    Đăng nhập để tiếp tục khám phá hương vị đặc sản và theo dõi đơn hàng của bạn.
                 </p>
             </div>
 
             <div class="auth-brand-footer">
-                © 2026 Quý Thu Online Sales Management
+                © 2026 Quý Thu
             </div>
 
         </div>
@@ -37,9 +39,9 @@
 
         <div class="auth-form-container">
 
+            <img class="auth-mobile-banner" src="{% static 'images/quythu-banner.png' %}" alt="Đặc sản bánh dừa nướng Quý Thu">
             <div class="auth-mobile-logo">
-                <span class="auth-logo-icon">Q</span>
-                <span>QUÝ THU</span>
+                <img class="auth-mobile-logo-image" src="{% static 'images/logo-quy-thu.png' %}" alt="Logo Quý Thu">
             </div>
 
             <div class="auth-heading">
@@ -47,16 +49,14 @@
 
                 <h2>Đăng nhập</h2>
 
-                <p>
-                    Nhập thông tin tài khoản để tiếp tục.
-                </p>
+                <p>Đăng nhập bằng email và mật khẩu bạn đã đăng ký.</p>
             </div>
 
 
             <div id="loginMessage" class="auth-message" role="alert" hidden></div>
 
 
-            <form id="loginForm" novalidate>
+            <form id="loginForm" method="post" action="{% url 'login-page' %}" novalidate>
 
                 {% csrf_token %}
 
@@ -70,6 +70,8 @@
                         name="email"
                         placeholder="example@email.com"
                         autocomplete="email"
+                        autocapitalize="none"
+                        spellcheck="false"
                         required
                     >
 
@@ -116,10 +118,9 @@
                         <input type="checkbox" id="remember">
                         <span>Ghi nhớ đăng nhập</span>
                     </label>
-
-                    <a href="#" class="auth-link">
+                    <button type="button" class="auth-link" id="showPasswordReset">
                         Quên mật khẩu?
-                    </a>
+                    </button>
 
                 </div>
 
@@ -132,12 +133,78 @@
             </form>
 
 
-            <div class="auth-divider">
+            <div id="passwordResetSection" hidden>
+                <div class="auth-heading">
+                    <h2>Khôi phục mật khẩu</h2>
+                    <p>Nhập email đã đăng ký để nhận mã OTP đặt lại mật khẩu.</p>
+                </div>
+                <div id="passwordResetMessage" class="auth-message" role="alert" hidden></div>
+                <form id="passwordResetForm" novalidate>
+                    <div class="auth-field">
+                        <label for="resetEmail">Email đăng ký</label>
+                        <input
+                            type="email"
+                            id="resetEmail"
+                            autocomplete="email"
+                            placeholder="example@gmail.com"
+                            required
+                        >
+                    </div>
+                    <button type="button" class="auth-submit-btn" id="requestOtpButton">
+                        Gửi mã OTP <span>→</span>
+                    </button>
+                    <div id="passwordResetFields" hidden>
+                        <div class="auth-field">
+                            <label for="resetOtp">Mã OTP</label>
+                            <input
+                                type="text"
+                                id="resetOtp"
+                                inputmode="numeric"
+                                autocomplete="one-time-code"
+                                maxlength="6"
+                                pattern="[0-9]{6}"
+                                placeholder="Nhập mã 6 chữ số"
+                            >
+                        </div>
+                        <div class="auth-field">
+                            <label for="newPassword">Mật khẩu mới</label>
+                            <input
+                                type="password"
+                                id="newPassword"
+                                autocomplete="new-password"
+                                minlength="8"
+                                placeholder="Tối thiểu 8 ký tự"
+                            >
+                        </div>
+                        <div class="auth-field">
+                            <label for="confirmNewPassword">Nhập lại mật khẩu mới</label>
+                            <input
+                                type="password"
+                                id="confirmNewPassword"
+                                autocomplete="new-password"
+                                minlength="8"
+                                placeholder="Nhập lại mật khẩu mới"
+                            >
+                        </div>
+                        <button type="submit" class="auth-submit-btn">
+                            Đặt lại mật khẩu <span>→</span>
+                        </button>
+                        <button type="button" class="auth-link" id="resendOtpButton">
+                            Gửi lại mã OTP
+                        </button>
+                    </div>
+                    <button type="button" class="auth-link auth-reset-back" id="backToLogin">
+                        Quay lại đăng nhập
+                    </button>
+                </form>
+            </div>
+
+            <div class="auth-divider" id="authDivider">
                 <span>HOẶC</span>
             </div>
 
 
-            <p class="auth-register-text">
+            <p class="auth-register-text" id="registerText">
                 Chưa có tài khoản?
                 <a href="{% url 'register-page' %}">
                     Đăng ký ngay
@@ -154,7 +221,6 @@
 {% endblock %}
 
 
-{
 {% block extra_js %}
 
 <script>
@@ -162,12 +228,152 @@ document.addEventListener("DOMContentLoaded", function () {
     const form = document.getElementById("loginForm");
     const email = document.getElementById("email");
     const password = document.getElementById("password");
+    const remember = document.getElementById("remember");
 
     const emailError = document.getElementById("emailError");
     const passwordError = document.getElementById("passwordError");
     const message = document.getElementById("loginMessage");
     const togglePassword = document.getElementById("togglePassword");
     const submitButton = form.querySelector('[type="submit"]');
+    const resetSection = document.getElementById("passwordResetSection");
+    const resetForm = document.getElementById("passwordResetForm");
+    const resetEmail = document.getElementById("resetEmail");
+    const resetMessage = document.getElementById("passwordResetMessage");
+    const resetFields = document.getElementById("passwordResetFields");
+    const requestOtpButton = document.getElementById("requestOtpButton");
+    const resendOtpButton = document.getElementById("resendOtpButton");
+    const resetOtp = document.getElementById("resetOtp");
+    const newPassword = document.getElementById("newPassword");
+    const confirmNewPassword = document.getElementById("confirmNewPassword");
+    const authDivider = document.getElementById("authDivider");
+    const registerText = document.getElementById("registerText");
+    const csrfToken = form.querySelector('[name="csrfmiddlewaretoken"]').value;
+    const emailFromQuery = new URLSearchParams(window.location.search).get("email");
+    if (emailFromQuery) email.value = emailFromQuery;
+
+    function showResetMessage(text, type = "error") {
+        resetMessage.textContent = text;
+        resetMessage.className = "auth-message " + type;
+        resetMessage.hidden = false;
+    }
+
+    async function requestPasswordResetOtp() {
+        const emailValue = resetEmail.value.trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+            showResetMessage("Vui lòng nhập email hợp lệ.");
+            resetEmail.focus();
+            return;
+        }
+
+        requestOtpButton.disabled = true;
+        resendOtpButton.disabled = true;
+        try {
+            const response = await fetch("/api/customers/password-reset/request/", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": csrfToken
+                },
+                body: JSON.stringify({ email: emailValue })
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.message || "Không thể gửi mã OTP.");
+            }
+
+            resetEmail.readOnly = true;
+            resetFields.hidden = false;
+            requestOtpButton.hidden = true;
+            showResetMessage(result.message, "success");
+            resetOtp.focus();
+        } catch (error) {
+            showResetMessage(error.message || "Không thể kết nối máy chủ.");
+        } finally {
+            requestOtpButton.disabled = false;
+            resendOtpButton.disabled = false;
+        }
+    }
+
+    document.getElementById("showPasswordReset").addEventListener("click", function () {
+        resetEmail.value = email.value.trim();
+        form.hidden = true;
+        authDivider.hidden = true;
+        registerText.hidden = true;
+        resetSection.hidden = false;
+        resetEmail.focus();
+    });
+
+    document.getElementById("backToLogin").addEventListener("click", function () {
+        resetSection.hidden = true;
+        form.hidden = false;
+        authDivider.hidden = false;
+        registerText.hidden = false;
+        resetMessage.hidden = true;
+        resetEmail.readOnly = false;
+        resetFields.hidden = true;
+        requestOtpButton.hidden = false;
+        resetOtp.value = "";
+        newPassword.value = "";
+        confirmNewPassword.value = "";
+    });
+
+    requestOtpButton.addEventListener("click", requestPasswordResetOtp);
+    resendOtpButton.addEventListener("click", requestPasswordResetOtp);
+
+    resetForm.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        resetMessage.hidden = true;
+
+        if (!/^\d{6}$/.test(resetOtp.value.trim())) {
+            showResetMessage("Nhập mã OTP gồm 6 chữ số.");
+            resetOtp.focus();
+            return;
+        }
+        if (newPassword.value.length < 8) {
+            showResetMessage("Mật khẩu mới phải có ít nhất 8 ký tự.");
+            newPassword.focus();
+            return;
+        }
+        if (newPassword.value !== confirmNewPassword.value) {
+            showResetMessage("Hai mật khẩu mới không khớp.");
+            confirmNewPassword.focus();
+            return;
+        }
+
+        const resetSubmitButton = resetForm.querySelector('[type="submit"]');
+        resetSubmitButton.disabled = true;
+        try {
+            const response = await fetch("/api/customers/password-reset/confirm/", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": csrfToken
+                },
+                body: JSON.stringify({
+                    email: resetEmail.value.trim(),
+                    otp: resetOtp.value.trim(),
+                    new_password: newPassword.value
+                })
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                const detail = result.errors ? result.errors.join(" ") : result.message;
+                throw new Error(detail || "Không thể đặt lại mật khẩu.");
+            }
+
+            showResetMessage(result.message, "success");
+            resetForm.hidden = true;
+            setTimeout(function () {
+                window.location.assign("{% url 'login-page' %}");
+            }, 1200);
+        } catch (error) {
+            showResetMessage(error.message || "Không thể kết nối máy chủ.");
+        } finally {
+            resetSubmitButton.disabled = false;
+        }
+    });
 
     // Hiện / ẩn mật khẩu
     togglePassword.addEventListener("click", function () {
@@ -228,7 +434,8 @@ document.addEventListener("DOMContentLoaded", function () {
                 },
                 body: JSON.stringify({
                     email: emailValue,
-                    mat_khau: passwordValue
+                    mat_khau: passwordValue,
+                    ghi_nho: remember.checked
                 })
             });
 
@@ -244,8 +451,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
             const role = result.data?.vai_tro;
 
+            const next = new URLSearchParams(window.location.search).get("next");
+            const nextUrl = next ? new URL(next, window.location.origin) : null;
+            const safeCustomerPath = nextUrl && nextUrl.origin === window.location.origin
+                ? nextUrl.href
+                : "/";
             const redirectPaths = {
-                CUSTOMER: "/",
+                CUSTOMER: safeCustomerPath,
                 EMPLOYEE: "/nhan-vien/",
                 MANAGER: "/quan-ly/"
             };

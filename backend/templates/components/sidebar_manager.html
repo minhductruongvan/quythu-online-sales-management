@@ -4,10 +4,10 @@
 <aside class="sidebar" id="sidebar">
 
     <div class="sidebar-brand">
-        <div class="brand-logo">Q</div>
+        <div class="brand-logo"><img src="{% static 'images/logo-quy-thu.png' %}" alt="Logo Quý Thu"></div>
         <div class="brand-info">
             <h5>QUÝ THU</h5>
-            <span>Management Workspace</span>
+            <span>Quản trị cửa hàng</span>
         </div>
     </div>
 
@@ -24,7 +24,7 @@
 
     <nav class="sidebar-nav">
 
-        <div class="nav-section-title">QUẢN TRỊ</div>
+        <div class="nav-section-title">ĐIỀU HÀNH</div>
 
         <a href="{% url 'manager-dashboard' %}" class="nav-link-custom">
             <span class="nav-icon">⌂</span>
@@ -38,29 +38,34 @@
             <span>Khách hàng</span>
         </a>
 
+        <a href="{% url 'manager-role-permissions' %}" class="nav-link-custom">
+            <span class="nav-icon">♙</span>
+            <span>Quản lý nhân sự</span>
+        </a>
+
         <a href="{% url 'order-list' %}" class="nav-link-custom">
             <span class="nav-icon">▤</span>
             <span>Đơn hàng</span>
         </a>
 
-        <a href="#" class="nav-link-custom is-disabled" title="Chưa triển khai">
+        <a href="{% url 'products:quan_ly' %}" class="nav-link-custom">
             <span class="nav-icon">▣</span>
             <span>Sản phẩm</span>
         </a>
 
-        <div class="nav-section-title">PHÂN TÍCH KINH DOANH</div>
+        <div class="nav-section-title">KINH DOANH</div>
 
-        <a href="#" class="nav-link-custom is-disabled" title="Chưa triển khai">
+        <a href="{% url 'reports:dashboard' %}" class="nav-link-custom">
             <span class="nav-icon">▥</span>
-            <span>Báo cáo doanh thu</span>
+            <span>Báo cáo tổng quan</span>
         </a>
 
-        <a href="#" class="nav-link-custom is-disabled" title="Chưa triển khai">
+        <a href="{% url 'reports:detail' %}" class="nav-link-custom">
             <span class="nav-icon">◷</span>
-            <span>Hiệu suất nhân viên</span>
+            <span>Báo cáo chi tiết</span>
         </a>
 
-        <a href="#" class="nav-link-custom is-disabled" title="Chưa triển khai">
+        <a href="{% url 'manager-after-sales' %}" class="nav-link-custom">
             <span class="nav-icon">↩</span>
             <span>Hậu mãi</span>
         </a>

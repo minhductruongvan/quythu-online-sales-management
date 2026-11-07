@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Báo cáo chi tiết | Quý Thu{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/modules.css' %}">
+<link rel="stylesheet" href="{% static 'css/reports.css' %}?v=1">
+{% endblock %}
+{% block content %}
+<main class="report-page">
+    <header class="module-heading">
+        <div>
+            <span class="module-eyebrow">PHÂN TÍCH KINH DOANH</span>
+            <h1>Báo cáo chi tiết</h1>
+            <p>Lọc doanh thu, sản phẩm, phương thức thanh toán và khu vực trên cùng một kỳ.</p>
+        </div>
+        <a class="module-link-button secondary" href="{% url 'reports:dashboard' %}">← Tổng quan</a>
+    </header>
+
+    <form method="get" action="{% url 'reports:detail' %}" class="report-toolbar" data-report-form>
+        <input type="hidden" name="tab" value="{{ active_tab }}">
+        <div>
+            <label for="report-preset">Kỳ báo cáo</label>
+            <select id="report-preset" name="preset" data-report-preset>
+                <option value="today" {% if selected_preset == "today" %}selected{% endif %}>Hôm nay</option>
+                <option value="7days" {% if selected_preset == "7days" %}selected{% endif %}>7 ngày gần nhất</option>
+                <option value="this_month" {% if selected_preset == "this_month" %}selected{% endif %}>Tháng này</option>
+                <option value="last_month" {% if selected_preset == "last_month" %}selected{% endif %}>Tháng trước</option>
+                <option value="this_quarter" {% if selected_preset == "this_quarter" %}selected{% endif %}>Quý này</option>
+                <option value="this_year" {% if selected_preset == "this_year" %}selected{% endif %}>Năm nay</option>
+                <option value="custom" {% if selected_preset == "custom" %}selected{% endif %}>Tùy chọn ngày</option>
+            </select>
+        </div>
+        <div>
+            <label for="report-customer-type">Loại khách</label>
+            <select id="report-customer-type" name="customer_type">
+                <option value="ALL" {% if selected_customer_type == "ALL" %}selected{% endif %}>Tất cả</option>
+                {% for type in customer_types %}
+                <option value="{{ type.ma_loai_kh }}" {% if selected_customer_type == type.ma_loai_kh %}selected{% endif %}>{{ type.ten_loai_kh }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="report-payment">Thanh toán</label>
+            <select id="report-payment" name="pttt">
+                <option value="ALL" {% if selected_pttt == "ALL" %}selected{% endif %}>Tất cả phương thức</option>
+                {% for method in payment_methods %}
+                <option value="{{ method.ma_pttt }}" {% if selected_pttt == method.ma_pttt %}selected{% endif %}>{{ method.ten_pttt }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="report-product">Sản phẩm</label>
+            <select id="report-product" name="product">
+                <option value="">Tất cả sản phẩm</option>
+                {% for product in products %}
+                <option value="{{ product.ma_sp }}" {% if selected_product == product.ma_sp %}selected{% endif %}>{{ product.ten_sp }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="report-category">Danh mục</label>
+            <select id="report-category" name="category">
+                <option value="">Tất cả danh mục</option>
+                {% for category in categories %}
+                <option value="{{ category.ma_dm }}" {% if selected_category == category.ma_dm %}selected{% endif %}>{{ category.ten_dm }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="report-amount-min">Tổng đơn từ (đ)</label>
+            <input id="report-amount-min" type="number" name="amount_min" min="0" step="1" value="{{ amount_min_input }}" placeholder="Không giới hạn">
+        </div>
+        <div>
+            <label for="report-amount-max">Tổng đơn đến (đ)</label>
+            <input id="report-amount-max" type="number" name="amount_max" min="0" step="1" value="{{ amount_max_input }}" placeholder="Không giới hạn">
+        </div>
+        <div>
+            <label for="report-search">Tìm đơn / khách</label>
+            <input id="report-search" name="q" value="{{ search_kw }}" placeholder="Mã đơn, tên hoặc điện thoại" aria-describedby="report-search-help">
+        </div>
+        <small id="report-search-help" class="report-date-caption">Tìm kiếm áp dụng cho giao dịch doanh thu</small>
+        <div class="report-range" data-report-range {% if selected_preset != "custom" %}hidden{% endif %}>
+            <div>
+                <label for="report-start-date">Từ ngày</label>
+                <input id="report-start-date" type="date" name="start_date" value="{{ date_range.start_date|date:'Y-m-d' }}">
+            </div>
+            <div>
+                <label for="report-end-date">Đến ngày</label>
+                <input id="report-end-date" type="date" name="end_date" value="{{ date_range.end_date|date:'Y-m-d' }}">
+            </div>
+        </div>
+        <div class="report-filter-actions">
+            <button class="module-button" type="submit">Áp dụng lọc</button>
+            <a class="module-link-button secondary" href="{% url 'reports:detail' %}">Xóa lọc</a>
+        </div>
+        <span class="report-date-caption">{{ date_range.start_date|date:"d/m/Y" }} – {{ date_range.end_date|date:"d/m/Y" }}</span>
+    </form>
+
+    <nav class="report-tabs" aria-label="Các báo cáo">
+        <a class="report-tab {% if active_tab == 'revenue' %}active{% endif %}" href="?tab=revenue&preset={{ selected_preset }}&start_date={{ date_range.start_date|date:'Y-m-d' }}&end_date={{ date_range.end_date|date:'Y-m-d' }}&customer_type={{ selected_customer_type }}&pttt={{ selected_pttt }}&category={{ selected_category|urlencode }}&product={{ selected_product|urlencode }}&amount_min={{ amount_min_input|urlencode }}&amount_max={{ amount_max_input|urlencode }}&q={{ search_kw|urlencode }}">Doanh thu</a>
+        <a class="report-tab {% if active_tab == 'products' %}active{% endif %}" href="?tab=products&preset={{ selected_preset }}&start_date={{ date_range.start_date|date:'Y-m-d' }}&end_date={{ date_range.end_date|date:'Y-m-d' }}&customer_type={{ selected_customer_type }}&pttt={{ selected_pttt }}&category={{ selected_category|urlencode }}&product={{ selected_product|urlencode }}&amount_min={{ amount_min_input|urlencode }}&amount_max={{ amount_max_input|urlencode }}&q={{ search_kw|urlencode }}">Sản phẩm</a>
+        <a class="report-tab {% if active_tab == 'recent' %}active{% endif %}" href="?tab=recent&preset={{ selected_preset }}&start_date={{ date_range.start_date|date:'Y-m-d' }}&end_date={{ date_range.end_date|date:'Y-m-d' }}&customer_type={{ selected_customer_type }}&pttt={{ selected_pttt }}&category={{ selected_category|urlencode }}&product={{ selected_product|urlencode }}&amount_min={{ amount_min_input|urlencode }}&amount_max={{ amount_max_input|urlencode }}&q={{ search_kw|urlencode }}">Giao dịch gần đây</a>
+        <a class="report-tab {% if active_tab == 'area' %}active{% endif %}" href="?tab=area&preset={{ selected_preset }}&start_date={{ date_range.start_date|date:'Y-m-d' }}&end_date={{ date_range.end_date|date:'Y-m-d' }}&customer_type={{ selected_customer_type }}&pttt={{ selected_pttt }}&category={{ selected_category|urlencode }}&product={{ selected_product|urlencode }}&amount_min={{ amount_min_input|urlencode }}&amount_max={{ amount_max_input|urlencode }}&q={{ search_kw|urlencode }}">Khu vực</a>
+        <a class="module-link-button secondary" href="{% url 'reports:export_csv' %}?tab={{ active_tab }}&preset={{ selected_preset }}&start_date={{ date_range.start_date|date:'Y-m-d' }}&end_date={{ date_range.end_date|date:'Y-m-d' }}&customer_type={{ selected_customer_type }}&pttt={{ selected_pttt }}&category={{ selected_category|urlencode }}&product={{ selected_product|urlencode }}&amount_min={{ amount_min_input|urlencode }}&amount_max={{ amount_max_input|urlencode }}&q={{ search_kw|urlencode }}&sort_by={{ selected_sort }}&level={{ selected_level }}">Xuất CSV ↓</a>
+    </nav>
+
+    {% if active_tab == "products" %}
+    <section class="report-panel">
+        <div class="report-panel-heading">
+            <div><h2>Sản phẩm bán chạy</h2><p>Xếp hạng theo {{ selected_sort }} · {{ date_range.start_date|date:"d/m/Y" }} – {{ date_range.end_date|date:"d/m/Y" }}</p></div>
+            <form method="get" class="module-inline-form">
+                <input type="hidden" name="tab" value="products">
+                <input type="hidden" name="preset" value="{{ selected_preset }}">
+                <input type="hidden" name="customer_type" value="{{ selected_customer_type }}">
+                <input type="hidden" name="pttt" value="{{ selected_pttt }}">
+                <input type="hidden" name="category" value="{{ selected_category }}">
+                <input type="hidden" name="product" value="{{ selected_product }}">
+                <input type="hidden" name="amount_min" value="{{ amount_min_input }}">
+                <input type="hidden" name="amount_max" value="{{ amount_max_input }}">
+                <input type="hidden" name="start_date" value="{{ date_range.start_date|date:'Y-m-d' }}">
+                <input type="hidden" name="end_date" value="{{ date_range.end_date|date:'Y-m-d' }}">
+                <input type="hidden" name="q" value="{{ search_kw }}">
+                <label for="report-sort">Xếp theo</label>
+                <select id="report-sort" name="sort_by" class="module-select">
+                    <option value="revenue" {% if selected_sort == "revenue" %}selected{% endif %}>Doanh thu</option>
+                    <option value="sl" {% if selected_sort == "sl" %}selected{% endif %}>Số lượng bán</option>
+                </select>
+                <select name="level" aria-label="Nhóm sản phẩm" class="module-select">
+                    <option value="variant" {% if selected_level == "variant" %}selected{% endif %}>Theo biến thể</option>
+                    <option value="product" {% if selected_level == "product" %}selected{% endif %}>Theo sản phẩm</option>
+                </select>
+                <button class="module-button" type="submit">Cập nhật</button>
+            </form>
+        </div>
+        <div class="report-product-list">
+            {% for item in top_products %}
+            <div class="report-product-row">
+                <span class="report-product-name"><strong>{{ item.rank }}. {{ item.name }}</strong><small>{{ item.code }} · {{ item.category }} · {{ item.spec }}</small></span>
+                <div class="report-meter" role="progressbar" aria-label="Tỷ trọng {{ item.name }}" aria-valuenow="{{ item.percentage }}" aria-valuemin="0" aria-valuemax="100">
+                    <span style="width:{{ item.percentage }}%"></span>
+                </div>
+                <strong>{{ item.revenue_formatted }}<small>{{ item.qty_formatted }} đã bán</small></strong>
+            </div>
+            {% empty %}
+            <p class="report-empty">Không có sản phẩm bán trong kỳ phù hợp với bộ lọc. <a href="{% url 'reports:detail' %}?tab={{ active_tab }}">Xóa bộ lọc</a></p>
+            {% endfor %}
+        </div>
+    </section>
+
+    {% elif active_tab == "recent" %}
+    <section class="report-panel">
+        <div class="report-panel-heading"><div><h2>Giao dịch gần đây</h2><p>Các dòng hàng trong kỳ đang lọc, loại trừ đơn đã hủy</p></div></div>
+        <div class="module-table-wrap">
+            <table class="module-table report-table">
+                <thead><tr><th>Đơn hàng</th><th>Sản phẩm</th><th>Số lượng</th><th>Giá trị dòng hàng</th><th>Loại khách</th><th>Thời điểm</th></tr></thead>
+                <tbody>
+                    {% for item in recent_products %}
+                    <tr><td>{{ item.order_code }}</td><td>{{ item.product_name }} · {{ item.spec }}</td><td>{{ item.qty }}</td><td>{{ item.amount_formatted }}</td><td>{{ item.customer_type }}</td><td>{{ item.full_time }}</td></tr>
+                    {% empty %}<tr><td colspan="6" class="report-empty">Không có giao dịch phù hợp bộ lọc. <a href="{% url 'reports:detail' %}?tab={{ active_tab }}">Xóa bộ lọc</a></td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {% elif active_tab == "area" %}
+    <section class="report-panel">
+        <div class="report-panel-heading"><div><h2>Doanh thu theo khu vực</h2><p>Đơn hoàn thành theo địa chỉ nhận hàng</p></div></div>
+        <div class="module-table-wrap">
+            <table class="module-table report-table">
+                <thead><tr><th>Tỉnh / thành</th><th>Số đơn</th><th>Doanh thu</th><th>Trung bình / đơn</th><th>Tỷ trọng</th><th>So kỳ trước</th></tr></thead>
+                <tbody>
+                    {% for item in area_report %}
+                    <tr>
+                        <td><strong>{{ item.province }}</strong><div class="report-meter" style="margin-top:7px"><span style="width:{{ item.bar_pct }}%"></span></div></td>
+                        <td>{{ item.order_count }}</td><td>{{ item.revenue_formatted }}</td><td>{{ item.avg_per_order }}</td><td>{{ item.pct_total }}</td><td>{{ item.pct_change }}%</td>
+                    </tr>
+                    {% empty %}<tr><td colspan="6" class="report-empty">Chưa có doanh thu phù hợp bộ lọc. <a href="{% url 'reports:detail' %}?tab={{ active_tab }}">Xóa bộ lọc</a></td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {% else %}
+    <section class="report-panel">
+        <div class="report-panel-heading">
+            <div><h2>Doanh thu theo ngày</h2><p>Đơn hoàn thành · đơn vị triệu đồng</p></div>
+            <span class="module-pill">{{ order_details.total_records }} đơn</span>
+        </div>
+        <div id="revenue-chart"></div>
+    </section>
+    <section class="report-panel">
+        <div class="report-panel-heading">
+            <div><h2>Chi tiết đơn hoàn thành</h2><p>{{ date_range.start_date|date:"d/m/Y" }} – {{ date_range.end_date|date:"d/m/Y" }}</p></div>
+        </div>
+        <div class="module-table-wrap">
+            <table class="module-table report-table">
+                <thead><tr><th>Mã đơn</th><th>Hoàn thành</th><th>Khách hàng</th><th>Loại khách</th><th>Thanh toán</th><th>Tiền hàng</th><th>Phí giao</th><th>Tổng / thuần</th></tr></thead>
+                <tbody>
+                    {% for item in order_details.items %}
+                    <tr><td>{{ item.order_code }}</td><td>{{ item.completion_time }}</td><td>{{ item.customer_name }}</td><td>{{ item.customer_type }}</td><td>{{ item.payment_method }}</td><td>{{ item.subtotal }}</td><td>{{ item.shipping_fee }}</td><td><strong>{{ item.net_revenue }}</strong></td></tr>
+                    {% empty %}<tr><td colspan="8" class="report-empty">Không có đơn hoàn thành phù hợp bộ lọc. <a href="{% url 'reports:detail' %}?tab={{ active_tab }}">Xóa bộ lọc</a></td></tr>{% endfor %}
+                </tbody>
+                <tfoot><tr><th colspan="5">Tổng trang</th><th>{{ order_details.summary.sum_subtotal }}</th><th>{{ order_details.summary.sum_shipping }}</th><th>{{ order_details.summary.sum_net_revenue }}</th></tr></tfoot>
+            </table>
+        </div>
+        <div class="report-pager">
+            <span>Trang {{ order_details.current_page }} / {{ order_details.total_pages }} · {{ order_details.total_records }} đơn</span>
+            <div class="module-inline-form">
+                {% if order_details.current_page > 1 %}
+                <a class="module-link-button secondary" href="?tab=revenue&preset={{ selected_preset }}&start_date={{ date_range.start_date|date:'Y-m-d' }}&end_date={{ date_range.end_date|date:'Y-m-d' }}&customer_type={{ selected_customer_type }}&pttt={{ selected_pttt }}&category={{ selected_category|urlencode }}&product={{ selected_product|urlencode }}&amount_min={{ amount_min_input|urlencode }}&amount_max={{ amount_max_input|urlencode }}&q={{ search_kw|urlencode }}&page={{ order_details.current_page|add:'-1' }}">← Trước</a>
+                {% endif %}
+                {% if order_details.current_page < order_details.total_pages %}
+                <a class="module-link-button secondary" href="?tab=revenue&preset={{ selected_preset }}&start_date={{ date_range.start_date|date:'Y-m-d' }}&end_date={{ date_range.end_date|date:'Y-m-d' }}&customer_type={{ selected_customer_type }}&pttt={{ selected_pttt }}&category={{ selected_category|urlencode }}&product={{ selected_product|urlencode }}&amount_min={{ amount_min_input|urlencode }}&amount_max={{ amount_max_input|urlencode }}&q={{ search_kw|urlencode }}&page={{ order_details.current_page|add:'1' }}">Tiếp →</a>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+</main>
+{{ rev_timeline|json_script:"report-timeline" }}
+<script src="{% static 'js/reports.js' %}?v=1" defer></script>
+{% endblock %}

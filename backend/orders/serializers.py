@@ -534,6 +534,14 @@ class ThuCodSerializer(GhiChuSerializer):
     )
 
 
+class GhiNhanChuyenKhoanSerializer(GhiChuSerializer):
+    """M3-UC11. Nhân viên đối soát mã giao dịch chuyển khoản và số tiền thực nhận."""
+
+    so_tien_thuc_nhan = serializers.IntegerField(min_value=1)
+    ma_giao_dich_ngan_hang = serializers.CharField(max_length=50)
+    ly_do_dieu_chinh = serializers.CharField(max_length=120, required=False, allow_blank=True, default="")
+
+
 class BanGiaoSerializer(GhiChuSerializer):
     """
     M3-UC12 bàn giao. Body: {"hinh_thuc_giao": "SHIPPER", "don_vi_van_chuyen": "Giao nhanh A",

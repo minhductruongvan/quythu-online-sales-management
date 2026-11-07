@@ -5,7 +5,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db.models import Q
 from django.db import transaction
-from .models import TaiKhoan, KhachHang, NhanVien, LichSuKhachHang, DiaChiKH
+from .models import (
+    TaiKhoan,
+    KhachHang,
+    NhanVien,
+    LichSuKhachHang,
+    DiaChiKH,
+    GhiChuKhachHang,
+)
 from .serializers import (
     DangKyKhachHangSerializer,
     TrangThaiKhachHangSerializer,
@@ -48,6 +55,7 @@ class DangKyKhachHangView(APIView):
                         "email": khach_hang.tai_khoan.email,
                         "so_dien_thoai": khach_hang.tai_khoan.so_dien_thoai,
                         "loai_khach_hang": khach_hang.loai_khach_hang.ten_loai_kh,
+                        "ma_loai_khach_hang": khach_hang.loai_khach_hang_id,
                     },
                 },
                 status=status.HTTP_201_CREATED,
@@ -70,6 +78,7 @@ class DangNhapView(APIView):
 
         email = serializer.validated_data["email"]
         mat_khau = serializer.validated_data["mat_khau"]
+        ghi_nho = serializer.validated_data["ghi_nho"]
 
         # 1. Tìm tài khoản
         tai_khoan = TaiKhoan.objects.filter(
@@ -149,6 +158,7 @@ class DangNhapView(APIView):
 
         # 5. Đăng nhập bằng session Django hiện tại
         login(request, user)
+        request.session.set_expiry(1209600 if ghi_nho else 0)
 
         # 6. Trả thông tin để frontend điều hướng theo vai trò
         return Response(
@@ -210,6 +220,7 @@ class ThongTinCaNhanView(APIView):
             )
 
         khach_hang = request.user.khach_hang
+        du_lieu_cu = DichVuLichSuHoSo.lay_du_lieu_hien_tai(khach_hang)
 
         serializer = ThongTinCaNhanSerializer(
             khach_hang,
@@ -219,6 +230,15 @@ class ThongTinCaNhanView(APIView):
 
         if serializer.is_valid():
             khach_hang = serializer.save()
+            du_lieu_moi = DichVuLichSuHoSo.lay_du_lieu_hien_tai(
+                khach_hang
+            )
+            DichVuLichSuHoSo.ghi_lich_su_cap_nhat(
+                khach_hang=khach_hang,
+                nguoi_thuc_hien=request.user,
+                du_lieu_cu=du_lieu_cu,
+                du_lieu_moi=du_lieu_moi,
+            )
 
             return Response(
                 {
@@ -256,6 +276,7 @@ class DanhSachKhachHangView(APIView):
             danh_sach = danh_sach.filter(
                 Q(ma_kh__icontains=tu_khoa)
                 | Q(ho_ten__icontains=tu_khoa)
+                | Q(email__icontains=tu_khoa)
                 | Q(so_dien_thoai__icontains=tu_khoa)
                 | Q(tai_khoan__email__icontains=tu_khoa)
             )
@@ -287,12 +308,20 @@ class DanhSachKhachHangView(APIView):
             status=status.HTTP_200_OK,
         )
 
+    @transaction.atomic
     def post(self, request):
 
         serializer = ThemKhachHangSerializer(data=request.data)
 
         if serializer.is_valid():
             khach_hang = serializer.save()
+            LichSuKhachHang.objects.create(
+                ma_lich_su=DichVuLichSuHoSo.tao_ma_lich_su(),
+                khach_hang=khach_hang,
+                nguoi_thuc_hien=request.user,
+                loai_thay_doi=LichSuKhachHang.LoaiThayDoi.PROFILE_CREATE,
+                noi_dung_moi="Tạo hồ sơ khách hàng.",
+            )
 
             return Response(
                 {
@@ -488,6 +517,7 @@ class TrangThaiKhachHangView(APIView):
         )
 
         if serializer.is_valid():
+            reason = serializer.validated_data.get("ly_do", "").strip()
             khach_hang = serializer.save()
 
             if trang_thai_cu != khach_hang.trang_thai:
@@ -509,7 +539,10 @@ class TrangThaiKhachHangView(APIView):
                     nguoi_thuc_hien=request.user,
                     loai_thay_doi=LichSuKhachHang.LoaiThayDoi.STATUS,
                     noi_dung_cu=trang_thai_cu,
-                    noi_dung_moi=khach_hang.trang_thai,
+                    noi_dung_moi="; ".join(filter(None, [
+                        khach_hang.trang_thai,
+                        reason,
+                    ])),
                 )
 
             return Response(
@@ -591,6 +624,7 @@ class TrangThaiTaiKhoanView(APIView):
 
 class DanhSachDiaChiView(APIView):
     permission_classes = [IsCustomer]
+
     def get(self, request):
 
         try:
@@ -619,6 +653,7 @@ class DanhSachDiaChiView(APIView):
             status=status.HTTP_200_OK,
         )
 
+    @transaction.atomic
     def post(self, request):
 
         try:
@@ -699,6 +734,7 @@ class ChiTietDiaChiView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+    @transaction.atomic
     def patch(self, request, ma_dia_chi):
 
 
@@ -780,4 +816,3 @@ class ChiTietDiaChiView(APIView):
             {"message": "Xóa địa chỉ thành công."},
             status=status.HTTP_200_OK,
         )
-

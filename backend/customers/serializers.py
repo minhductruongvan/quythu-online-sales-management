@@ -1,3 +1,5 @@
+import re
+
 from django.db import transaction
 from rest_framework import serializers
 
@@ -9,11 +11,27 @@ from .models import (
     DiaChiKH,
     LichSuKhachHang,
 )
+from .services import DichVuLichSuHoSo
+
+
+def validate_phone_number(value):
+    phone = value.strip()
+    if phone and not re.fullmatch(r"\+?[0-9\s().-]{8,15}", phone):
+        raise serializers.ValidationError(
+            "Số điện thoại phải có từ 8 đến 15 ký tự số hợp lệ."
+        )
+    return phone
 
 
 class DangKyKhachHangSerializer(serializers.Serializer):
     email = serializers.EmailField()
     so_dien_thoai = serializers.CharField(max_length=15)
+    loai_khach_hang = serializers.SlugRelatedField(
+        slug_field="ma_loai_kh",
+        queryset=LoaiKhachHang.objects.filter(
+            ma_loai_kh__in=["LKH001", "LKH002"]
+        ),
+    )
     mat_khau = serializers.CharField(
         write_only=True,
         min_length=8,
@@ -23,7 +41,10 @@ class DangKyKhachHangSerializer(serializers.Serializer):
     def validate_email(self, value):
         email = value.strip().lower()
 
-        if TaiKhoan.objects.filter(email__iexact=email).exists():
+        if (
+            TaiKhoan.objects.filter(email__iexact=email).exists()
+            or KhachHang.objects.filter(email__iexact=email).exists()
+        ):
             raise serializers.ValidationError(
                 "Email này đã được sử dụng."
             )
@@ -31,9 +52,11 @@ class DangKyKhachHangSerializer(serializers.Serializer):
         return email
 
     def validate_so_dien_thoai(self, value):
-        so_dien_thoai = value.strip()
+        so_dien_thoai = validate_phone_number(value)
 
         if TaiKhoan.objects.filter(
+            so_dien_thoai=so_dien_thoai
+        ).exists() or KhachHang.objects.filter(
             so_dien_thoai=so_dien_thoai
         ).exists():
             raise serializers.ValidationError(
@@ -44,13 +67,7 @@ class DangKyKhachHangSerializer(serializers.Serializer):
 
     @transaction.atomic
     def create(self, validated_data):
-        loai_khach_le, _ = LoaiKhachHang.objects.get_or_create(
-            ma_loai_kh="LKH001",
-            defaults={
-                "ten_loai_kh": "Khách lẻ",
-                "mo_ta": "Khách hàng bán lẻ",
-            },
-        )
+        loai_khach_hang = validated_data.pop("loai_khach_hang")
 
         tai_khoan = TaiKhoan(
             ma_tk=self._tao_ma_tai_khoan(),
@@ -66,9 +83,17 @@ class DangKyKhachHangSerializer(serializers.Serializer):
         khach_hang = KhachHang.objects.create(
             ma_kh=self._tao_ma_khach_hang(),
             tai_khoan=tai_khoan,
-            loai_khach_hang=loai_khach_le,
+            loai_khach_hang=loai_khach_hang,
             ho_ten=validated_data["ho_ten"],
+            email=validated_data["email"],
             so_dien_thoai=validated_data["so_dien_thoai"],
+        )
+        LichSuKhachHang.objects.create(
+            ma_lich_su=DichVuLichSuHoSo.tao_ma_lich_su(),
+            khach_hang=khach_hang,
+            nguoi_thuc_hien=tai_khoan,
+            loai_thay_doi=LichSuKhachHang.LoaiThayDoi.PROFILE_CREATE,
+            noi_dung_moi="Khách hàng tự đăng ký tài khoản.",
         )
         return khach_hang
 
@@ -99,13 +124,16 @@ class DangNhapSerializer(serializers.Serializer):
     mat_khau = serializers.CharField(
         write_only=True,
     )
+    ghi_nho = serializers.BooleanField(
+        required=False,
+        default=False,
+    )
 
     def validate_email(self, value):
         return value.strip().lower()
 
 class ThongTinCaNhanSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(
-        source="tai_khoan.email",
         required=False,
     )
 
@@ -135,17 +163,19 @@ class ThongTinCaNhanSerializer(serializers.ModelSerializer):
 
     def validate_email(self, value):
         email = value.strip().lower()
+        if not email:
+            raise serializers.ValidationError("Email không được để trống.")
 
-        tai_khoan = self.instance.tai_khoan
-
-        if tai_khoan is None:
-            raise serializers.ValidationError(
-                "Khách hàng này chưa có tài khoản đăng nhập."
+        email_qs = KhachHang.objects.filter(email__iexact=email).exclude(
+            pk=self.instance.pk
+        )
+        tai_khoan_qs = TaiKhoan.objects.filter(email__iexact=email)
+        if self.instance.tai_khoan_id:
+            tai_khoan_qs = tai_khoan_qs.exclude(
+                pk=self.instance.tai_khoan_id
             )
 
-        if TaiKhoan.objects.filter(
-                email__iexact=email
-        ).exclude(pk=tai_khoan.pk).exists():
+        if email and (email_qs.exists() or tai_khoan_qs.exists()):
             raise serializers.ValidationError(
                 "Email này đã được sử dụng."
             )
@@ -153,13 +183,23 @@ class ThongTinCaNhanSerializer(serializers.ModelSerializer):
         return email
 
     def validate_so_dien_thoai(self, value):
-        so_dien_thoai = value.strip()
+        so_dien_thoai = validate_phone_number(value)
 
         tai_khoan = self.instance.tai_khoan
 
-        if TaiKhoan.objects.filter(
-                so_dien_thoai=so_dien_thoai
-        ).exclude(pk=tai_khoan.pk).exists():
+        if KhachHang.objects.filter(
+            so_dien_thoai=so_dien_thoai
+        ).exclude(pk=self.instance.pk).exists():
+            raise serializers.ValidationError(
+                "Số điện thoại này đã tồn tại trong hồ sơ khách hàng."
+            )
+
+        tai_khoan_query = TaiKhoan.objects.filter(
+            so_dien_thoai=so_dien_thoai
+        )
+        if tai_khoan:
+            tai_khoan_query = tai_khoan_query.exclude(pk=tai_khoan.pk)
+        if so_dien_thoai and tai_khoan_query.exists():
             raise serializers.ValidationError(
                 "Số điện thoại này đã được sử dụng."
             )
@@ -173,8 +213,11 @@ class ThongTinCaNhanSerializer(serializers.ModelSerializer):
         if "ho_ten" in validated_data:
             instance.ho_ten = validated_data["ho_ten"]
 
-        if "email" in tai_khoan_data:
-            instance.tai_khoan.email = tai_khoan_data["email"]
+        if "email" in validated_data:
+            email = validated_data["email"].strip().lower()
+            instance.email = email
+            if instance.tai_khoan is not None:
+                instance.tai_khoan.email = email
 
         if "so_dien_thoai" in tai_khoan_data:
             so_dien_thoai = tai_khoan_data["so_dien_thoai"]
@@ -188,8 +231,8 @@ class ThongTinCaNhanSerializer(serializers.ModelSerializer):
 
 class HoSoKhachHangSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(
-        source="tai_khoan.email",
         required=False,
+        allow_blank=True,
     )
 
     so_dien_thoai = serializers.CharField(
@@ -224,24 +267,26 @@ class HoSoKhachHangSerializer(serializers.ModelSerializer):
 
     def validate_email(self, value):
         email = value.strip().lower()
-
-        tai_khoan = self.instance.tai_khoan
-
-        if tai_khoan is None:
+        if not email and self.instance.tai_khoan_id:
             raise serializers.ValidationError(
-                "Khách hàng này chưa có tài khoản đăng nhập."
+                "Tài khoản đăng nhập cần có email."
             )
-
-        if TaiKhoan.objects.filter(
-                email__iexact=email
-        ).exclude(pk=tai_khoan.pk).exists():
+        if email and (
+            KhachHang.objects.filter(email__iexact=email)
+            .exclude(pk=self.instance.pk)
+            .exists()
+            or TaiKhoan.objects.filter(email__iexact=email)
+            .exclude(pk=self.instance.tai_khoan_id)
+            .exists()
+        ):
             raise serializers.ValidationError(
                 "Email này đã được sử dụng."
             )
 
         return email
+
     def validate_so_dien_thoai(self, value):
-        so_dien_thoai = value.strip()
+        so_dien_thoai = validate_phone_number(value)
 
         if not so_dien_thoai:
             return so_dien_thoai
@@ -273,26 +318,22 @@ class HoSoKhachHangSerializer(serializers.ModelSerializer):
 
     @transaction.atomic
     def update(self, instance, validated_data):
-        tai_khoan_data = validated_data.pop("tai_khoan", {})
-
         if "ho_ten" in validated_data:
             instance.ho_ten = validated_data["ho_ten"]
 
-        if "email" in tai_khoan_data:
-            if instance.tai_khoan is None:
-                raise serializers.ValidationError({
-                    "email": "Khách hàng này chưa có tài khoản đăng nhập."
-                })
-
-            instance.tai_khoan.email = tai_khoan_data["email"]
+        if "email" in validated_data:
+            email = validated_data["email"].strip().lower() or None
+            instance.email = email
+            if instance.tai_khoan is not None:
+                instance.tai_khoan.email = email
 
         if "so_dien_thoai" in validated_data:
             so_dien_thoai = validated_data["so_dien_thoai"]
 
-            instance.so_dien_thoai = so_dien_thoai
+            instance.so_dien_thoai = so_dien_thoai or None
 
             if instance.tai_khoan is not None:
-                instance.tai_khoan.so_dien_thoai = so_dien_thoai
+                instance.tai_khoan.so_dien_thoai = so_dien_thoai or None
 
         if instance.tai_khoan is not None:
             instance.tai_khoan.save()
@@ -303,6 +344,10 @@ class HoSoKhachHangSerializer(serializers.ModelSerializer):
 
 class ThemKhachHangSerializer(serializers.Serializer):
     ho_ten = serializers.CharField(max_length=100)
+    email = serializers.EmailField(
+        required=False,
+        allow_blank=True,
+    )
     so_dien_thoai = serializers.CharField(
         max_length=15,
         required=False,
@@ -310,7 +355,7 @@ class ThemKhachHangSerializer(serializers.Serializer):
     )
 
     def validate_so_dien_thoai(self, value):
-        so_dien_thoai = value.strip()
+        so_dien_thoai = validate_phone_number(value)
 
         if not so_dien_thoai:
             return so_dien_thoai
@@ -331,6 +376,17 @@ class ThemKhachHangSerializer(serializers.Serializer):
 
         return so_dien_thoai
 
+    def validate_email(self, value):
+        email = value.strip().lower()
+        if email and (
+            TaiKhoan.objects.filter(email__iexact=email).exists()
+            or KhachHang.objects.filter(email__iexact=email).exists()
+        ):
+            raise serializers.ValidationError(
+                "Email này đã được sử dụng."
+            )
+        return email
+
     @transaction.atomic
     def create(self, validated_data):
         loai_khach_le, _ = LoaiKhachHang.objects.get_or_create(
@@ -346,6 +402,7 @@ class ThemKhachHangSerializer(serializers.Serializer):
             tai_khoan=None,
             loai_khach_hang=loai_khach_le,
             ho_ten=validated_data["ho_ten"],
+            email=validated_data.get("email") or None,
             so_dien_thoai=validated_data.get("so_dien_thoai") or None,
         )
         return khach_hang
@@ -382,17 +439,40 @@ class PhanLoaiKhachHangSerializer(serializers.ModelSerializer):
         ]
 
 class TrangThaiKhachHangSerializer(serializers.ModelSerializer):
+    ly_do = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=255,
+        write_only=True,
+    )
+
     class Meta:
         model = KhachHang
         fields = [
             "ma_kh",
             "ho_ten",
             "trang_thai",
+            "ly_do",
         ]
         read_only_fields = [
             "ma_kh",
             "ho_ten",
         ]
+
+    def validate(self, attrs):
+        if (
+            attrs.get("trang_thai") == KhachHang.TrangThai.INACTIVE
+            and self.instance.trang_thai != KhachHang.TrangThai.INACTIVE
+            and not attrs.get("ly_do", "").strip()
+        ):
+            raise serializers.ValidationError({
+                "ly_do": "Vui lòng nhập lý do ngừng hoạt động."
+            })
+        return attrs
+
+    def update(self, instance, validated_data):
+        validated_data.pop("ly_do", None)
+        return super().update(instance, validated_data)
 
 class TrangThaiTaiKhoanSerializer(serializers.Serializer):
     hanh_dong = serializers.ChoiceField(
@@ -420,3 +500,6 @@ class DiaChiKHSerializer(serializers.ModelSerializer):
             "ngay_tao",
             "ngay_cap_nhat",
         ]
+
+    def validate_so_dien_thoai(self, value):
+        return validate_phone_number(value)

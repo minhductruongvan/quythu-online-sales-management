@@ -2285,6 +2285,31 @@ class KiemThuApiThaoTacNhanVien(DuLieuDatHang, TestCase):
         self.assertEqual(phan_hoi.data["data"]["ten_nhan_vien_xac_nhan"], self.nv.ho_ten)
         self.assertEqual(self.goi(don, "bat-dau-chuan-bi").status_code, 400)  # UC12-E1: chưa thanh toán
 
+    def test_nhan_vien_doi_soat_va_dinh_chinh_chuyen_khoan(self):
+        don = self.dat(ma_pttt=PhuongThucThanhToan.MA_CHUYEN_KHOAN)
+        self.goi(don, "kiem-tra-hang", self.ket_qua_du(don))
+        self.assertEqual(self.goi(don, "xac-nhan").status_code, 200)
+        giao_dich = don.giao_dich_thanh_toan.first()
+        payload = {
+            "so_tien_thuc_nhan": giao_dich.so_tien_phai_thu,
+            "ma_giao_dich_ngan_hang": "BANK-UI-001",
+        }
+        response = self.goi(don, "ghi-nhan-thanh-toan", payload)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["data"]["trang_thai_thanh_toan"], TrangThaiThanhToan.DA_THANH_TOAN)
+        self.assertEqual(self.goi(don, "bat-dau-chuan-bi").status_code, 200)
+
+        payload.update({
+            "so_tien_thuc_nhan": int(giao_dich.so_tien_phai_thu) + 1000,
+            "ma_giao_dich_ngan_hang": "BANK-UI-002",
+            "ly_do_dieu_chinh": "Đối soát lại giao dịch",
+        })
+        response = self.goi(don, "ghi-nhan-thanh-toan", payload)
+        self.assertEqual(response.status_code, 200, response.data)
+        giao_dich.refresh_from_db()
+        self.assertEqual(giao_dich.ma_giao_dich_ngan_hang, "BANK-UI-002")
+        self.assertIn("Đối soát lại giao dịch", giao_dich.ghi_chu)
+
     # ----- M3-UC10 -----
     def test_xu_ly_thieu_hang(self):
         don = self.dat()

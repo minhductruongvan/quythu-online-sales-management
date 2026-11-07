@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Tổng quan quản lý | Quý Thu{% endblock %}
+
+{% block extra_css %}
+<style>
+    .manager-hero { background:linear-gradient(120deg,#102d25,#24543d 70%,#9a7941); color:#fff; border-radius:18px; padding:30px; }
+    .manager-stat { background:#fff; border:1px solid #e8edf3; border-radius:14px; padding:20px; box-shadow:0 6px 22px rgba(30,45,70,.05); height:100%; }
+    .manager-stat span { display:block; color:#64748b; font-size:.88rem; }
+    .manager-stat strong { display:block; color:#172554; font-size:1.9rem; margin:.25rem 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 m1-admin-page">
+    <section class="manager-hero mb-4">
+        <div class="text-uppercase small opacity-75">Quản lý · Điều hành cửa hàng</div>
+        <h1 class="h3 fw-bold mt-2">Xin chào, {{ request.user.email }}</h1>
+        <p class="mb-0 opacity-75">Theo dõi hiệu quả cửa hàng, quản trị nhân sự và hoạt động kinh doanh.</p>
+    </section>
+
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-xl-3"><div class="manager-stat"><span>Tổng khách hàng</span><strong>{{ total_customers }}</strong><small class="text-muted">Tất cả hồ sơ</small></div></div>
+        <div class="col-sm-6 col-xl-3"><div class="manager-stat"><span>Đang hoạt động</span><strong>{{ active_customers }}</strong><small class="text-muted">Khách hàng hiện hoạt</small></div></div>
+        <div class="col-sm-6 col-xl-3"><div class="manager-stat"><span>Ngừng hoạt động</span><strong>{{ inactive_customers }}</strong><small class="text-muted">Trạng thái hồ sơ</small></div></div>
+        <div class="col-sm-6 col-xl-3"><div class="manager-stat"><span>Tài khoản bị khóa</span><strong>{{ locked_accounts }}</strong><small class="text-muted">Trạng thái đăng nhập</small></div></div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-5">
+            <section class="card border-0 shadow-sm h-100">
+                <div class="card-body p-4">
+                    <h2 class="h5 fw-bold">Quản trị cửa hàng</h2>
+                    <p class="text-muted">Ngoài nghiệp vụ hằng ngày, quản lý có thể đổi vai trò nhân viên, khóa tài khoản và xem báo cáo chuyên sâu.</p>
+                    <div class="d-grid gap-2 mt-3">
+                        <a class="btn btn-primary" href="{% url 'employee-customer-list' %}">Quản lý khách hàng</a>
+                        <a class="btn btn-outline-primary" href="{% url 'employee-customer-import' %}">Nhập khách hàng CSV</a>
+                        <a class="btn btn-outline-secondary" href="{% url 'employee-customer-export' %}">Xuất danh sách khách hàng</a>
+                        <a class="btn btn-outline-dark" href="{% url 'manager-role-permissions' %}">Quản lý nhân sự</a>
+                    </div>
+                    <div class="d-flex justify-content-between border-top mt-4 pt-3">
+                        <span class="text-muted">Nhân viên hoạt động</span><strong>{{ active_staff }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between pt-2">
+                        <span class="text-muted">Khách hàng sỉ</span><strong>{{ wholesale_customers }}</strong>
+                    </div>
+                </div>
+            </section>
+        </div>
+        <div class="col-lg-7">
+            <section class="card border-0 shadow-sm h-100">
+                <div class="card-body p-4">
+                    <h2 class="h5 fw-bold">Lịch sử thay đổi gần đây</h2>
+                    <div class="list-group list-group-flush">
+                        {% for event in recent_changes %}
+                        <a class="list-group-item px-0" href="{% url 'employee-customer-detail' event.khach_hang_id %}">
+                            <div class="d-flex justify-content-between gap-3">
+                                <strong>{{ event.khach_hang.ho_ten }} · {{ event.get_loai_thay_doi_display }}</strong>
+                                <small class="text-muted text-nowrap">{{ event.thoi_gian|date:"d/m/Y H:i" }}</small>
+                            </div>
+                            <small class="text-muted">{{ event.nguoi_thuc_hien.email|default:"Hệ thống" }}{% if event.noi_dung_moi %} · {{ event.noi_dung_moi }}{% endif %}</small>
+                        </a>
+                        {% empty %}
+                        <p class="text-muted mb-0 py-3">Chưa có hoạt động mới được ghi nhận.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %}

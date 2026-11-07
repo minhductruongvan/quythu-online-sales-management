@@ -116,12 +116,9 @@ class DichVuTrangThaiTaiKhoan:
 
     @staticmethod
     def kiem_tra_quyen_thao_tac(nguoi_thuc_hien, tai_khoan_muc_tieu):
-        if nguoi_thuc_hien.vai_tro not in [
-            TaiKhoan.VaiTro.EMPLOYEE,
-            TaiKhoan.VaiTro.MANAGER,
-        ]:
+        if nguoi_thuc_hien.vai_tro != TaiKhoan.VaiTro.MANAGER:
             raise LoiQuyenTaiKhoan(
-                "Bạn không có quyền khóa hoặc mở khóa tài khoản khách hàng."
+                "Chỉ quản lý mới được khóa hoặc mở khóa tài khoản khách hàng."
             )
 
         if tai_khoan_muc_tieu.vai_tro != TaiKhoan.VaiTro.CUSTOMER:
@@ -147,7 +144,7 @@ class DichVuLichSuHoSo:
             "email": (
                 khach_hang.tai_khoan.email
                 if khach_hang.tai_khoan is not None
-                else None
+                else khach_hang.email
             ),
             "so_dien_thoai": khach_hang.so_dien_thoai,
         }

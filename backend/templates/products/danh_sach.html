@@ -1,0 +1,110 @@
+{% extends "layouts/base_customer.html" %}
+{% load static %}
+{% block title %}Danh mục sản phẩm | Quý Thu{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}">{% endblock %}
+{% block content %}
+<main class="module-page product-catalog">
+    <nav class="product-breadcrumb" aria-label="Đường dẫn">
+        <a href="{% url 'storefront-home' %}">Trang chủ</a><span aria-hidden="true">/</span><span>Danh mục sản phẩm</span>
+    </nav>
+
+    <header class="catalog-heading">
+        <div>
+            <span class="module-eyebrow">CỬA HÀNG QUÝ THU</span>
+            <h1>Danh mục sản phẩm</h1>
+            <p>Khám phá các món đặc sản được tuyển chọn từ Quý Thu.</p>
+        </div>
+        <span class="catalog-total">{{ danh_sach_sp|length }} sản phẩm</span>
+    </header>
+
+    <form method="get" action="{% url 'products:danh_sach' %}" class="catalog-form">
+        <label class="catalog-search">
+            <span class="visually-hidden">Tìm kiếm sản phẩm</span>
+            <span class="catalog-search-icon" aria-hidden="true">⌕</span>
+            <input type="search" name="q" value="{{ tu_khoa }}" placeholder="Tìm tên sản phẩm, mã hoặc mã vạch">
+            <button type="submit" class="module-button">Tìm kiếm</button>
+        </label>
+
+        <div class="catalog-layout">
+            <aside class="catalog-sidebar">
+                <div class="catalog-filter-heading">
+                    <h2>Bộ lọc</h2>
+                    {% if dang_loc %}<a href="{% url 'products:danh_sach' %}">Xóa tất cả</a>{% endif %}
+                </div>
+
+                <fieldset class="catalog-filter-group">
+                    <legend>Danh mục</legend>
+                    {% for category in danh_sach_dm %}
+                    <label class="catalog-filter-option">
+                        <input type="checkbox" name="category" value="{{ category.ma_dm }}" {% if category.ma_dm in ma_dm_da_chon %}checked{% endif %}>
+                        <span>{{ category.ten_dm }}</span>
+                    </label>
+                    {% empty %}
+                    <p class="catalog-filter-empty">Chưa có danh mục.</p>
+                    {% endfor %}
+                </fieldset>
+
+                <fieldset class="catalog-filter-group">
+                    <legend>Hương vị</legend>
+                    {% for flavor in danh_sach_huong_vi %}
+                    <label class="catalog-filter-option">
+                        <input type="checkbox" name="flavor" value="{{ flavor }}" {% if flavor in huong_vi_da_chon %}checked{% endif %}>
+                        <span>{{ flavor }}</span>
+                    </label>
+                    {% endfor %}
+                </fieldset>
+
+                <fieldset class="catalog-filter-group">
+                    <legend>Quy cách</legend>
+                    {% for pack in danh_sach_quy_cach %}
+                    <label class="catalog-filter-option">
+                        <input type="checkbox" name="pack" value="{{ pack }}" {% if pack in quy_cach_da_chon %}checked{% endif %}>
+                        <span>{{ pack }}</span>
+                    </label>
+                    {% endfor %}
+                </fieldset>
+
+                <button class="module-button catalog-filter-submit" type="submit">Áp dụng bộ lọc</button>
+            </aside>
+
+            <section class="catalog-results" aria-label="Danh sách sản phẩm">
+                <div class="catalog-results-heading">
+                    <div>
+                        <h2>Sản phẩm Quý Thu</h2>
+                        <p>{{ danh_sach_sp|length }} kết quả phù hợp</p>
+                    </div>
+                    <span class="catalog-sort-label">Mới nhất</span>
+                </div>
+
+                {% if danh_sach_sp %}
+                <div class="catalog-grid">
+                    {% for product in danh_sach_sp %}
+                    <article class="catalog-card">
+                        <a class="catalog-product-placeholder" href="{% url 'products:chi_tiet' product.ma_sp %}" aria-label="Xem {{ product.ten_sp }}">
+                            <span class="catalog-placeholder-mark" aria-hidden="true">Q</span>
+                            <span>Hình ảnh sản phẩm</span>
+                        </a>
+                        <div class="catalog-card-body">
+                            <span class="catalog-category">{{ product.danh_muc.ten_dm }}</span>
+                            <h3><a href="{% url 'products:chi_tiet' product.ma_sp %}">{{ product.ten_sp }}</a></h3>
+                            <p>{{ product.mo_ta|default:"Đặc sản Quý Thu được làm từ nguyên liệu chọn lọc."|truncatechars:105 }}</p>
+                            <div class="catalog-card-footer">
+                                <span><small>Giá từ</small><strong>{{ product.lay_gia_thap_nhat|floatformat:0 }} ₫</strong></span>
+                                <a href="{% url 'products:chi_tiet' product.ma_sp %}" class="catalog-detail-link">Chi tiết <span aria-hidden="true">→</span></a>
+                            </div>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="module-panel module-empty catalog-empty">
+                    <strong>Chưa tìm thấy sản phẩm phù hợp</strong>
+                    <p>Thử thay đổi từ khóa hoặc bỏ bớt một vài bộ lọc.</p>
+                    {% if dang_loc %}<a class="module-link-button secondary" href="{% url 'products:danh_sach' %}">Xóa bộ lọc</a>{% endif %}
+                </div>
+                {% endif %}
+            </section>
+        </div>
+    </form>
+</main>
+{% endblock %}

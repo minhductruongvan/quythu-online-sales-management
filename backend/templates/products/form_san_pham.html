@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ tieu_de }} | Quý Thu{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}">{% endblock %}
+{% block content %}
+<main class="module-page">
+    <header class="module-heading"><div><span class="module-eyebrow">DANH MỤC SẢN PHẨM</span><h1>{{ tieu_de }}</h1><p>Thông tin này được sử dụng trên cửa hàng và báo cáo.</p></div><a class="module-link-button secondary" href="{% url 'products:quan_ly' %}">← Danh sách</a></header>
+    <section class="module-panel"><form method="post">{% csrf_token %}{{ form.as_p }}<div class="module-inline-form"><button class="module-button" type="submit">Lưu sản phẩm</button><a href="{% url 'products:quan_ly' %}">Hủy</a></div></form></section>
+</main>
+{% endblock %}

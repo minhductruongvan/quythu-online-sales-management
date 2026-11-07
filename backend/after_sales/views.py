@@ -131,10 +131,29 @@ class DongDoiTraKhachView(APIView):
     @bat_loi
     def get(self, request, ma_dh):
         from .services import lay_don_cua_khach
+        from products.models import BienTheSanPham
+
         don = lay_don_cua_khach(ma_dh, lay_khach(request))
         DichVuDoiTra.kiem_tra_thoi_han(don)
-        dong = [{"ma_ctdh": ct.ma_ctdh, "ten_san_pham": str(ct.bien_the), "so_luong_da_mua": ct.so_luong,
-                 "so_luong_con_lai": con_lai} for ct, con_lai in DichVuDoiTra.cac_dong_du_dieu_kien(don)]
+        dong = []
+        for ct, con_lai in DichVuDoiTra.cac_dong_du_dieu_kien(don):
+            variants = BienTheSanPham.objects.filter(
+                san_pham=ct.bien_the.san_pham,
+                trang_thai="ACTIVE",
+            ).order_by("huong_vi", "quy_cach")
+            dong.append({
+                "ma_ctdh": ct.ma_ctdh,
+                "ten_san_pham": str(ct.bien_the),
+                "so_luong_da_mua": ct.so_luong,
+                "so_luong_con_lai": con_lai,
+                "bien_the_thay_the": [
+                    {
+                        "ma_bien_the": variant.ma_bien_the,
+                        "ten_bien_the": str(variant),
+                    }
+                    for variant in variants
+                ],
+            })
         return ok("Lấy danh sách sản phẩm thành công.", dong)
 
 
