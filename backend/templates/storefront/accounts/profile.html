@@ -1,0 +1,531 @@
+{% extends "layouts/base_customer.html" %}
+
+{% block title %}Thông tin cá nhân | Quý Thu{% endblock %}
+
+{% block content %}
+
+<div class="profile-page">
+
+    <!-- Tiêu đề -->
+    <div class="profile-page-header">
+        <div>
+            <div class="profile-breadcrumb">
+                Tổng quan <span>/</span> Tài khoản <span>/</span> Thông tin cá nhân
+            </div>
+
+            <h2>Thông tin cá nhân</h2>
+
+            <p>Quản lý thông tin tài khoản và hồ sơ khách hàng của bạn.</p>
+        </div>
+
+        <span class="profile-status">
+            <span></span> Tài khoản hoạt động
+        </span>
+    </div>
+
+
+    <!-- Thẻ thông tin khách hàng -->
+    <div class="profile-summary-card">
+
+        <div class="profile-avatar">
+            {{ customer.ho_ten|first|upper }}
+        </div>
+
+        <div class="profile-summary-info">
+            <h3>{{ customer.ho_ten }}</h3>
+
+            <p>{{ customer.email }}</p>
+
+            <div class="profile-tags">
+                <span class="profile-tag">{{ customer.ma_kh }}</span>
+                <span class="profile-tag customer-type">
+                    {{ customer.loai_khach_hang }}
+                </span>
+            </div>
+        </div>
+
+        <div class="profile-summary-note">
+            <span class="profile-note-icon">✓</span>
+            <div>
+                <strong>Hồ sơ khách hàng</strong>
+                <p>Thông tin tài khoản cá nhân</p>
+            </div>
+        </div>
+
+    </div>
+
+
+    <!-- Nội dung chính -->
+    <div class="profile-content-grid">
+
+        <section class="profile-card">
+
+            <div class="profile-card-header">
+                <div>
+                    <h3>Thông tin cơ bản</h3>
+                    <p>Các thông tin liên hệ và nhận diện khách hàng.</p>
+                </div>
+
+                <button
+                    type="button"
+                    class="profile-edit-btn"
+                    id="editProfileBtn"
+                >
+                    ✎ Chỉnh sửa
+                </button>
+            </div>
+
+
+            <form id="profileForm">
+
+                {% csrf_token %}
+
+                <div class="profile-form-grid">
+
+                    <div class="profile-form-group">
+                        <label>Mã khách hàng</label>
+
+                        <input
+                            type="text"
+                            value="{{ customer.ma_kh }}"
+                            readonly
+                            class="profile-readonly"
+                        >
+
+                        <small>Mã định danh do hệ thống cấp.</small>
+                    </div>
+
+
+                    <div class="profile-form-group">
+                        <label>Loại khách hàng</label>
+
+                        <input
+                            type="text"
+                            value="{{ customer.loai_khach_hang }}"
+                            readonly
+                            class="profile-readonly"
+                        >
+
+                        <small>Liên hệ nhân viên để thay đổi phân loại.</small>
+                    </div>
+
+
+                    <div class="profile-form-group">
+                        <label>Họ và tên <span>*</span></label>
+
+                        <input
+                            type="text"
+                            id="profileName"
+                            name="ho_ten"
+                            value="{{ customer.ho_ten }}"
+                            maxlength="100"
+                            readonly
+                            required
+                        >
+
+                        <small class="profile-error" id="nameError"></small>
+                    </div>
+
+
+                    <div class="profile-form-group">
+                        <label>Email <span>*</span></label>
+
+                        <input
+                            type="email"
+                            id="profileEmail"
+                            name="email"
+                            value="{{ customer.email }}"
+                            readonly
+                            required
+                        >
+
+                        <small class="profile-error" id="emailError"></small>
+                    </div>
+
+
+                    <div class="profile-form-group profile-full-width">
+                        <label>Số điện thoại <span>*</span></label>
+
+                        <input
+                            type="tel"
+                            id="profilePhone"
+                            name="so_dien_thoai"
+                            value="{{ customer.so_dien_thoai }}"
+                            maxlength="15"
+                            readonly
+                            required
+                        >
+
+                        <small class="profile-error" id="phoneError"></small>
+                    </div>
+
+                </div>
+
+
+                <div class="profile-form-actions" id="profileActions" hidden>
+
+                    <button
+                        type="button"
+                        class="profile-cancel-btn"
+                        id="cancelProfileBtn"
+                    >
+                        Hủy
+                    </button>
+
+                    <button
+                        type="submit"
+                        class="profile-save-btn"
+                    >
+                        Lưu thay đổi
+                    </button>
+
+                </div>
+
+                <div
+                    class="profile-feedback"
+                    id="profileFeedback"
+                    role="status"
+                    hidden
+                ></div>
+
+            </form>
+
+        </section>
+
+
+        <!-- Thông tin tài khoản -->
+        <aside class="profile-side-card">
+
+            <div class="profile-side-heading">
+                <div class="profile-side-icon">♙</div>
+
+                <div>
+                    <h3>Tài khoản của tôi</h3>
+                    <p>Thông tin quản lý tài khoản.</p>
+                </div>
+            </div>
+
+            <div class="profile-info-item">
+                <span>Trạng thái</span>
+                <strong class="profile-active-text">
+                    Đang hoạt động
+                </strong>
+            </div>
+
+            <div class="profile-info-item">
+                <span>Loại tài khoản</span>
+                <strong>Khách hàng</strong>
+            </div>
+
+            <div class="profile-info-item">
+                <span>Mã khách hàng</span>
+                <strong>{{ customer.ma_kh }}</strong>
+            </div>
+
+            <div class="profile-security-note">
+                <span>ⓘ</span>
+
+                <p>
+                    Để bảo vệ tài khoản, không chia sẻ mật khẩu
+                    hoặc mã xác thực cho người khác.
+                </p>
+            </div>
+
+        </aside>
+
+    </div>
+
+
+
+</div>
+
+{% endblock %}
+
+
+{% block extra_js %}
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function () {
+    const form = document.getElementById("profileForm");
+    const editBtn = document.getElementById("editProfileBtn");
+    const cancelBtn = document.getElementById("cancelProfileBtn");
+    const actions = document.getElementById("profileActions");
+    const feedback = document.getElementById("profileFeedback");
+
+    const fields = {
+        name: document.getElementById("profileName"),
+        email: document.getElementById("profileEmail"),
+        phone: document.getElementById("profilePhone")
+    };
+
+    const errorElements = {
+        ho_ten: document.getElementById("nameError"),
+        email: document.getElementById("emailError"),
+        so_dien_thoai: document.getElementById("phoneError")
+    };
+
+    const saveBtn = form.querySelector('[type="submit"]');
+    const csrfInput = form.querySelector('[name="csrfmiddlewaretoken"]');
+    const API_URL = "/api/customers/profile/";
+
+    let originalValues = {};
+
+    function getCurrentValues() {
+        return {
+            name: fields.name.value,
+            email: fields.email.value,
+            phone: fields.phone.value
+        };
+    }
+
+    function saveOriginalValues() {
+        originalValues = getCurrentValues();
+    }
+
+    function setEditing(enabled) {
+        Object.values(fields).forEach(field => {
+            field.readOnly = !enabled;
+        });
+
+        actions.hidden = !enabled;
+        editBtn.hidden = enabled;
+
+        if (enabled) {
+            fields.name.focus();
+        }
+    }
+
+    function clearErrors() {
+        Object.values(errorElements).forEach(element => {
+            element.textContent = "";
+        });
+
+        feedback.hidden = true;
+        feedback.textContent = "";
+    }
+
+    function showFeedback(message, success = false) {
+        feedback.textContent = message;
+        feedback.hidden = false;
+
+        feedback.classList.toggle("success", success);
+        feedback.classList.toggle("error", !success);
+    }
+
+    function updateProfileDisplay(data) {
+        const name = data.ho_ten ?? fields.name.value;
+        const email = data.email ?? fields.email.value;
+
+        document.querySelector(".profile-summary-info h3").textContent = name;
+        document.querySelector(".profile-summary-info p").textContent = email;
+        document.querySelector(".profile-avatar").textContent =
+            name.trim().charAt(0).toUpperCase();
+    }
+
+    function validateForm() {
+        let valid = true;
+
+        const name = fields.name.value.trim();
+        const email = fields.email.value.trim();
+        const phone = fields.phone.value.trim();
+
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!name) {
+            errorElements.ho_ten.textContent = "Vui lòng nhập họ và tên.";
+            valid = false;
+        } else if (name.length > 100) {
+            errorElements.ho_ten.textContent =
+                "Họ và tên không được vượt quá 100 ký tự.";
+            valid = false;
+        }
+
+        if (!email || !emailPattern.test(email)) {
+            errorElements.email.textContent = "Vui lòng nhập email hợp lệ.";
+            valid = false;
+        }
+
+        if (!phone) {
+            errorElements.so_dien_thoai.textContent =
+                "Vui lòng nhập số điện thoại.";
+            valid = false;
+        } else if (phone.length > 15) {
+            errorElements.so_dien_thoai.textContent =
+                "Số điện thoại không được vượt quá 15 ký tự.";
+            valid = false;
+        }
+
+        return valid;
+    }
+
+    function displayServerErrors(errors) {
+        let hasFieldError = false;
+
+        Object.entries(errorElements).forEach(([fieldName, element]) => {
+            if (errors && errors[fieldName]) {
+                const message = errors[fieldName];
+                element.textContent = Array.isArray(message)
+                    ? message.join(" ")
+                    : String(message);
+
+                hasFieldError = true;
+            }
+        });
+
+        return hasFieldError;
+    }
+
+    function getErrorMessage(payload) {
+        if (!payload) {
+            return "Không thể cập nhật thông tin. Vui lòng thử lại.";
+        }
+
+        if (payload.detail) {
+            return payload.detail;
+        }
+
+        if (payload.message) {
+            return payload.message;
+        }
+
+        const messages = [];
+
+        Object.entries(payload).forEach(([key, value]) => {
+            if (key === "detail" || key === "message") return;
+
+            const text = Array.isArray(value)
+                ? value.join(" ")
+                : typeof value === "string"
+                    ? value
+                    : "";
+
+            if (text) {
+                messages.push(text);
+            }
+        });
+
+        return messages.join(" ") ||
+            "Dữ liệu không hợp lệ hoặc không thể cập nhật.";
+    }
+
+    function restoreOriginalValues() {
+        fields.name.value = originalValues.name;
+        fields.email.value = originalValues.email;
+        fields.phone.value = originalValues.phone;
+    }
+
+    saveOriginalValues();
+
+    // Bắt đầu chỉnh sửa
+    editBtn.addEventListener("click", function () {
+        saveOriginalValues();
+        clearErrors();
+        setEditing(true);
+    });
+
+    // Hủy chỉnh sửa
+    cancelBtn.addEventListener("click", function () {
+        restoreOriginalValues();
+        clearErrors();
+        setEditing(false);
+    });
+
+    // Gửi dữ liệu cập nhật đến API
+    form.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        clearErrors();
+
+        if (!validateForm()) return;
+
+        const csrfToken = csrfInput?.value;
+
+        if (!csrfToken) {
+            showFeedback("Không tìm thấy mã CSRF. Vui lòng tải lại trang.");
+            return;
+        }
+
+        const requestData = {
+            ho_ten: fields.name.value.trim(),
+            email: fields.email.value.trim(),
+            so_dien_thoai: fields.phone.value.trim()
+        };
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Đang lưu...";
+
+        try {
+            const response = await fetch(API_URL, {
+                method: "PATCH",
+                credentials: "same-origin",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": csrfToken,
+                    "X-Requested-With": "XMLHttpRequest"
+                },
+                body: JSON.stringify(requestData)
+            });
+
+            const responseText = await response.text();
+            let payload = {};
+
+            try {
+                payload = responseText ? JSON.parse(responseText) : {};
+            } catch {
+                throw new Error("Phản hồi từ máy chủ không hợp lệ.");
+            }
+
+            if (!response.ok) {
+                const errors = payload.errors || payload;
+                const hasFieldError = displayServerErrors(errors);
+
+                if (response.status === 403) {
+                    throw new Error(
+                        "Phiên đăng nhập hoặc quyền truy cập không hợp lệ. Vui lòng đăng nhập lại."
+                    );
+                }
+
+                if (response.status === 401) {
+                    throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+                }
+
+                throw new Error(
+                    hasFieldError
+                        ? "Vui lòng kiểm tra lại các thông tin vừa nhập."
+                        : getErrorMessage(payload)
+                );
+            }
+
+            // API có thể trả dữ liệu trực tiếp hoặc nằm trong thuộc tính data.
+            const profileData = payload.data || payload;
+
+            if (profileData.ho_ten !== undefined) {
+                fields.name.value = profileData.ho_ten;
+            }
+
+            if (profileData.email !== undefined) {
+                fields.email.value = profileData.email;
+            }
+
+            if (profileData.so_dien_thoai !== undefined) {
+                fields.phone.value = profileData.so_dien_thoai;
+            }
+
+            updateProfileDisplay(profileData);
+            saveOriginalValues();
+
+            setEditing(false);
+            showFeedback("Cập nhật thông tin cá nhân thành công!", true);
+
+        } catch (error) {
+            showFeedback(error.message || "Có lỗi xảy ra khi cập nhật thông tin.");
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = "Lưu thay đổi";
+        }
+    });
+});
+
+</script>
+
+{% endblock %}

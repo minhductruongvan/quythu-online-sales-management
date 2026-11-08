@@ -1,0 +1,18 @@
+
+{% if url %}
+<a href="{{ url }}" class="btn-ui btn-ui-{{ variant|default:'primary' }}">
+    {{ label }}
+</a>
+{% else %}
+<button
+    type="{{ type|default:'button' }}"
+    class="btn-ui btn-ui-{{ variant|default:'primary' }}"
+    {% if disabled %}disabled{% endif %}
+>
+    {{ label }}
+</button>
+{% endif %}
+
+
+{% include "components/ui/button.html" with label="Thêm mới" variant="primary" %}
+{% include "components/ui/button.html" with label="Hủy" variant="secondary" %}

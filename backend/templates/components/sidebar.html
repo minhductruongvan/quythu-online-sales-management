@@ -1,0 +1,130 @@
+
+{% load static %}
+
+<aside class="sidebar" id="sidebar">
+
+    <!-- BRAND -->
+    <div class="sidebar-brand">
+        <div class="brand-logo">Q</div>
+        <div class="brand-info">
+            <h5>QUÝ THU</h5>
+            <span>Sales Management</span>
+        </div>
+    </div>
+
+    <!-- USER -->
+    <div class="sidebar-user">
+        <div class="user-avatar">
+            {% if request.user.is_authenticated %}
+                {{ request.user.email|first|upper }}
+            {% else %}
+                G
+            {% endif %}
+        </div>
+
+        <div class="user-info">
+            <strong>
+                {% if request.user.is_authenticated %}
+                    {{ request.user.email }}
+                {% else %}
+                    Khách truy cập
+                {% endif %}
+            </strong>
+            <span>
+                {% if request.user.is_authenticated %}
+                    {{ request.user.get_vai_tro_display|default:request.user.vai_tro }}
+                {% else %}
+                    Chưa đăng nhập
+                {% endif %}
+            </span>
+        </div>
+    </div>
+
+    <!-- NAVIGATION -->
+    <nav class="sidebar-nav">
+
+        <div class="nav-section-title">TỔNG QUAN</div>
+
+        {% if request.user.vai_tro == "MANAGER" %}
+            <a href="{% url 'manager-dashboard' %}" class="nav-link-custom">
+                <span class="nav-icon">⌂</span>
+                <span>Tổng quan</span>
+            </a>
+        {% else %}
+            <a href="{% url 'employee-dashboard' %}" class="nav-link-custom">
+                <span class="nav-icon">⌂</span>
+                <span>Tổng quan</span>
+            </a>
+        {% endif %}
+        <a href="{% url 'employee-customer-list' %}" class="nav-link-custom">
+            <span class="nav-icon">♙</span>
+            <span>Khách hàng</span>
+        </a>
+        <div class="nav-section-title">QUẢN LÝ BÁN HÀNG</div>
+
+        <a href="{% url 'customer-profile-page' %}" class="nav-link-custom">
+            <span class="nav-icon">⚙</span>
+            <span>Thông tin cá nhân</span>
+        </a>
+
+        <a href="#" class="nav-link-custom is-disabled" title="Chưa triển khai">
+            <span class="nav-icon">▣</span>
+            <span>Sản phẩm</span>
+        </a>
+
+        <a href="{% url 'order-list' %}" class="nav-link-custom">
+            <span class="nav-icon">▤</span>
+            <span>Đơn hàng</span>
+        </a>
+
+        <a href="#" class="nav-link-custom is-disabled" title="Chưa triển khai">
+            <span class="nav-icon">🛒</span>
+            <span>Đặt hàng</span>
+        </a>
+
+        <div class="nav-section-title">CHĂM SÓC & PHÂN TÍCH</div>
+
+        <a href="#" class="nav-link-custom is-disabled" title="Chưa triển khai">
+            <span class="nav-icon">↩</span>
+            <span>Hậu mãi</span>
+        </a>
+
+        <a href="#" class="nav-link-custom is-disabled" title="Chưa triển khai">
+            <span class="nav-icon">▥</span>
+            <span>Báo cáo</span>
+        </a>
+
+        <div class="nav-section-title">TÀI KHOẢN</div>
+        <a href="{% url 'customer-purchase-history-page' %}" class="nav-link-custom">
+            <span class="nav-icon">▤</span>
+            <span>Lịch sử mua hàng</span>
+        </a>
+        <a href="{% url 'customer-profile-page' %}" class="nav-link-custom">
+            <span class="nav-icon">⚙</span>
+            <span>Thông tin cá nhân</span>
+        </a>
+
+        <a href="{% url 'customer-address-page' %}" class="nav-link-custom">
+            <span class="nav-icon">⌖</span>
+            <span>Sổ địa chỉ</span>
+        </a>
+
+    </nav>
+
+    <!-- BOTTOM -->
+    <div class="sidebar-bottom">
+        {% if request.user.is_authenticated %}
+            <form method="post" action="{% url 'dang-xuat-giao-dien' %}">
+                {% csrf_token %}
+                <button type="submit" class="logout-button">
+                    <span>↪</span> Đăng xuất
+                </button>
+            </form>
+        {% else %}
+            <span class="logout-button">
+                Chế độ xem thử
+            </span>
+        {% endif %}
+    </div>
+
+</aside>

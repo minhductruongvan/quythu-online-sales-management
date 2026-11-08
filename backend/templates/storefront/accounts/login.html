@@ -1,0 +1,271 @@
+{% extends "auth_base.html" %}
+
+{% block title %}Đăng nhập | Quý Thu{% endblock %}
+
+{% block content %}
+
+<div class="auth-container">
+
+    <section class="auth-brand">
+        <div class="auth-brand-content">
+
+            <div class="auth-logo">
+                <span class="auth-logo-icon">Q</span>
+                <span>QUÝ THU</span>
+            </div>
+
+            <div class="auth-brand-text">
+                <span class="auth-eyebrow">ONLINE SALES MANAGEMENT</span>
+
+                <h1>Quản lý kinh doanh<br>thông minh và hiệu quả.</h1>
+
+                <p>
+                    Nền tảng quản lý khách hàng và hoạt động kinh doanh
+                    tập trung dành cho Quý Thu.
+                </p>
+            </div>
+
+            <div class="auth-brand-footer">
+                © 2026 Quý Thu Online Sales Management
+            </div>
+
+        </div>
+    </section>
+
+
+    <section class="auth-form-section">
+
+        <div class="auth-form-container">
+
+            <div class="auth-mobile-logo">
+                <span class="auth-logo-icon">Q</span>
+                <span>QUÝ THU</span>
+            </div>
+
+            <div class="auth-heading">
+                <span class="auth-eyebrow">CHÀO MỪNG TRỞ LẠI</span>
+
+                <h2>Đăng nhập</h2>
+
+                <p>
+                    Nhập thông tin tài khoản để tiếp tục.
+                </p>
+            </div>
+
+
+            <div id="loginMessage" class="auth-message" role="alert" hidden></div>
+
+
+            <form id="loginForm" novalidate>
+
+                {% csrf_token %}
+
+                <div class="auth-field">
+
+                    <label for="email">Email</label>
+
+                    <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        placeholder="example@email.com"
+                        autocomplete="email"
+                        required
+                    >
+
+                    <small class="auth-error" id="emailError"></small>
+
+                </div>
+
+
+                <div class="auth-field">
+
+                    <div class="auth-label-row">
+                        <label for="password">Mật khẩu</label>
+                    </div>
+
+                    <div class="auth-password-wrapper">
+
+                        <input
+                            type="password"
+                            id="password"
+                            name="password"
+                            placeholder="Nhập mật khẩu"
+                            autocomplete="current-password"
+                            required
+                        >
+
+                        <button
+                            type="button"
+                            id="togglePassword"
+                            class="auth-password-toggle"
+                        >
+                            Hiện
+                        </button>
+
+                    </div>
+
+                    <small class="auth-error" id="passwordError"></small>
+
+                </div>
+
+
+                <div class="auth-options">
+
+                    <label class="auth-remember">
+                        <input type="checkbox" id="remember">
+                        <span>Ghi nhớ đăng nhập</span>
+                    </label>
+
+                    <a href="#" class="auth-link">
+                        Quên mật khẩu?
+                    </a>
+
+                </div>
+
+
+                <button type="submit" class="auth-submit-btn">
+                    Đăng nhập
+                    <span>→</span>
+                </button>
+
+            </form>
+
+
+            <div class="auth-divider">
+                <span>HOẶC</span>
+            </div>
+
+
+            <p class="auth-register-text">
+                Chưa có tài khoản?
+                <a href="{% url 'register-page' %}">
+                    Đăng ký ngay
+                </a>
+            </p>
+
+
+        </div>
+
+    </section>
+
+</div>
+
+{% endblock %}
+
+
+{
+{% block extra_js %}
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const form = document.getElementById("loginForm");
+    const email = document.getElementById("email");
+    const password = document.getElementById("password");
+
+    const emailError = document.getElementById("emailError");
+    const passwordError = document.getElementById("passwordError");
+    const message = document.getElementById("loginMessage");
+    const togglePassword = document.getElementById("togglePassword");
+    const submitButton = form.querySelector('[type="submit"]');
+
+    // Hiện / ẩn mật khẩu
+    togglePassword.addEventListener("click", function () {
+        const isPassword = password.type === "password";
+        password.type = isPassword ? "text" : "password";
+        togglePassword.textContent = isPassword ? "Ẩn" : "Hiện";
+    });
+
+    // Hiển thị thông báo
+    function showMessage(text, type = "error") {
+        message.textContent = text;
+        message.className = "auth-message " + type;
+        message.hidden = false;
+    }
+
+    // Xử lý đăng nhập
+    form.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        emailError.textContent = "";
+        passwordError.textContent = "";
+        message.hidden = true;
+
+        const emailValue = email.value.trim();
+        const passwordValue = password.value;
+
+        let isValid = true;
+
+        if (!emailValue) {
+            emailError.textContent = "Vui lòng nhập email.";
+            isValid = false;
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+            emailError.textContent = "Email không đúng định dạng.";
+            isValid = false;
+        }
+
+        if (!passwordValue) {
+            passwordError.textContent = "Vui lòng nhập mật khẩu.";
+            isValid = false;
+        }
+
+        if (!isValid) return;
+
+        const csrfToken = form.querySelector(
+            '[name="csrfmiddlewaretoken"]'
+        ).value;
+
+        submitButton.disabled = true;
+        submitButton.textContent = "Đang đăng nhập...";
+
+        try {
+            const response = await fetch("/api/customers/login/", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": csrfToken
+                },
+                body: JSON.stringify({
+                    email: emailValue,
+                    mat_khau: passwordValue
+                })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(
+                    result.message ||
+                    result.detail ||
+                    "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin."
+                );
+            }
+
+            const role = result.data?.vai_tro;
+
+            const redirectPaths = {
+                CUSTOMER: "/",
+                EMPLOYEE: "/nhan-vien/",
+                MANAGER: "/quan-ly/"
+            };
+
+            if (!redirectPaths[role]) {
+                throw new Error("Vai trò tài khoản không hợp lệ.");
+            }
+
+            showMessage("Đăng nhập thành công. Đang chuyển trang...", "success");
+
+            window.location.assign(redirectPaths[role]);
+
+        } catch (error) {
+            showMessage(error.message || "Không thể kết nối máy chủ.");
+
+            submitButton.disabled = false;
+            submitButton.textContent = "Đăng nhập";
+        }
+    });
+});
+</script>
+
+{% endblock %}

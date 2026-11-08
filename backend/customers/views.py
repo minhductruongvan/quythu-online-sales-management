@@ -60,6 +60,7 @@ class DangKyKhachHangView(APIView):
             },
             status=status.HTTP_400_BAD_REQUEST,
         )
+
 class DangNhapView(APIView):
     permission_classes = [AllowAny]
 
@@ -70,21 +71,22 @@ class DangNhapView(APIView):
         email = serializer.validated_data["email"]
         mat_khau = serializer.validated_data["mat_khau"]
 
+        # 1. Tìm tài khoản
         tai_khoan = TaiKhoan.objects.filter(
             email__iexact=email
         ).first()
 
+        # 2. Kiểm tra trạng thái tài khoản
         if tai_khoan and (
             tai_khoan.trang_thai == TaiKhoan.TrangThai.LOCKED
             or not tai_khoan.is_active
         ):
             return Response(
-                {
-                    "message": "Tài khoản đã bị khóa."
-                },
+                {"message": "Tài khoản đã bị khóa hoặc vô hiệu hóa."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        # 3. Xác thực email và mật khẩu
         user = authenticate(
             request=request,
             email=email,
@@ -93,14 +95,62 @@ class DangNhapView(APIView):
 
         if user is None:
             return Response(
-                {
-                    "message": "Email hoặc mật khẩu không chính xác."
-                },
+                {"message": "Email hoặc mật khẩu không chính xác."},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
+        # 4. Kiểm tra hồ sơ theo vai trò
+        if user.vai_tro in [
+            TaiKhoan.VaiTro.EMPLOYEE,
+            TaiKhoan.VaiTro.MANAGER,
+        ]:
+            nhan_vien = NhanVien.objects.filter(
+                tai_khoan=user
+            ).first()
+
+            if (
+                nhan_vien is None
+                or nhan_vien.trang_thai != NhanVien.TrangThai.ACTIVE
+            ):
+                return Response(
+                    {
+                        "message": (
+                            "Hồ sơ nhân viên không tồn tại "
+                            "hoặc đã ngừng hoạt động."
+                        )
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        elif user.vai_tro == TaiKhoan.VaiTro.CUSTOMER:
+            khach_hang = KhachHang.objects.filter(
+                tai_khoan=user
+            ).first()
+
+            if (
+                khach_hang is None
+                or khach_hang.trang_thai != KhachHang.TrangThai.ACTIVE
+            ):
+                return Response(
+                    {
+                        "message": (
+                            "Hồ sơ khách hàng không tồn tại "
+                            "hoặc đã ngừng hoạt động."
+                        )
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        else:
+            return Response(
+                {"message": "Vai trò tài khoản không hợp lệ."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # 5. Đăng nhập bằng session Django hiện tại
         login(request, user)
 
+        # 6. Trả thông tin để frontend điều hướng theo vai trò
         return Response(
             {
                 "message": "Đăng nhập thành công.",
@@ -112,6 +162,7 @@ class DangNhapView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
 
 class DangXuatView(APIView):
     def post(self, request):
@@ -729,3 +780,4 @@ class ChiTietDiaChiView(APIView):
             {"message": "Xóa địa chỉ thành công."},
             status=status.HTTP_200_OK,
         )
+

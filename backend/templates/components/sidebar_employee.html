@@ -1,0 +1,64 @@
+
+{% load static %}
+
+<aside class="sidebar" id="sidebar">
+
+    <div class="sidebar-brand">
+        <div class="brand-logo">Q</div>
+        <div class="brand-info">
+            <h5>QUÝ THU</h5>
+            <span>Employee Workspace</span>
+        </div>
+    </div>
+
+    <div class="sidebar-user">
+        <div class="user-avatar">
+            {{ request.user.email|first|upper }}
+        </div>
+
+        <div class="user-info">
+            <strong>{{ request.user.email }}</strong>
+            <span>Nhân viên</span>
+        </div>
+    </div>
+
+    <nav class="sidebar-nav">
+
+        <div class="nav-section-title">TỔNG QUAN</div>
+
+        <a href="{% url 'employee-dashboard' %}" class="nav-link-custom">
+            <span class="nav-icon">⌂</span>
+            <span>Tổng quan</span>
+        </a>
+
+        <div class="nav-section-title">QUẢN LÝ KHÁCH HÀNG</div>
+
+        <a href="{% url 'employee-customer-list' %}" class="nav-link-custom">
+            <span class="nav-icon">♙</span>
+            <span>Danh sách khách hàng</span>
+        </a>
+
+        <a href="{% url 'employee-customer-add' %}" class="nav-link-custom">
+            <span class="nav-icon">＋</span>
+            <span>Thêm khách hàng</span>
+        </a>
+
+        <div class="nav-section-title">QUẢN LÝ BÁN HÀNG</div>
+
+        <a href="{% url 'order-list' %}" class="nav-link-custom">
+            <span class="nav-icon">▤</span>
+            <span>Đơn hàng</span>
+        </a>
+
+    </nav>
+
+    <div class="sidebar-bottom">
+        <form method="post" action="{% url 'dang-xuat-giao-dien' %}">
+            {% csrf_token %}
+            <button type="submit" class="logout-button">
+                <span>↪</span> Đăng xuất
+            </button>
+        </form>
+    </div>
+
+</aside>
