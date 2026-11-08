@@ -218,6 +218,12 @@ class DonHangSerializer(serializers.Serializer):
     chi_tiet = ChiTietDonHangSerializer(many=True)  # don.chi_tiet.all()
 
 
+    trang_thai_hau_mai = serializers.CharField()                # BR23: trục thứ hai, do M4 ghi
+    ten_trang_thai_hau_mai = serializers.SerializerMethodField()
+
+    def get_ten_trang_thai_hau_mai(self, don):
+        return ten_hau_mai(don)
+
 # ==========================================================
 # PHẦN 3: ĐƠN HÀNG PHÍA KHÁCH – M3-UC05, M3-UC06, cổng giả lập M3-UC11
 # ==========================================================
@@ -305,14 +311,10 @@ class ChiTietDonKhachSerializer(DonHangSerializer):
     thoi_diem_hen_cung_cap = serializers.DateTimeField()        # BR13: đơn "Chờ bổ sung hàng"
     thoi_diem_giao_thanh_cong = serializers.DateTimeField()
     thoi_diem_xac_nhan_nhan_hang = serializers.DateTimeField()
-    trang_thai_hau_mai = serializers.CharField()                # BR23: trục thứ hai, do M4 ghi
-    ten_trang_thai_hau_mai = serializers.SerializerMethodField()
     thong_tin_chuyen_khoan = serializers.SerializerMethodField()  # BR17: null nếu không cần QR
     han_cua_so_doi_tra = serializers.SerializerMethodField()      # BR21: null thì ẩn [Đã nhận hàng]
     lich_su_trang_thai = serializers.SerializerMethodField()
 
-    def get_ten_trang_thai_hau_mai(self, don):
-        return ten_hau_mai(don)
 
     def get_thong_tin_chuyen_khoan(self, don):
         thong_tin = DichVuTraCuuDon.thong_tin_chuyen_khoan(don)
@@ -371,17 +373,12 @@ class TraCuuDonSerializer(serializers.Serializer):
 
 # ---------- I. ĐẦU RA: danh sách đơn cho nhân viên ----------
 class DonNhanVienSerializer(DonHangSerializer):
-    """Một đơn trong danh sách UC07: thêm khách, loại khách và trạng thái hậu mãi."""
+    """Một đơn trong danh sách UC07: thêm khách, loại khách (trạng thái hậu mãi kế thừa từ DonHangSerializer)."""
 
     ma_kh = serializers.CharField(source="khach_hang_id")
     ten_khach_hang = serializers.CharField(source="khach_hang.ho_ten")
     ma_loai_khach = serializers.CharField(source="loai_khach_hang_ap_dung_id")
     ten_loai_khach = serializers.CharField(source="loai_khach_hang_ap_dung.ten_loai_kh")
-    trang_thai_hau_mai = serializers.CharField()
-    ten_trang_thai_hau_mai = serializers.SerializerMethodField()
-
-    def get_ten_trang_thai_hau_mai(self, don):
-        return ten_hau_mai(don)
 
 
 # ---------- J. ĐẦU RA: chi tiết đơn cho nhân viên ----------
