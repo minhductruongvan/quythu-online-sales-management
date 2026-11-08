@@ -263,7 +263,6 @@ class ThanhToanGiaLapSerializer(serializers.Serializer):
 # nên M3 tự giữ bảng mã -> nhãn để hiển thị (M3-BR23).
 NHAN_HAU_MAI = {
     "CHO_HUY": "Chờ hủy",
-    "GIAO_KHONG_THANH_CONG": "Giao không thành công",
     "CHO_GIAO_LAI": "Chờ giao lại",
     "DANG_HOAN_VE_KHO": "Đang hoàn về kho",
     "DA_HOAN_HANG": "Đã hoàn hàng",
