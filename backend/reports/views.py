@@ -163,7 +163,16 @@ def detail_report_view(request):
     customer_type = request.GET.get("customer_type", "ALL")
     pttt_id = request.GET.get("pttt", "ALL")
     sort_by = request.GET.get("sort_by", "sl")
+    order_sort = request.GET.get("order_sort", "completion_time")
+    order_sort_dir = request.GET.get("order_sort_dir", "desc")
+    if order_sort not in {"order_code", "completion_time", "customer_name", "customer_type", "total"}:
+        order_sort = "completion_time"
+    if order_sort_dir not in {"asc", "desc"}:
+        order_sort_dir = "desc"
     group_level = request.GET.get("level", "variant")
+    group_by = request.GET.get("group_by", "day")
+    if group_by not in {"day", "week", "month"}:
+        group_by = "day"
     search_kw = request.GET.get("q", "")
     date_range, date_error = _read_report_date_range(request)
     if date_error:
@@ -178,12 +187,18 @@ def detail_report_view(request):
             raise ValueError
     except ValueError:
         return _filter_error_response(request, "Số trang phải là số nguyên lớn hơn 0.")
+    try:
+        page_size = int(request.GET.get("page_size", 10))
+        if page_size not in {10, 25, 50}:
+            raise ValueError
+    except ValueError:
+        return _filter_error_response(request, "Số dòng mỗi trang không hợp lệ.")
 
     # 1. Tab Doanh thu: Timeline kết hợp (cột DT + đường đơn hàng) & Bảng chi tiết đơn HT
     rev_timeline = services.get_revenue_timeline(
         date_range,
         customer_type,
-        group_by="day",
+        group_by=group_by,
         pttt_id=pttt_id,
         search_kw=search_kw,
         **filters,
@@ -194,11 +209,13 @@ def detail_report_view(request):
         pttt_id=pttt_id,
         search_kw=search_kw,
         page=page,
-        page_size=10,
+        page_size=page_size,
         product_id=filters["product_id"],
         amount_min=filters["amount_min"],
         amount_max=filters["amount_max"],
         category_id=filters["category_id"],
+        sort_by=order_sort,
+        sort_dir=order_sort_dir,
     )
 
     # 2. Tab Top sản phẩm
@@ -246,6 +263,10 @@ def detail_report_view(request):
         "amount_min_input": request.GET.get("amount_min", ""),
         "amount_max_input": request.GET.get("amount_max", ""),
         "selected_sort": sort_by,
+        "selected_order_sort": order_sort,
+        "selected_order_sort_dir": order_sort_dir,
+        "selected_page_size": page_size,
+        "selected_group_by": group_by,
         "selected_level": group_level,
         "search_kw": search_kw,
         "current_page": page,
@@ -309,6 +330,9 @@ def api_detail_data(request):
     sort_by = request.GET.get("sort_by", "sl")
     group_level = request.GET.get("level", "variant")
     search_kw = request.GET.get("q", "")
+    group_by = request.GET.get("group_by", "day")
+    if group_by not in {"day", "week", "month"}:
+        group_by = "day"
     date_range, date_error = _read_report_date_range(request)
     if date_error:
         return _filter_error_response(request, date_error, api=True)
@@ -329,13 +353,25 @@ def api_detail_data(request):
         data["timeline"] = services.get_revenue_timeline(
             date_range,
             customer_type,
-            group_by="day",
+            group_by=group_by,
             pttt_id=pttt_id,
             search_kw=search_kw,
             **filters,
         )
+        try:
+            page_size = int(request.GET.get("page_size", 10))
+            if page_size not in {10, 25, 50}:
+                raise ValueError
+        except ValueError:
+            return _filter_error_response(
+                request, "Số dòng mỗi trang không hợp lệ.", api=True
+            )
         data["orders"] = services.get_order_details(
-            date_range, customer_type, pttt_id, search_kw, page, page_size=10, **filters
+            date_range, customer_type, pttt_id, search_kw, page,
+            page_size=page_size,
+            sort_by=request.GET.get("order_sort", "completion_time"),
+            sort_dir=request.GET.get("order_sort_dir", "desc"),
+            **filters
         )
     elif tab == "products":
         data["products"] = services.get_top_selling_products(
@@ -433,7 +469,7 @@ def export_report_csv(request):
                 a["revenue_formatted"],
                 a["avg_per_order"],
                 a["pct_total"],
-                f"{a['pct_change']}%",
+                f"{a['pct_change']}%" if a["pct_change"] is not None else "—",
             ])
     else:
         writer.writerow(["Mã đơn", "Sản phẩm", "Quy cách", "Số lượng", "Thành tiền", "Loại khách", "Thời điểm đặt"])

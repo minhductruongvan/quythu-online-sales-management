@@ -10,7 +10,7 @@
     <header class="module-heading">
         <div>
             <span class="module-eyebrow">KINH DOANH</span>
-            <h1>Bức tranh hoạt động</h1>
+            <h1>Dashboard tổng quan</h1>
             <p>Doanh thu, đơn hàng và sản phẩm theo kỳ đã chọn.</p>
         </div>
         <a class="module-button" href="{% url 'reports:detail' %}">Báo cáo chi tiết <span aria-hidden="true">→</span></a>
@@ -76,33 +76,33 @@
         <article class="report-kpi">
             <span>{% if has_product_filter %}Doanh thu sản phẩm{% else %}Doanh thu thuần{% endif %}</span>
             <strong>{{ kpis.revenue.formatted }}</strong>
-            <small>{{ kpis.revenue.pct_change }}% so kỳ trước</small>
+            <small>{% if kpis.revenue.pct_change is None %}—{% else %}{{ kpis.revenue.pct_change }}%{% endif %} so kỳ trước</small>
         </article>
         <article class="report-kpi">
             <span>Đơn hàng trong kỳ</span>
             <strong>{{ kpis.orders.formatted }}</strong>
-            <small>{{ kpis.orders.pct_change }}% so kỳ trước</small>
+            <small>{% if kpis.orders.pct_change is None %}—{% else %}{{ kpis.orders.pct_change }}%{% endif %} so kỳ trước</small>
         </article>
         <article class="report-kpi">
             <span>Giá trị trung bình / đơn</span>
             <strong>{{ kpis.avg_order_value.formatted }}</strong>
-            <small>{{ kpis.avg_order_value.pct_change }}% so kỳ trước</small>
+            <small>{% if kpis.avg_order_value.pct_change is None %}—{% else %}{{ kpis.avg_order_value.pct_change }}%{% endif %} so kỳ trước</small>
         </article>
         <article class="report-kpi">
             <span>Đơn đang xử lý</span>
             <strong>{{ kpis.processing_orders.formatted }}</strong>
-            <small>{{ kpis.processing_orders.pct_change }}% so kỳ trước</small>
+            <small>{% if kpis.processing_orders.pct_change is None %}—{% else %}{{ kpis.processing_orders.pct_change }}%{% endif %} so kỳ trước</small>
         </article>
         {% if not has_product_filter %}
         <article class="report-kpi">
             <span>Khách hàng mới</span>
             <strong>{{ kpis.new_customers.formatted }}</strong>
-            <small>{{ kpis.new_customers.pct_change }}% so kỳ trước</small>
+            <small>{% if kpis.new_customers.pct_change is None %}—{% else %}{{ kpis.new_customers.pct_change }}%{% endif %} so kỳ trước</small>
         </article>
         <article class="report-kpi">
             <span>Tỷ lệ chuyển đổi</span>
             <strong>{{ kpis.conversion_rate.formatted }}</strong>
-            <small>Chênh {{ kpis.conversion_rate.pct_change }} điểm %</small>
+            <small>{% if kpis.conversion_rate.pct_change is None %}—{% else %}Chênh {{ kpis.conversion_rate.pct_change }} điểm %{% endif %}</small>
         </article>
         {% endif %}
     </section>
@@ -111,11 +111,12 @@
         <section class="report-panel">
             <div class="report-panel-heading">
                 <div>
-                    <h2>Xu hướng doanh thu</h2>
-                    <p>Doanh thu từ đơn hoàn thành, đơn vị triệu đồng</p>
+                    <h2>Xu hướng doanh thu và đơn hàng</h2>
+                    <p>Cột: doanh thu (triệu đồng) · Đường: số đơn</p>
                 </div>
                 <div class="report-legend" aria-label="Chú giải biểu đồ">
                     <span class="report-legend-item"><i class="report-legend-dot"></i>Doanh thu</span>
+                    <span class="report-legend-item"><i class="report-legend-dot orders"></i>Số đơn</span>
                 </div>
             </div>
             <div id="revenue-chart"></div>

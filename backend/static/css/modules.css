@@ -97,6 +97,42 @@
     border-bottom: 0;
 }
 
+.after-sales-reasons {
+    min-width: 1080px;
+}
+
+.after-sales-reason-row {
+    display: grid;
+    grid-template-columns: minmax(110px, .8fr) minmax(150px, 1fr) minmax(130px, 1fr) minmax(190px, 1.2fr) minmax(110px, .7fr) minmax(220px, 1.5fr);
+    align-items: center;
+    gap: 8px;
+}
+
+.after-sales-reason-row > input,
+.after-sales-reason-row > select {
+    min-width: 0;
+    width: 100%;
+}
+
+.after-sales-reason-options,
+.after-sales-reason-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.after-sales-reason-options label {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+}
+
+.after-sales-reason-actions .module-button {
+    padding: 7px 9px;
+}
+
 .module-button,
 .module-link-button {
     align-items: center;

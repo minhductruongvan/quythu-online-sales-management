@@ -132,12 +132,10 @@ def parse_date_range(preset=None, start_date_str=None, end_date_str=None):
 
 def calc_percentage_change(current_val, prev_val):
     """Tính % tăng trưởng so với kỳ trước"""
+    if not prev_val:
+        return None
     curr = float(current_val or 0)
     prev = float(prev_val or 0)
-    if prev == 0:
-        if curr > 0:
-            return 100.0
-        return 0.0
     return round(((curr - prev) / prev) * 100, 1)
 
 
@@ -236,7 +234,7 @@ def get_dashboard_kpis(date_range, customer_type=None, product_id=None, amount_m
     carts_active = carts_active_qs.values("khach_hang_id").distinct().count()
     
     total_active_customers = max(customers_ordered, carts_active, 1) if (customers_ordered or carts_active) else 0
-    conv_rate_curr = round((customers_ordered / total_active_customers * 100), 1) if total_active_customers > 0 else 0.0
+    conv_rate_curr = round((customers_ordered / total_active_customers * 100), 1) if total_active_customers > 0 else None
 
     # Kỳ trước
     cust_ord_prev = qs_orders.filter(
@@ -249,7 +247,7 @@ def get_dashboard_kpis(date_range, customer_type=None, product_id=None, amount_m
         carts_prev_qs = carts_prev_qs.filter(khach_hang__loai_khach_hang_id=customer_type)
     carts_prev = carts_prev_qs.values("khach_hang_id").distinct().count()
     tot_prev = max(cust_ord_prev, carts_prev, 1) if (cust_ord_prev or carts_prev) else 0
-    conv_rate_prev = round((cust_ord_prev / tot_prev * 100), 1) if tot_prev > 0 else 0.0
+    conv_rate_prev = round((cust_ord_prev / tot_prev * 100), 1) if tot_prev > 0 else None
 
     # 5. Giá trị trung bình / đơn
     completed_orders_cnt = qs_orders.filter(
@@ -297,12 +295,13 @@ def get_dashboard_kpis(date_range, customer_type=None, product_id=None, amount_m
         },
         "conversion_rate": {
             "value": conv_rate_curr,
-            "formatted": f"{conv_rate_curr:.1f}%".replace(".", ","),
-            "pct_change": round(conv_rate_curr - conv_rate_prev, 1),
+            "formatted": f"{conv_rate_curr:.1f}%".replace(".", ",") if conv_rate_curr is not None else "—",
+            "pct_change": round(conv_rate_curr - conv_rate_prev, 1)
+            if conv_rate_curr is not None and conv_rate_prev is not None else None,
         },
         "avg_order_value": {
             "value": avg_order_curr,
-            "formatted": f"{avg_order_curr:,}đ".replace(",", "."),
+            "formatted": f"{avg_order_curr:,}đ".replace(",", ".") if completed_orders_cnt else "—",
             "pct_change": calc_percentage_change(avg_order_curr, avg_order_prev),
         },
         "processing_orders": {
@@ -837,7 +836,20 @@ def get_revenue_by_area(
     return result
 
 
-def get_order_details(date_range, customer_type=None, pttt_id=None, search_kw=None, page=1, page_size=10, product_id=None, amount_min=None, amount_max=None, category_id=None):
+def get_order_details(
+    date_range,
+    customer_type=None,
+    pttt_id=None,
+    search_kw=None,
+    page=1,
+    page_size=10,
+    product_id=None,
+    amount_min=None,
+    amount_max=None,
+    category_id=None,
+    sort_by="completion_time",
+    sort_dir="desc",
+):
     """
     Quy tắc M5-BR06: Bảng chi tiết doanh thu
     - Các đơn Hoàn thành trong kỳ
@@ -852,7 +864,7 @@ def get_order_details(date_range, customer_type=None, pttt_id=None, search_kw=No
             thoi_diem_hoan_thanh__range=(start_dt, end_dt),
         )
         .select_related("khach_hang", "loai_khach_hang_ap_dung", "phuong_thuc_thanh_toan")
-        .order_by("-thoi_diem_hoan_thanh")
+        .prefetch_related("chi_tiet__bien_the__san_pham")
     )
 
     if customer_type and customer_type != "ALL":
@@ -870,6 +882,17 @@ def get_order_details(date_range, customer_type=None, pttt_id=None, search_kw=No
             | Q(ho_ten_nguoi_nhan__icontains=kw)
             | Q(sdt_nguoi_nhan__icontains=kw)
         )
+
+    sort_fields = {
+        "order_code": "ma_dh",
+        "completion_time": "thoi_diem_hoan_thanh",
+        "customer_name": "khach_hang__ho_ten",
+        "customer_type": "loai_khach_hang_ap_dung__ten_loai_kh",
+        "total": "tong_thanh_toan",
+    }
+    sort_field = sort_fields.get(sort_by, "thoi_diem_hoan_thanh")
+    sort_prefix = "-" if sort_dir != "asc" else ""
+    qs = qs.order_by(f"{sort_prefix}{sort_field}", "ma_dh")
 
     total_records = qs.count()
     total_pages = max(1, (total_records + page_size - 1) // page_size)
@@ -904,6 +927,16 @@ def get_order_details(date_range, customer_type=None, pttt_id=None, search_kw=No
             "total_payment": f"{int(dh.tong_thanh_toan):,}d".replace(",", "."),
             "refund": f"{refund:,}d".replace(",", "."),
             "net_revenue": f"{net_rev:,}d".replace(",", "."),
+            "line_items": [
+                {
+                    "product_name": line.bien_the.san_pham.ten_sp,
+                    "variant": f"{line.bien_the.huong_vi} · {line.bien_the.quy_cach}",
+                    "quantity": line.so_luong,
+                    "unit_price": f"{int(line.don_gia):,}đ".replace(",", "."),
+                    "amount": f"{int(line.thanh_tien):,}đ".replace(",", "."),
+                }
+                for line in dh.chi_tiet.all()
+            ],
         })
 
     return {

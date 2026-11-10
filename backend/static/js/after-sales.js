@@ -3,11 +3,38 @@
     const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
     })[char]);
-    const formatDate = value => value ? new Date(value).toLocaleString("vi-VN") : "—";
+    const formatDate = value => {
+        if (!value) return "—";
+        const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value));
+        const parsed = dateOnly
+            ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+            : new Date(value);
+        return Number.isNaN(parsed.getTime()) ? "—" : new Intl.DateTimeFormat("vi-VN", {
+            day: "2-digit", month: "2-digit", year: "numeric",
+            hour: "2-digit", minute: "2-digit"
+        }).format(parsed);
+    };
     const formatMoney = value => value === null || value === undefined
         ? "—"
         : `${new Intl.NumberFormat("vi-VN").format(Number(value))} ₫`;
     const labels = {
+        ma_yc_huy: "Mã yêu cầu",
+        don_hang: "Mã đơn hàng",
+        khach_hang: "Khách hàng",
+        ten_trang_thai: "Trạng thái",
+        trang_thai_don: "Trạng thái đơn hàng",
+        trang_thai_thanh_toan: "Trạng thái thanh toán",
+        qua_han_xu_ly: "Quá hạn xử lý",
+        ho_ten_nguoi_nhan: "Người nhận",
+        dia_chi_giao_hang: "Địa chỉ giao",
+        so_lan_giao_lai: "Số lần giao lại",
+        loai_yeu_cau: "Loại yêu cầu",
+        ten_loai_yeu_cau: "Loại yêu cầu",
+        cap_nhat_cuoi: "Cập nhật lần cuối",
+        ma_thong_bao: "Mã thông báo",
+        tieu_de: "Tiêu đề",
+        noi_dung: "Nội dung",
+        da_doc: "Đã đọc",
         ma_dh: "Mã đơn hàng",
         ma_giao_dich_hoan: "Mã giao dịch hoàn",
         ma_hoan_tien: "Mã yêu cầu hoàn tiền",
@@ -41,6 +68,8 @@
         notifications: "Thông báo"
     };
     const statusLabels = {
+        CHO_XAC_NHAN: "Chờ xác nhận",
+        CHUA_THANH_TOAN: "Chưa thanh toán",
         CHO_XU_LY: "Chờ xử lý",
         CHO_HOAN: "Chờ hoàn tiền",
         DA_NHAN_HANG: "Đã nhận hàng",
@@ -59,6 +88,7 @@
         if (!data || typeof data !== "object" || Array.isArray(data)) return "";
         const displayFields = {
             trang_thai: "ten_trang_thai",
+            loai_yeu_cau: "ten_loai_yeu_cau",
             loai_xu_ly: "ten_loai_xu_ly",
             huong_xu_ly: "ten_huong_xu_ly",
             ket_qua_giao: "ten_ket_qua_giao"
@@ -70,9 +100,9 @@
             .map(([key, value]) => {
                 let display = value;
                 if (typeof value === "boolean") display = value ? "Có" : "Không";
-                else if (key.startsWith("thoi_diem_") || key.startsWith("ngay_")) display = formatDate(value);
+                else if (key.startsWith("thoi_diem_") || key.startsWith("ngay_") || key === "cap_nhat_cuoi") display = formatDate(value);
                 else if (key.startsWith("so_tien_") || key === "gia_tri_don") display = formatMoney(value);
-                else if (["trang_thai", "loai_xu_ly", "huong_xu_ly", "ket_qua_giao", "loai_yeu_cau", "tac_nhan"].includes(key)) {
+                else if (["trang_thai", "trang_thai_don", "trang_thai_thanh_toan", "loai_xu_ly", "huong_xu_ly", "ket_qua_giao", "loai_yeu_cau", "tac_nhan"].includes(key)) {
                     display = humanValue(value);
                 }
                 return `<div><dt>${esc(humanLabel(key))}</dt><dd>${esc(display)}</dd></div>`;
@@ -82,6 +112,11 @@
         const summary = Array.isArray(data?.the_tong_hop) ? data.the_tong_hop : [];
         const details = Array.isArray(data?.chi_tiet) ? data.chi_tiet : [];
         return `<h2>Thống kê hậu mãi</h2>
+            <form class="module-inline-form" data-stats-filter>
+                <label>Từ ngày<input type="date" name="tu_ngay" value="${esc(data?.tu_ngay || "")}"></label>
+                <label>Đến ngày<input type="date" name="den_ngay" value="${esc(data?.den_ngay || "")}"></label>
+                <button class="module-button secondary" type="submit">Lọc thống kê</button>
+            </form>
             <p class="module-muted">Thời gian: ${esc(data?.tu_ngay || "—")} – ${esc(data?.den_ngay || "—")}</p>
             ${data?.thong_bao ? `<p class="module-alert">${esc(data.thong_bao)}</p>` : ""}
             <div class="module-grid">${summary.map(item => `<article class="module-panel">
@@ -291,13 +326,24 @@
         const button = (label, action, id, type = "cancel") =>
             `<button type="button" class="module-button secondary" data-item-action="${action}" data-item-id="${esc(id)}" data-type="${type}">${label}</button>`;
 
-        const load = async section => {
+        const load = async (section, query = "") => {
             active = section;
+            const url = new URL(endpoints[section], window.location.origin);
+            if (query) url.search = query;
+            const pageUrl = new URL(window.location.href);
+            pageUrl.searchParams.set("tab", section);
+            if (section !== "stats" || !query) {
+                pageUrl.searchParams.delete("tu_ngay");
+                pageUrl.searchParams.delete("den_ngay");
+            } else {
+                new URLSearchParams(query).forEach((value, key) => pageUrl.searchParams.set(key, value));
+            }
+            if (window.location.href !== pageUrl.href) window.history.pushState({ section }, "", pageUrl);
             root.querySelectorAll("[data-section]").forEach(node => {
                 node.classList.toggle("secondary", node.dataset.section !== section);
             });
             content.innerHTML = '<div class="module-empty">Đang tải dữ liệu…</div>';
-            const result = await api(endpoints[section]);
+            const result = await api(url.toString());
             const data = result.data;
             const deliveryReasons = section === "delivery"
                 ? rowsFrom((await api(`${endpoints.reasons}?loai_xu_ly=GIAO_THAT_BAI&dang_ap_dung=1`)).data)
@@ -314,18 +360,17 @@
             if (section === "reasons") {
                 content.innerHTML = `<div class="module-heading"><div><h2>Danh mục nguyên nhân</h2><p>Quản lý nguyên nhân theo loại xử lý.</p></div></div>
                     <form id="reason-form" class="module-form-grid"><div><label>Loại xử lý</label><select name="loai_xu_ly"><option value="HUY_DON">Hủy đơn</option><option value="GIAO_THAT_BAI">Giao thất bại</option><option value="DOI_TRA">Đổi/trả</option></select></div><div><label>Tên nguyên nhân</label><input name="ten_nguyen_nhan" required maxlength="100"></div><div><label>Mô tả</label><input name="mo_ta" maxlength="255"></div><button class="module-button">Thêm nguyên nhân</button></form>
-                    <div class="module-grid" style="margin-top:18px">${rows.map(item => `<article class="module-panel"><span class="module-eyebrow">${esc(item.ma_nguyen_nhan)}</span>
-                        <form class="module-form-grid" data-reason-update="${esc(item.ma_nguyen_nhan)}">
-                            <label>Loại<select name="loai_xu_ly"><option value="HUY_DON" ${item.loai_xu_ly === "HUY_DON" ? "selected" : ""}>Hủy đơn</option><option value="GIAO_THAT_BAI" ${item.loai_xu_ly === "GIAO_THAT_BAI" ? "selected" : ""}>Giao thất bại</option><option value="DOI_TRA" ${item.loai_xu_ly === "DOI_TRA" ? "selected" : ""}>Đổi/trả</option></select></label>
-                            <label>Tên<input name="ten_nguyen_nhan" value="${esc(item.ten_nguyen_nhan)}" required maxlength="100"></label>
-                            <label>Mô tả<input name="mo_ta" value="${esc(item.mo_ta || "")}" maxlength="255"></label>
-                            <label><input type="checkbox" name="bat_buoc_anh" ${item.bat_buoc_anh ? "checked" : ""}> Bắt buộc ảnh</label>
-                            <label><input type="checkbox" name="bat_buoc_ghi_chu" ${item.bat_buoc_ghi_chu ? "checked" : ""}> Bắt buộc ghi chú</label>
-                            <label><input type="checkbox" name="loi_do_cua_hang" ${item.loi_do_cua_hang ? "checked" : ""}> Lỗi do cửa hàng</label>
-                            <button class="module-button secondary" type="submit">Lưu thay đổi</button>
-                            <button class="module-button secondary" type="button" data-reason-action="toggle" data-id="${esc(item.ma_nguyen_nhan)}" data-active="${item.dang_ap_dung}">${item.dang_ap_dung ? "Ngừng áp dụng" : "Kích hoạt"}</button>
-                            <button class="module-button danger" type="button" data-reason-action="delete" data-id="${esc(item.ma_nguyen_nhan)}">Xóa</button>
-                        </form><p>${item.dang_ap_dung ? "Đang áp dụng" : "Ngừng áp dụng"} · Đã dùng ${item.so_lan_su_dung} lần</p></article>`).join("")}</div>`;
+                    <div class="module-table-wrap" style="margin-top:18px"><table class="module-table after-sales-reasons">
+                        <thead><tr><th>Mã</th><th>Loại</th><th>Tên nguyên nhân</th><th>Mô tả</th><th>Yêu cầu</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+                        <tbody>${rows.map(item => `<tr><td>${esc(item.ma_nguyen_nhan)}</td><td colspan="6"><form class="after-sales-reason-row" data-reason-update="${esc(item.ma_nguyen_nhan)}">
+                            <select name="loai_xu_ly" aria-label="Loại xử lý"><option value="HUY_DON" ${item.loai_xu_ly === "HUY_DON" ? "selected" : ""}>Hủy đơn</option><option value="GIAO_THAT_BAI" ${item.loai_xu_ly === "GIAO_THAT_BAI" ? "selected" : ""}>Giao thất bại</option><option value="DOI_TRA" ${item.loai_xu_ly === "DOI_TRA" ? "selected" : ""}>Đổi/trả</option></select>
+                            <input name="ten_nguyen_nhan" aria-label="Tên nguyên nhân" value="${esc(item.ten_nguyen_nhan)}" required maxlength="100">
+                            <input name="mo_ta" aria-label="Mô tả" value="${esc(item.mo_ta || "")}" maxlength="255">
+                            <span class="after-sales-reason-options"><label><input type="checkbox" name="bat_buoc_anh" ${item.bat_buoc_anh ? "checked" : ""}> Ảnh</label><label><input type="checkbox" name="bat_buoc_ghi_chu" ${item.bat_buoc_ghi_chu ? "checked" : ""}> Ghi chú</label><label><input type="checkbox" name="loi_do_cua_hang" ${item.loi_do_cua_hang ? "checked" : ""}> Lỗi cửa hàng</label></span>
+                            <span>${item.dang_ap_dung ? "Đang áp dụng" : "Ngừng áp dụng"} · ${item.so_lan_su_dung} lần</span>
+                            <span class="after-sales-reason-actions"><button class="module-button secondary" type="submit">Lưu</button><button class="module-button secondary" type="button" data-reason-action="toggle" data-id="${esc(item.ma_nguyen_nhan)}" data-active="${item.dang_ap_dung}">${item.dang_ap_dung ? "Ngừng" : "Kích hoạt"}</button><button class="module-button danger" type="button" data-reason-action="delete" data-id="${esc(item.ma_nguyen_nhan)}">Xóa</button></span>
+                        </form></td></tr>`).join("")}</tbody>
+                    </table></div>`;
                 return;
             }
             const deliveryStockForm = section === "delivery"
@@ -460,6 +505,14 @@
             } catch (error) { notice(status, error.message, true); }
         });
         root.addEventListener("submit", async event => {
+            const form = event.target.closest("[data-stats-filter]");
+            if (!form) return;
+            event.preventDefault();
+            const params = new URLSearchParams(new FormData(form));
+            try { await load("stats", params.toString()); }
+            catch (error) { notice(status, error.message, true); }
+        });
+        root.addEventListener("submit", async event => {
             const form = event.target.closest("#reason-form");
             if (form) {
                 event.preventDefault();
@@ -526,6 +579,21 @@
                 await load(active);
             } catch (error) { notice(status, error.message, true); }
         });
+        window.addEventListener("popstate", () => {
+            if (!root.isConnected) return;
+            const params = new URLSearchParams(window.location.search);
+            const section = endpoints[params.get("tab")] ? params.get("tab") : "cancel";
+            const query = section === "stats"
+                ? new URLSearchParams([...params].filter(([key]) => ["tu_ngay", "den_ngay"].includes(key))).toString()
+                : "";
+            load(section, query).catch(error => notice(status, error.message, true));
+        });
+        const params = new URLSearchParams(window.location.search);
+        const initialSection = endpoints[params.get("tab")] ? params.get("tab") : "cancel";
+        const initialQuery = initialSection === "stats"
+            ? new URLSearchParams([...params].filter(([key]) => ["tu_ngay", "den_ngay"].includes(key))).toString()
+            : "";
+        load(initialSection, initialQuery).catch(error => notice(status, error.message, true));
     }
 
     document.addEventListener("DOMContentLoaded", () => {

@@ -184,6 +184,21 @@ class Module5ReportsTestCase(TestCase):
         self.assertEqual(top_prods[1]["code"], "BT02")
         self.assertEqual(top_prods[1]["qty"], 1)
 
+    def test_empty_period_displays_zero_counts_and_undefined_ratios(self):
+        date_range = services.parse_date_range(
+            preset="custom", start_date_str="2020-01-01", end_date_str="2020-01-05"
+        )
+        kpis = services.get_dashboard_kpis(date_range)
+        timeline = services.get_revenue_timeline(date_range)
+
+        self.assertEqual(kpis["revenue"]["value"], 0)
+        self.assertEqual(kpis["orders"]["value"], 0)
+        self.assertEqual(kpis["avg_order_value"]["formatted"], "—")
+        self.assertEqual(kpis["conversion_rate"]["formatted"], "—")
+        self.assertEqual(kpis["revenue"]["pct_change"], None)
+        self.assertFalse(any(timeline["revenue_millions"]))
+        self.assertFalse(any(timeline["orders_count"]))
+
     def test_views_status_codes(self):
         """Kiểm tra view trả về HTTP 200 OK"""
         client = Client()
@@ -220,9 +235,13 @@ class Module5ReportsTestCase(TestCase):
         )
         self.assertEqual(detail.status_code, 200)
         self.assertEqual(detail.context["order_details"]["total_records"], 1)
+        self.assertEqual(detail.context["order_details"]["items"][0]["line_items"][0]["product_name"], self.san_pham.ten_sp)
         self.assertContains(detail, "q=DH001")
         self.assertContains(detail, 'action="/reports/chi-tiet/"')
         self.assertContains(detail, 'name="amount_min" min="0" step="1"')
+        self.assertContains(detail, "Số dòng / trang")
+        self.assertContains(detail, "Tổng cộng")
+        self.assertContains(detail, "Sản phẩm bán chạy")
 
         for tab in ("products", "recent", "area"):
             response = client.get(
