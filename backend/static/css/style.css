@@ -2,7 +2,7 @@
 /* =========================================================
    QUY THU DESIGN SYSTEM
    Concept: Modern Commerce
-   Font: Inter
+   Font: Be Vietnam Pro
    Density: Comfortable
    ========================================================= */
 
@@ -54,15 +54,15 @@
     --neutral-bg: #F1F5F9;
 
     /* TYPOGRAPHY */
-    --font-main: "Inter", Arial, sans-serif;
+    --font-main: "Be Vietnam Pro", Arial, sans-serif;
 
     --font-xs: 12px;
-    --font-sm: 13px;
-    --font-base: 14px;
-    --font-md: 15px;
-    --font-lg: 18px;
+    --font-sm: 14px;
+    --font-base: 16px;
+    --font-md: 17px;
+    --font-lg: 20px;
     --font-xl: 24px;
-    --font-2xl: 28px;
+    --font-2xl: 32px;
 
     /* SPACING */
     --space-1: 4px;
@@ -852,10 +852,26 @@ button:disabled {
     font-weight: 700;
 }
 
+.auth-link {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-family: var(--font-main);
+    cursor: pointer;
+}
+
 .auth-link:hover,
 .auth-register-text a:hover {
     color: var(--primary-dark);
     text-decoration: underline;
+}
+
+.auth-reset-back {
+    margin-top: 16px;
+}
+
+#resendOtpButton {
+    margin-top: 14px;
 }
 
 /* Submit */
@@ -1799,7 +1815,8 @@ button:disabled {
     color: var(--danger);
 }
 
-.address-form-group input {
+.address-form-group input,
+.address-form-group select {
     width: 100%;
     height: var(--input-height);
     padding: 0 11px;
@@ -1812,7 +1829,8 @@ button:disabled {
     transition: var(--transition-fast);
 }
 
-.address-form-group input:focus {
+.address-form-group input:focus,
+.address-form-group select:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(33, 135, 101, 0.10);
 }
@@ -2098,5 +2116,238 @@ button:disabled {
     .address-modal-save,
     .address-delete-confirm {
         width: 100%;
+    }
+}
+
+.auth-page {
+    background:
+        radial-gradient(ellipse at 10% 12%, rgba(198, 167, 121, .18), transparent 34%),
+        linear-gradient(140deg, #f8f6ef, #eef2e9);
+}
+
+.auth-wrapper {
+    padding: 32px;
+}
+
+.auth-container {
+    max-width: 1160px;
+    min-height: 700px;
+    border: 1px solid rgba(198, 167, 121, .3);
+    border-radius: 24px;
+    box-shadow: 0 28px 80px rgba(16, 45, 37, .16);
+}
+
+.auth-brand {
+    position: relative;
+    min-height: 700px;
+    overflow: hidden;
+    padding: 42px;
+    isolation: isolate;
+    background: #12392d;
+}
+
+.auth-brand::after {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    background:
+        linear-gradient(180deg, rgba(12, 41, 31, .22), rgba(12, 41, 31, .05) 40%, rgba(12, 41, 31, .82)),
+        linear-gradient(90deg, rgba(12, 41, 31, .12), transparent 90%);
+    content: "";
+}
+
+.auth-brand-image {
+    position: absolute;
+    z-index: -2;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 55% center;
+}
+
+.auth-brand-content {
+    position: relative;
+    z-index: 1;
+}
+
+.auth-logo-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    color: #fff;
+    text-decoration: none;
+}
+
+.auth-logo-link:hover {
+    color: #f0dfb8;
+}
+
+.auth-brand-text {
+    max-width: 430px;
+    margin: auto 0 14px;
+    padding: 23px 24px 12px;
+    border: 1px solid rgba(250, 239, 211, .24);
+    border-radius: 18px;
+    background: rgba(15, 47, 36, .72);
+    box-shadow: 0 16px 42px rgba(10, 31, 25, .16);
+    backdrop-filter: blur(7px);
+}
+
+.auth-brand .auth-eyebrow {
+    color: #efd39a;
+}
+
+.auth-brand-text h1 {
+    margin: 15px 0 10px;
+    font-family: var(--qt-font-body);
+    font-size: clamp(29px, 3.1vw, 39px);
+    line-height: 1.18;
+}
+
+.auth-brand-text p {
+    margin-bottom: 12px;
+    color: rgba(255, 255, 255, .86);
+}
+
+.auth-brand-footer {
+    color: rgba(255, 255, 255, .82);
+}
+
+.auth-form-section {
+    padding: 54px clamp(35px, 5vw, 70px);
+}
+
+.auth-form-container {
+    max-width: 410px;
+}
+
+.auth-heading h2 {
+    color: #173b30;
+    font-family: var(--qt-font-body);
+    font-size: 36px;
+}
+
+.auth-heading p {
+    line-height: 1.7;
+}
+
+.auth-field input {
+    min-height: 48px;
+    border-color: #e2e7df;
+    border-radius: 11px;
+    background: #fffefa;
+}
+
+.auth-field input:focus {
+    border-color: #8eaa8d;
+    box-shadow: 0 0 0 4px rgba(49, 93, 73, .1);
+}
+
+.auth-password-toggle {
+    cursor: pointer;
+}
+
+.auth-submit-btn {
+    min-height: 50px;
+    border-radius: 11px;
+    background: #173b30;
+    box-shadow: 0 8px 18px rgba(23, 59, 48, .15);
+}
+
+.auth-submit-btn:hover {
+    background: #24543d;
+}
+
+.auth-register-container {
+    max-width: 1200px;
+}
+
+.auth-register-container .auth-brand-text h1 {
+    font-size: clamp(29px, 3vw, 38px);
+}
+
+.auth-register-form {
+    max-width: 440px;
+}
+
+.auth-register-form .auth-heading {
+    margin-bottom: 22px;
+}
+
+.auth-register-form .auth-field {
+    margin-bottom: 10px;
+}
+
+.auth-register-form .auth-field label {
+    margin-bottom: 6px;
+}
+
+.auth-register-form .auth-terms {
+    margin: 10px 0 15px;
+}
+
+.auth-mobile-banner {
+    display: none;
+}
+
+@media (max-width: 850px) {
+    .auth-wrapper {
+        padding: 24px;
+    }
+
+    .auth-container {
+        max-width: 600px;
+        overflow: hidden;
+    }
+
+    .auth-form-section {
+        padding: 30px clamp(26px, 7vw, 54px) 42px;
+    }
+
+    .auth-form-container {
+        max-width: 460px;
+    }
+
+    .auth-mobile-banner {
+        display: block;
+        width: calc(100% + 2 * clamp(26px, 7vw, 54px));
+        height: 165px;
+        margin: -30px calc(-1 * clamp(26px, 7vw, 54px)) 25px;
+        object-fit: cover;
+        object-position: 58% center;
+    }
+
+    .auth-mobile-logo {
+        display: none;
+    }
+
+    .auth-register-form .auth-heading {
+        margin-bottom: 22px;
+    }
+}
+
+@media (max-width: 480px) {
+    .auth-wrapper {
+        padding: 12px;
+    }
+
+    .auth-container {
+        border-radius: 18px;
+    }
+
+    .auth-form-section {
+        padding: 24px 20px 30px;
+    }
+
+    .auth-mobile-banner {
+        width: calc(100% + 40px);
+        height: 140px;
+        margin: -24px -20px 22px;
+    }
+
+    .auth-heading h2 {
+        margin-top: 8px;
+        font-size: 31px;
     }
 }

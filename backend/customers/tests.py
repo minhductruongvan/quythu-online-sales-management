@@ -1,4 +1,7 @@
-from django.test import TestCase
+from unittest.mock import patch
+
+from django.core.management import call_command
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from rest_framework.test import APIClient
@@ -9,6 +12,52 @@ from .models import (
     LoaiKhachHang,
     LichSuKhachHang,
 )
+
+
+class DemoAccountLoginTests(TestCase):
+    def test_seeded_customer_employee_and_manager_can_log_in(self):
+        accounts = (
+            (
+                "khachhang@gmail.com",
+                TaiKhoan.VaiTro.CUSTOMER,
+                reverse("customer-profile-page"),
+            ),
+            (
+                "nhanvien@gmail.com",
+                TaiKhoan.VaiTro.EMPLOYEE,
+                reverse("employee-dashboard"),
+            ),
+            (
+                "quanly@gmail.com",
+                TaiKhoan.VaiTro.MANAGER,
+                reverse("manager-dashboard"),
+            ),
+        )
+        with (
+            patch.dict("os.environ", {"M1_DEMO_PASSWORD": "Quythu123!"}),
+            override_settings(DEBUG=True),
+        ):
+            call_command("seed_m1_demo_accounts", verbosity=0)
+
+        client = APIClient()
+        for email, expected_role, landing_page in accounts:
+            with self.subTest(role=expected_role):
+                response = client.post(
+                    reverse("dang-nhap"),
+                    {
+                        "email": email,
+                        "mat_khau": "Quythu123!",
+                        "ghi_nho": False,
+                    },
+                    format="json",
+                )
+                self.assertEqual(response.status_code, 200, response.data)
+                self.assertEqual(response.data["data"]["vai_tro"], expected_role)
+                self.assertTrue(client.session.get("_auth_user_id"))
+                self.assertEqual(client.get(landing_page).status_code, 200)
+                client.logout()
+
+
 class PhanQuyenKhachHangTests(TestCase):
     def setUp(self):
         self.client = APIClient()

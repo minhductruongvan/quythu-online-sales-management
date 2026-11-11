@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Nhập khách hàng | Quý Thu{% endblock %}
+
+{% block extra_css %}
+<style>
+    .import-card { max-width:1200px; margin:0 auto; border:1px solid #e8edf3; border-radius:16px; background:#fff; box-shadow:0 10px 32px rgba(30,45,70,.06); }
+    .import-sample { background:#f6f8fc; border-radius:10px; padding:16px; overflow-x:auto; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4 m1-admin-page">
+    <div class="mb-4">
+        <a href="{% url 'employee-customer-list' %}" class="text-decoration-none">← Danh sách khách hàng</a>
+        <h1 class="h3 fw-bold mt-2">Nhập danh sách khách hàng</h1>
+        <p class="text-muted mb-0">Tệp CSV UTF-8. Dòng lỗi hoặc trùng lặp sẽ được báo riêng và không tạo hồ sơ.</p>
+    </div>
+    <section class="import-card p-4 p-md-5">
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <label for="customerCsv" class="form-label fw-semibold">Chọn tệp CSV (tối đa 2 MB)</label>
+            <input id="customerCsv" class="form-control" type="file" name="file" accept=".csv,text/csv" required>
+            <button type="submit" class="btn btn-primary mt-3">Kiểm tra và nhập</button>
+        </form>
+
+        <div class="mt-4">
+            <h2 class="h6 fw-bold">Cột dữ liệu</h2>
+            <p class="text-muted small">Bắt buộc: <code>ho_ten</code>. Có thể thêm <code>email</code>, <code>so_dien_thoai</code>, <code>loai_khach_hang</code>, <code>trang_thai</code>.</p>
+            <div class="import-sample"><code>ho_ten,email,so_dien_thoai,loai_khach_hang,trang_thai<br>Nguyen Van A,a@example.com,0901234567,Khách lẻ,ACTIVE</code></div>
+            <p class="small text-muted mt-2 mb-0">Loại khách: <code>Khách lẻ</code>/<code>Khách sỉ</code>. Trạng thái: <code>ACTIVE</code>/<code>INACTIVE</code>. Hồ sơ nhập khẩu không tự tạo tài khoản đăng nhập.</p>
+        </div>
+
+        {% if imported_count %}
+        <div class="alert alert-success mt-4 mb-0">Đã nhập {{ imported_count }} hồ sơ.</div>
+        {% endif %}
+        {% if import_errors %}
+        <div class="alert alert-warning mt-4">
+            <h2 class="h6 fw-bold">Các dòng chưa được nhập</h2>
+            <ul class="mb-0">
+                {% for error in import_errors %}<li>{{ error }}</li>{% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% load money %}
+
+{% block title %}Hồ sơ {{ customer.ma_kh }} | Quý Thu{% endblock %}
+
+{% block extra_css %}
+<style>
+    .m1-card { background:#fff; border:1px solid #e8edf3; border-radius:14px; box-shadow:0 6px 24px rgba(30,45,70,.05); }
+    .m1-label { color:#64748b; font-size:.82rem; margin-bottom:.35rem; }
+    .m1-value { font-weight:600; overflow-wrap:anywhere; }
+    .m1-section-title { font-weight:750; color:#1e293b; }
+    .m1-timeline { border-left:2px solid #e2e8f0; margin-left:.45rem; padding-left:1.2rem; }
+    .m1-timeline-item { position:relative; padding-bottom:1.25rem; }
+    .m1-timeline-item::before { content:""; position:absolute; width:10px; height:10px; border-radius:50%; background:#4f6bed; left:-1.58rem; top:.35rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 m1-admin-page">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+            <a class="text-decoration-none" href="{% url 'employee-customer-list' %}">← Danh sách khách hàng</a>
+            <h1 class="h3 fw-bold mt-2 mb-1">{{ customer.ho_ten }}</h1>
+            <div class="text-muted">{{ customer.ma_kh }} · Tạo ngày {{ customer.ngay_tao|date:"d/m/Y" }}</div>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <span class="badge rounded-pill {% if customer.trang_thai == 'ACTIVE' %}text-bg-success{% else %}text-bg-secondary{% endif %} align-self-center">
+                {{ customer.get_trang_thai_display }}
+            </span>
+            <a class="btn btn-outline-secondary" href="{% url 'employee-customer-export' %}?q={{ customer.ma_kh|urlencode }}">Xuất hồ sơ</a>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-xl-6">
+            <section class="m1-card p-3 mb-3">
+                <h2 class="h5 m1-section-title mb-4">Thông tin hồ sơ</h2>
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="update">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="customerName">Họ tên</label>
+                            <input class="form-control" id="customerName" name="ho_ten" value="{{ customer.ho_ten }}" maxlength="100" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="customerEmail">Email</label>
+                            <input class="form-control" type="email" id="customerEmail" name="email" value="{{ customer_email|default:'' }}" maxlength="254">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="customerPhone">Số điện thoại</label>
+                            <input class="form-control" type="tel" id="customerPhone" name="so_dien_thoai" value="{{ customer_phone|default:'' }}" maxlength="15">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="customerType">Loại khách hàng</label>
+                            <select class="form-select" id="customerType" name="loai_khach_hang">
+                                {% for type in customer_types %}
+                                <option value="{{ type.ten_loai_kh }}" {% if type.pk == customer.loai_khach_hang_id %}selected{% endif %}>{{ type.ten_loai_kh }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="text-end mt-4">
+                        <button class="btn btn-primary px-4" type="submit">Lưu thay đổi</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="m1-card p-3 mb-3">
+                <h2 class="h5 m1-section-title mb-3">Trạng thái hồ sơ khách hàng</h2>
+                <form method="post" class="row g-2 align-items-end">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="status">
+                    <div class="col-md-4">
+                        <label class="form-label" for="customerStatus">Trạng thái</label>
+                        <select class="form-select" id="customerStatus" name="trang_thai">
+                            <option value="ACTIVE" {% if customer.trang_thai == "ACTIVE" %}selected{% endif %}>Hoạt động</option>
+                            <option value="INACTIVE" {% if customer.trang_thai == "INACTIVE" %}selected{% endif %}>Ngừng hoạt động</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="statusReason">Lý do (bắt buộc khi ngừng hoạt động)</label>
+                        <input class="form-control" id="statusReason" name="ly_do" maxlength="255">
+                    </div>
+                    <div class="col-md-2 d-grid">
+                        <button class="btn btn-outline-primary" type="submit">Cập nhật</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="m1-card p-3 mb-3">
+                <h2 class="h5 m1-section-title mb-3">Lịch sử mua hàng</h2>
+                {% if orders %}
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead><tr><th>Mã đơn</th><th>Ngày đặt</th><th>Trạng thái</th><th class="text-end">Tổng thanh toán</th></tr></thead>
+                        <tbody>
+                        {% for order in orders %}
+                            <tr>
+                                <td class="fw-semibold">{{ order.ma_dh }}</td>
+                                <td>{{ order.ngay_dat|date:"d/m/Y H:i" }}</td>
+                                <td>{{ order.get_trang_thai_display }}</td>
+                                <td class="text-end">{{ order.tong_thanh_toan|vnd }} ₫</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">Khách hàng chưa có đơn hàng liên kết.</p>
+                {% endif %}
+            </section>
+
+            <section class="m1-card p-3 mb-3">
+                <h2 class="h5 m1-section-title mb-3">Địa chỉ giao hàng</h2>
+                {% for address in addresses %}
+                <article class="border-top py-3">
+                    <div class="d-flex justify-content-between gap-2">
+                        <strong>{{ address.ten_nguoi_nhan }} · {{ address.so_dien_thoai }}</strong>
+                        {% if address.mac_dinh %}<span class="badge text-bg-primary">Mặc định</span>{% endif %}
+                    </div>
+                    <div>{{ address.dia_chi_chi_tiet }}</div>
+                    <div class="text-muted small">
+                        {{ address.phuong_xa }}{% if address.quan_huyen %}, {{ address.quan_huyen }}{% endif %}, {{ address.tinh_thanh }}
+                    </div>
+                </article>
+                {% empty %}
+                <p class="text-muted mb-0">Khách hàng chưa lưu địa chỉ giao hàng.</p>
+                {% endfor %}
+            </section>
+        </div>
+
+        <div class="col-xl-6">
+            {% if is_manager %}
+            <section class="m1-card p-3 mb-3">
+                <h2 class="h5 m1-section-title mb-2">Tài khoản đăng nhập</h2>
+                {% if customer.tai_khoan %}
+                <p class="text-muted">{{ customer.tai_khoan.email }}</p>
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <span class="badge {% if customer.tai_khoan.trang_thai == 'ACTIVE' %}text-bg-success{% else %}text-bg-danger{% endif %}">
+                        {{ customer.tai_khoan.get_trang_thai_display }}
+                    </span>
+                    <span class="text-muted small">Độc lập với trạng thái hồ sơ</span>
+                </div>
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="account_status">
+                    {% if customer.tai_khoan.trang_thai == "ACTIVE" %}
+                    <input type="hidden" name="hanh_dong" value="LOCK">
+                    <button class="btn btn-outline-danger" type="submit">Khóa tài khoản</button>
+                    {% else %}
+                    <input type="hidden" name="hanh_dong" value="UNLOCK">
+                    <button class="btn btn-outline-success" type="submit">Mở khóa tài khoản</button>
+                    {% endif %}
+                </form>
+                {% else %}
+                <p class="text-muted mb-0">Hồ sơ này chưa liên kết tài khoản đăng nhập.</p>
+                {% endif %}
+            </section>
+            {% endif %}
+
+            <section class="m1-card p-3 mb-3">
+                <h2 class="h5 m1-section-title mb-3">Ghi chú nội bộ</h2>
+                <form method="post" class="mb-4">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="note">
+                    <label class="form-label" for="internalNote">Ghi chú (chỉ nhân viên và quản lý xem được)</label>
+                    <textarea class="form-control" id="internalNote" name="noi_dung" rows="3" maxlength="2000" required></textarea>
+                    <button class="btn btn-primary mt-2" type="submit">Thêm ghi chú</button>
+                </form>
+                {% for note in notes %}
+                <article class="border-top py-3">
+                    <div class="small text-muted mb-1">
+                        {{ note.nguoi_tao.email|default:"Hệ thống" }} · {{ note.thoi_gian|date:"d/m/Y H:i" }}
+                    </div>
+                    <div class="text-break">{{ note.noi_dung|linebreaksbr }}</div>
+                </article>
+                {% empty %}
+                <p class="text-muted mb-0">Chưa có ghi chú nội bộ.</p>
+                {% endfor %}
+            </section>
+
+            <section class="m1-card p-3">
+                <h2 class="h5 m1-section-title mb-3">Lịch sử thay đổi</h2>
+                <div class="m1-timeline">
+                    {% for event in history %}
+                    <article class="m1-timeline-item">
+                        <div class="fw-semibold">{{ event.get_loai_thay_doi_display }}</div>
+                        <div class="small text-muted">
+                            {{ event.thoi_gian|date:"d/m/Y H:i" }} · {{ event.nguoi_thuc_hien.email|default:"Hệ thống" }}
+                        </div>
+                        {% if event.noi_dung_cu %}<div class="small mt-1">Trước: {{ event.noi_dung_cu }}</div>{% endif %}
+                        {% if event.noi_dung_moi %}<div class="small">Sau: {{ event.noi_dung_moi }}</div>{% endif %}
+                    </article>
+                    {% empty %}
+                    <p class="text-muted mb-0">Chưa có lịch sử thay đổi.</p>
+                    {% endfor %}
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %}

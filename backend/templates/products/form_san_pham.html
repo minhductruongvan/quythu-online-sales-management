@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% load static money %}
+{% block title %}{{ tieu_de }} | Quý Thu{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}">{% endblock %}
+{% block content %}
+<main class="module-page">
+    <header class="module-heading"><div><span class="module-eyebrow">DANH MỤC SẢN PHẨM</span><h1>{{ tieu_de }}</h1><p>Thông tin này được sử dụng trên cửa hàng và báo cáo.</p></div><a class="module-link-button secondary" href="{% url 'products:quan_ly' %}">← Danh sách</a></header>
+    <section class="module-panel"><form method="post">{% csrf_token %}{{ form.as_p }}<div class="module-inline-form"><button class="module-button" type="submit">Lưu sản phẩm</button><a href="{% url 'products:quan_ly' %}">Hủy</a></div></form></section>
+    {% if san_pham %}
+    <section class="module-panel" style="margin-top:20px">
+        <div class="module-heading"><div><h2>Giá và quy cách từng biến thể</h2><p>Giá bán và khối lượng/quy cách được quản lý theo từng biến thể.</p></div><a class="module-button secondary" href="{% url 'products:danh_sach_bien_the' san_pham.ma_sp %}">Quản lý biến thể</a></div>
+        <div class="module-table-wrap"><table class="module-table"><thead><tr><th>Biến thể</th><th>Khối lượng / quy cách</th><th>Giá lẻ</th><th>Giá sỉ</th><th></th></tr></thead><tbody>
+            {% for variant in danh_sach_bien_the %}<tr><td>{{ variant.huong_vi }}</td><td>{{ variant.quy_cach }}</td><td>{{ variant.gia_ban_le|vnd }} ₫</td><td>{{ variant.gia_ban_si|vnd }} ₫</td><td><a href="{% url 'products:sua_bien_the' variant.ma_bien_the %}">Sửa biến thể</a></td></tr>{% empty %}<tr><td colspan="5" class="module-empty">Chưa có biến thể. <a href="{% url 'products:them_bien_the' san_pham.ma_sp %}">Thêm biến thể</a></td></tr>{% endfor %}
+        </tbody></table></div>
+    </section>
+    {% endif %}
+</main>
+{% endblock %}

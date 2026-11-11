@@ -5,10 +5,10 @@
 
     <!-- BRAND -->
     <div class="sidebar-brand">
-        <div class="brand-logo">Q</div>
+        <div class="brand-logo"><img src="{% static 'images/logo-removebg-preview.png' %}" alt="Logo Quý Thu"></div>
         <div class="brand-info">
             <h5>QUÝ THU</h5>
-            <span>Sales Management</span>
+            <span>Đặc sản dừa nướng</span>
         </div>
     </div>
 
@@ -40,75 +40,94 @@
         </div>
     </div>
 
-    <!-- NAVIGATION -->
     <nav class="sidebar-nav">
-
+        {% if request.user.vai_tro == "CUSTOMER" %}
+        <div class="nav-section-title">TÀI KHOẢN CỦA TÔI</div>
+        <a href="{% url 'storefront-home' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'storefront-home' %}is-active{% endif %}">
+            <span class="nav-icon">⌂</span><span>Cửa hàng</span>
+        </a>
+        <a href="{% url 'cart-page' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'cart-page' %}is-active{% endif %}">
+            <span class="nav-icon">▣</span><span>Giỏ hàng</span>
+        </a>
+        <details class="nav-group" {% if request.resolver_match.url_name == 'customer-orders-page' or request.resolver_match.url_name == 'customer-order-detail-page' or request.resolver_match.url_name == 'customer-purchase-history-page' %}open{% endif %}>
+            <summary><span class="nav-icon">▤</span><span>Đơn mua</span></summary>
+            <a href="{% url 'customer-orders-page' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'customer-orders-page' or request.resolver_match.url_name == 'customer-order-detail-page' %}is-active{% endif %}">Đơn hàng của tôi</a>
+            <a href="{% url 'customer-purchase-history-page' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'customer-purchase-history-page' %}is-active{% endif %}">Lịch sử mua hàng</a>
+        </details>
+        <a href="{% url 'customer-after-sales' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'customer-after-sales' %}is-active{% endif %}">
+            <span class="nav-icon">↩</span><span>Hậu mãi & hỗ trợ</span>
+        </a>
+        <details class="nav-group" {% if request.resolver_match.url_name == 'customer-profile-page' or request.resolver_match.url_name == 'customer-address-page' %}open{% endif %}>
+            <summary><span class="nav-icon">⚙</span><span>Tài khoản</span></summary>
+            <a href="{% url 'customer-profile-page' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'customer-profile-page' %}is-active{% endif %}">Thông tin cá nhân</a>
+            <a href="{% url 'customer-address-page' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'customer-address-page' %}is-active{% endif %}">Sổ địa chỉ</a>
+        </details>
+        {% elif request.user.vai_tro == "MANAGER" %}
+        <div class="nav-section-title">ĐIỀU HÀNH CỬA HÀNG</div>
+            <a href="{% url 'manager-dashboard' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'manager-dashboard' %}is-active{% endif %}">
+                <span class="nav-icon">⌂</span><span>Tổng quan</span>
+            </a>
+            <details class="nav-group" {% if request.resolver_match.url_name == 'employee-customer-list' or request.resolver_match.url_name == 'employee-customer-add' or request.resolver_match.url_name == 'employee-customer-import' or request.resolver_match.url_name == 'employee-customer-export' or request.resolver_match.url_name == 'employee-customer-detail' %}open{% endif %}>
+                <summary><span class="nav-icon">♙</span><span>Khách hàng</span></summary>
+                <a href="{% url 'employee-customer-list' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'employee-customer-list' or request.resolver_match.url_name == 'employee-customer-detail' %}is-active{% endif %}">Danh sách khách hàng</a>
+                <a href="{% url 'employee-customer-add' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'employee-customer-add' %}is-active{% endif %}">Thêm khách hàng</a>
+                <a href="{% url 'employee-customer-import' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'employee-customer-import' %}is-active{% endif %}">Nhập khách hàng</a>
+                <a href="{% url 'employee-customer-export' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'employee-customer-export' %}is-active{% endif %}">Xuất khách hàng</a>
+            </details>
+            <a href="{% url 'manager-role-permissions' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'manager-role-permissions' %}is-active{% endif %}">
+                <span class="nav-icon">♙</span><span>Quản lý nhân sự</span>
+            </a>
+            <details class="nav-group" {% if request.resolver_match.url_name == 'order-list' or request.resolver_match.url_name == 'staff-order-detail' %}open{% endif %}>
+                <summary><span class="nav-icon">▤</span><span>Đơn hàng</span></summary>
+                <a href="{% url 'order-list' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'order-list' or request.resolver_match.url_name == 'staff-order-detail' %}is-active{% endif %}">Danh sách đơn hàng</a>
+            </details>
+            <details class="nav-group" {% if request.resolver_match.namespace == 'products' %}open{% endif %}>
+                <summary><span class="nav-icon">◈</span><span>Sản phẩm</span></summary>
+                <a href="{% url 'products:quan_ly' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'quan_ly' %}is-active{% endif %}">Danh sách sản phẩm</a>
+                <a href="{% url 'products:them' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'them' %}is-active{% endif %}">Thêm sản phẩm</a>
+                <a href="{% url 'products:quan_ly_danh_muc' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'quan_ly_danh_muc' %}is-active{% endif %}">Danh mục</a>
+            </details>
+            <a href="{% url 'manager-after-sales' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'manager-after-sales' %}is-active{% endif %}">
+                <span class="nav-icon">↩</span><span>Hậu mãi</span>
+            </a>
+            <details class="nav-group" {% if request.resolver_match.namespace == 'reports' %}open{% endif %}>
+                <summary><span class="nav-icon">▥</span><span>Báo cáo</span></summary>
+                <a href="{% url 'reports:dashboard' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'dashboard' and request.resolver_match.namespace == 'reports' %}is-active{% endif %}">Tổng quan</a>
+                <a href="{% url 'reports:detail' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'detail' %}is-active{% endif %}">Báo cáo chi tiết</a>
+            </details>
+        {% elif request.user.vai_tro == "EMPLOYEE" %}
         <div class="nav-section-title">TỔNG QUAN</div>
-
-        {% if request.user.vai_tro == "MANAGER" %}
-            <a href="{% url 'manager-dashboard' %}" class="nav-link-custom">
-                <span class="nav-icon">⌂</span>
-                <span>Tổng quan</span>
-            </a>
-        {% else %}
-            <a href="{% url 'employee-dashboard' %}" class="nav-link-custom">
-                <span class="nav-icon">⌂</span>
-                <span>Tổng quan</span>
-            </a>
+        <a href="{% url 'employee-dashboard' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'employee-dashboard' %}is-active{% endif %}">
+            <span class="nav-icon">⌂</span><span>Tổng quan</span>
+        </a>
+        <div class="nav-section-title">CHĂM SÓC KHÁCH HÀNG</div>
+        <details class="nav-group" {% if request.resolver_match.url_name == 'employee-customer-list' or request.resolver_match.url_name == 'employee-customer-add' or request.resolver_match.url_name == 'employee-customer-import' or request.resolver_match.url_name == 'employee-customer-export' or request.resolver_match.url_name == 'employee-customer-detail' %}open{% endif %}>
+            <summary><span class="nav-icon">♙</span><span>Khách hàng</span></summary>
+            <a href="{% url 'employee-customer-list' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'employee-customer-list' or request.resolver_match.url_name == 'employee-customer-detail' %}is-active{% endif %}">Danh sách khách hàng</a>
+            <a href="{% url 'employee-customer-add' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'employee-customer-add' %}is-active{% endif %}">Thêm khách hàng</a>
+            <a href="{% url 'employee-customer-import' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'employee-customer-import' %}is-active{% endif %}">Nhập khách hàng</a>
+            <a href="{% url 'employee-customer-export' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'employee-customer-export' %}is-active{% endif %}">Xuất khách hàng</a>
+        </details>
+        <div class="nav-section-title">VẬN HÀNH ĐƠN HÀNG</div>
+        <details class="nav-group" {% if request.resolver_match.url_name == 'order-list' or request.resolver_match.url_name == 'staff-order-detail' %}open{% endif %}>
+            <summary><span class="nav-icon">▤</span><span>Đơn hàng</span></summary>
+            <a href="{% url 'order-list' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'order-list' or request.resolver_match.url_name == 'staff-order-detail' %}is-active{% endif %}">Danh sách đơn hàng</a>
+        </details>
+        <details class="nav-group" {% if request.resolver_match.namespace == 'products' %}open{% endif %}>
+            <summary><span class="nav-icon">◈</span><span>Sản phẩm</span></summary>
+            <a href="{% url 'products:quan_ly' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'quan_ly' %}is-active{% endif %}">Danh sách sản phẩm</a>
+            <a href="{% url 'products:them' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'them' %}is-active{% endif %}">Thêm sản phẩm</a>
+            <a href="{% url 'products:quan_ly_danh_muc' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'quan_ly_danh_muc' %}is-active{% endif %}">Danh mục</a>
+        </details>
+        <a href="{% url 'staff-after-sales' %}" class="nav-link-custom">
+            <span class="nav-icon">↩</span><span>Hậu mãi</span>
+        </a>
+        <details class="nav-group" {% if request.resolver_match.namespace == 'reports' %}open{% endif %}>
+            <summary><span class="nav-icon">▥</span><span>Báo cáo</span></summary>
+            <a href="{% url 'reports:dashboard' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'dashboard' and request.resolver_match.namespace == 'reports' %}is-active{% endif %}">Tổng quan</a>
+            <a href="{% url 'reports:detail' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'detail' %}is-active{% endif %}">Báo cáo chi tiết</a>
+        </details>
         {% endif %}
-        <a href="{% url 'employee-customer-list' %}" class="nav-link-custom">
-            <span class="nav-icon">♙</span>
-            <span>Khách hàng</span>
-        </a>
-        <div class="nav-section-title">QUẢN LÝ BÁN HÀNG</div>
-
-        <a href="{% url 'customer-profile-page' %}" class="nav-link-custom">
-            <span class="nav-icon">⚙</span>
-            <span>Thông tin cá nhân</span>
-        </a>
-
-        <a href="#" class="nav-link-custom is-disabled" title="Chưa triển khai">
-            <span class="nav-icon">▣</span>
-            <span>Sản phẩm</span>
-        </a>
-
-        <a href="{% url 'order-list' %}" class="nav-link-custom">
-            <span class="nav-icon">▤</span>
-            <span>Đơn hàng</span>
-        </a>
-
-        <a href="#" class="nav-link-custom is-disabled" title="Chưa triển khai">
-            <span class="nav-icon">🛒</span>
-            <span>Đặt hàng</span>
-        </a>
-
-        <div class="nav-section-title">CHĂM SÓC & PHÂN TÍCH</div>
-
-        <a href="#" class="nav-link-custom is-disabled" title="Chưa triển khai">
-            <span class="nav-icon">↩</span>
-            <span>Hậu mãi</span>
-        </a>
-
-        <a href="#" class="nav-link-custom is-disabled" title="Chưa triển khai">
-            <span class="nav-icon">▥</span>
-            <span>Báo cáo</span>
-        </a>
-
-        <div class="nav-section-title">TÀI KHOẢN</div>
-        <a href="{% url 'customer-purchase-history-page' %}" class="nav-link-custom">
-            <span class="nav-icon">▤</span>
-            <span>Lịch sử mua hàng</span>
-        </a>
-        <a href="{% url 'customer-profile-page' %}" class="nav-link-custom">
-            <span class="nav-icon">⚙</span>
-            <span>Thông tin cá nhân</span>
-        </a>
-
-        <a href="{% url 'customer-address-page' %}" class="nav-link-custom">
-            <span class="nav-icon">⌖</span>
-            <span>Sổ địa chỉ</span>
-        </a>
-
     </nav>
 
     <!-- BOTTOM -->

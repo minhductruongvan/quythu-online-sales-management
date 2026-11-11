@@ -5,12 +5,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>{% block title %}Quý Thu | Online Shopping{% endblock %}</title>
+    <title>{% block title %}Quý Thu | Mua sắm trực tuyến{% endblock %}</title>
     <meta name="description" content="Quý Thu - Trải nghiệm mua sắm trực tuyến tiện lợi và đáng tin cậy.">
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
     <link rel="stylesheet" href="{% static 'css/customer.css' %}">
+    <link rel="stylesheet" href="{% static 'css/m1.css' %}">
 
     <style>
         /* =====================================
@@ -71,7 +75,8 @@
         }
 
         .qt-account-link,
-        .qt-login-link {
+        .qt-login-link,
+        .qt-logout-button {
             display: inline-flex;
             align-items: center;
             gap: 10px;
@@ -79,12 +84,16 @@
             border: 1px solid #e9e7df;
             border-radius: 30px;
             color: #29483c;
+            background: #fff;
+            font: inherit;
             text-decoration: none;
+            cursor: pointer;
             transition: all .25s ease;
         }
 
         .qt-account-link:hover,
-        .qt-login-link:hover {
+        .qt-login-link:hover,
+        .qt-logout-button:hover {
             background: #203b35;
             border-color: #203b35;
             color: #fff;
@@ -111,12 +120,14 @@
         }
 
         .qt-account-link:hover .qt-action-icon,
-        .qt-login-link:hover .qt-action-icon {
+        .qt-login-link:hover .qt-action-icon,
+        .qt-logout-button:hover .qt-action-icon {
             background: rgba(255,255,255,.15);
         }
 
         .qt-account-link:hover .qt-action-icon svg,
-        .qt-login-link:hover .qt-action-icon svg {
+        .qt-login-link:hover .qt-action-icon svg,
+        .qt-logout-button:hover .qt-action-icon svg {
             stroke: #e5c77e;
         }
 
@@ -137,7 +148,8 @@
         }
 
         .qt-account-link:hover .qt-action-text small,
-        .qt-login-link:hover .qt-action-text small {
+        .qt-login-link:hover .qt-action-text small,
+        .qt-logout-button:hover .qt-action-text small {
             color: #d9e1dc;
         }
 
@@ -303,80 +315,337 @@
             color: #c4a45f;
         }
 
+        .qt-announcement {
+            color: #f7f3e7;
+            background: #193c2d;
+            border: 0;
+        }
+
+        .qt-announcement-inner {
+            min-height: 31px;
+            font-size: 10px;
+        }
+
+        .qt-announcement a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .qt-announcement a:hover {
+            color: #e5c77e;
+        }
+
+        .qt-header {
+            position: sticky;
+            top: 0;
+            background: rgba(255, 252, 245, .97);
+            box-shadow: 0 4px 18px rgba(32, 59, 53, .08);
+            backdrop-filter: blur(12px);
+        }
+
+        .qt-header-main.qt-header-bar {
+            display: grid;
+            grid-template-columns: auto minmax(280px, 1fr) minmax(180px, 250px) auto;
+            gap: clamp(14px, 2vw, 30px);
+            align-items: center;
+            max-width: 1440px;
+            min-height: 76px;
+            padding: 8px clamp(18px, 4vw, 48px);
+        }
+
+        .qt-header-bar .qt-brand {
+            justify-content: flex-start;
+        }
+
+        .qt-header-bar .qt-brand img {
+            width: 158px;
+            height: 68px;
+        }
+
+        .qt-header-bar .qt-nav-inner {
+            display: grid;
+            width: 100%;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            min-height: 0;
+            justify-content: stretch;
+            gap: 0;
+            margin: 0;
+            padding: 0;
+        }
+
+        .qt-header-bar .qt-nav-link {
+            padding: 10px 4px;
+            justify-content: center;
+            color: #354a3c;
+            font-size: 13px;
+            font-weight: 650;
+            text-align: center;
+            white-space: normal;
+            line-height: 1.35;
+        }
+
+        .qt-header-bar .qt-nav-link::after {
+            bottom: 1px;
+            background: #bd9852;
+        }
+
+        .qt-header-bar .qt-nav-link:hover,
+        .qt-header-bar .qt-nav-link.active {
+            color: #1d472f;
+        }
+
+        .qt-header-bar .qt-search-row {
+            min-width: 0;
+            padding: 0;
+        }
+
+        .qt-header-bar .qt-search {
+            height: 38px;
+            gap: 7px;
+            padding-left: 11px;
+            border-radius: 22px;
+        }
+
+        .qt-header-bar .qt-search input {
+            font-size: 11px;
+        }
+
+        .qt-header-bar .qt-search button {
+            width: 35px;
+            height: 32px;
+            padding: 0;
+            overflow: hidden;
+            color: transparent;
+            font-size: 0;
+        }
+
+        .qt-header-bar .qt-search button::after {
+            color: white;
+            content: "⌕";
+            font-size: 21px;
+        }
+
+        .qt-header-bar .qt-header-right {
+            align-items: center;
+            gap: 7px;
+        }
+
+        .qt-header-bar .qt-account-link,
+        .qt-header-bar .qt-login-link,
+        .qt-header-bar .qt-logout-button {
+            gap: 6px;
+            padding: 6px 8px;
+            border: 0;
+            background: transparent;
+        }
+
+        .qt-header-bar .qt-action-icon {
+            width: 34px;
+            height: 34px;
+        }
+
+        .qt-header-bar .qt-action-text small {
+            font-size: 9px;
+        }
+
+        .qt-header-bar .qt-action-text strong {
+            font-size: 10px;
+        }
+
+        .qt-header-bar .qt-logout-form {
+            margin: 0;
+        }
+
+        @media (max-width: 1100px) and (min-width: 769px) {
+            .qt-header-main.qt-header-bar {
+                grid-template-columns: auto minmax(0, 1fr) auto;
+                grid-template-rows: auto auto;
+                gap: 6px 16px;
+            }
+
+            .qt-header-bar .qt-nav-inner {
+                grid-column: 2;
+                grid-row: 1;
+                min-width: 0;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+
+            .qt-header-bar .qt-nav-link {
+                font-size: 12px;
+                padding-inline: 3px;
+            }
+
+            .qt-header-bar .qt-search-row {
+                grid-column: 1 / -1;
+                grid-row: 2;
+                width: min(100%, 480px);
+                justify-self: center;
+                padding-bottom: 5px;
+            }
+
+            .qt-header-bar .qt-header-right {
+                grid-column: 3;
+                grid-row: 1;
+            }
+        }
+
+        .qt-account-menu {
+            position: relative;
+            flex: 0 0 auto;
+        }
+
+        .qt-account-menu > summary {
+            display: grid;
+            width: 40px;
+            height: 40px;
+            place-items: center;
+            border: 1px solid #e9e7df;
+            border-radius: 50%;
+            color: #29483c;
+            background: #fff;
+            cursor: pointer;
+            list-style: none;
+        }
+
+        .qt-account-menu > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .qt-account-menu > summary:hover,
+        .qt-account-menu[open] > summary {
+            border-color: #203b35;
+            color: #fff;
+            background: #203b35;
+        }
+
+        .qt-account-menu-lines {
+            display: grid;
+            width: 18px;
+            gap: 4px;
+        }
+
+        .qt-account-menu-lines i {
+            display: block;
+            height: 2px;
+            border-radius: 2px;
+            background: currentColor;
+        }
+
+        .qt-account-menu-panel {
+            position: absolute;
+            z-index: 1200;
+            top: calc(100% + 10px);
+            right: 0;
+            display: grid;
+            width: min(280px, calc(100vw - 28px));
+            padding: 10px;
+            border: 1px solid #e7ebe5;
+            border-radius: 14px;
+            background: #fff;
+            box-shadow: 0 16px 38px rgba(27, 58, 48, .16);
+        }
+
+        .qt-account-menu-title {
+            padding: 10px 11px 12px;
+            border-bottom: 1px solid #edf0ed;
+            color: #203b35;
+            font-size: 13px;
+        }
+
+        .qt-account-menu-panel a,
+        .qt-account-menu-panel button {
+            display: block;
+            width: 100%;
+            padding: 10px 11px;
+            border: 0;
+            border-radius: 8px;
+            color: #45574c;
+            background: transparent;
+            font: inherit;
+            font-size: 13px;
+            text-align: left;
+            text-decoration: none;
+        }
+
+        .qt-account-menu-panel a:hover,
+        .qt-account-menu-panel button:hover {
+            color: #173c32;
+            background: #f2f6f1;
+        }
+
+        .qt-account-menu-panel form {
+            margin: 5px 0 0;
+            padding-top: 5px;
+            border-top: 1px solid #edf0ed;
+        }
+
+        .qt-account-menu-panel button {
+            color: #a63b37;
+            cursor: pointer;
+        }
+
+        .qt-navigation {
+            display: none;
+        }
+
         /* Nội dung */
 
         .qt-main {
             min-height: 400px;
         }
 
-        /* Footer */
-
-        .qt-footer-logo {
-            justify-content: flex-start;
-            margin-bottom: 15px;
-        }
-
-        .qt-footer-logo img {
-            width: 125px;
-            height: 100px;
-        }
-
         /* Responsive */
 
         @media (max-width: 768px) {
+            .qt-header {
+                position: sticky;
+            }
+
             .qt-header-main {
-                padding: 12px 14px;
+                padding: 9px 14px;
             }
 
-            .qt-header-top {
-                min-height: 95px;
+            .qt-header-main.qt-header-bar {
+                grid-template-columns: 1fr auto;
+                gap: 8px 12px;
+                min-height: 0;
             }
 
-            .qt-brand img {
-                width: 115px;
-                height: 95px;
+            .qt-header-bar .qt-brand img {
+                width: 130px;
+                height: 54px;
             }
 
-            .qt-account-link,
-            .qt-login-link {
-                padding: 7px;
-                gap: 5px;
+            .qt-header-bar .qt-nav-inner {
+                grid-column: 1 / -1;
+                grid-row: 2;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                overflow: visible;
             }
 
-            .qt-action-icon {
-                width: 33px;
-                height: 33px;
+            .qt-header-bar .qt-search-row {
+                grid-column: 1;
+                grid-row: 3;
+                padding: 0 0 3px;
             }
 
-            .qt-action-text {
+            .qt-header-bar .qt-header-right {
+                grid-column: 2;
+                grid-row: 3;
+            }
+
+            .qt-header-bar .qt-action-text {
                 display: none;
             }
 
-            .qt-search-row {
-                padding: 8px 0 13px;
+            .qt-header-bar .qt-action-icon {
+                width: 32px;
+                height: 32px;
             }
 
-            .qt-search {
-                height: 45px;
-            }
-
-            .qt-search button {
-                padding: 0 15px;
-            }
-
-            .qt-nav-inner {
-                justify-content: flex-start;
-                gap: 25px;
-                overflow-x: auto;
-                scrollbar-width: none;
-            }
-
-            .qt-nav-inner::-webkit-scrollbar {
-                display: none;
-            }
-
-            .qt-nav-link {
-                font-size: 12px;
+            .qt-header-bar .qt-nav-link {
+                padding: 10px 3px;
+                font-size: 10px;
             }
 
             .qt-announcement-right {
@@ -384,31 +653,10 @@
             }
         }
 
-        @media (max-width: 420px) {
-            .qt-header-top {
-                grid-template-columns: 1fr auto 1fr;
-            }
-
-            .qt-brand img {
-                width: 100px;
-                height: 85px;
-            }
-
-            .qt-search input {
-                font-size: 12px;
-            }
-
-            .qt-nav-inner {
-                gap: 20px;
-            }
-        }
     </style>
 
     {% block extra_css %}{% endblock %}
-    <!-- Google Font: Inter -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/typography.css' %}?v=4">
 </head>
 
 <body class="qt-storefront">
@@ -416,134 +664,65 @@
 <!-- Thông báo đầu trang -->
 <div class="qt-announcement">
     <div class="qt-container qt-announcement-inner">
-        <span>Trải nghiệm mua sắm tiện lợi cùng Quý Thu</span>
-
+        <span>Đặc sản dừa nướng · Hương vị truyền thống Quý Thu</span>
         <span class="qt-announcement-right">
-            <span>Chất lượng</span>
-            <span class="qt-announcement-dot">•</span>
-            <span>Tận tâm</span>
-            <span class="qt-announcement-dot">•</span>
-            <span>Tin cậy</span>
+            {% if request.user.is_authenticated and request.user.vai_tro == "CUSTOMER" %}
+            <a href="{% url 'customer-orders-page' %}">Theo dõi đơn hàng</a><span class="qt-announcement-dot">|</span>
+            <a href="{% url 'customer-after-sales' %}">Hỗ trợ khách hàng</a>
+            {% elif not request.user.is_authenticated %}
+            <a href="{% url 'login-page' %}">Đăng nhập</a><span class="qt-announcement-dot">|</span>
+            <a href="{% url 'register-page' %}">Đăng ký</a>
+            {% endif %}
         </span>
     </div>
 </div>
 
 <!-- Header -->
 <header class="qt-header">
-
-    <div class="qt-header-main">
-
-        <!-- Hàng logo và tài khoản -->
-        <div class="qt-header-top">
-
-            <!-- Bên trái -->
-            <div class="qt-header-left">
-                {% if request.user.is_authenticated %}
-                    <a href="{% url 'customer-profile-page' %}" class="qt-account-link">
-                        <span class="qt-action-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" fill="none">
-                                <circle cx="12" cy="8" r="4"></circle>
-                                <path d="M4.5 21a7.5 7.5 0 0 1 15 0"></path>
-                            </svg>
-                        </span>
-
-                        <span class="qt-action-text">
-                            <small>Xin chào</small>
-                            <strong>Tài khoản</strong>
-                        </span>
-                    </a>
-                {% else %}
-                    <a href="{% url 'login-page' %}" class="qt-login-link">
-                        <span class="qt-action-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" fill="none">
-                                <circle cx="12" cy="8" r="4"></circle>
-                                <path d="M4.5 21a7.5 7.5 0 0 1 15 0"></path>
-                            </svg>
-                        </span>
-
-                        <span class="qt-action-text">
-                            <small>Chào mừng bạn</small>
-                            <strong>Đăng nhập</strong>
-                        </span>
-                    </a>
-                {% endif %}
-            </div>
-
-            <!-- Logo chính giữa -->
-            <a href="{% url 'storefront-home' %}" class="qt-brand">
-                <img src="{% static 'images/logo-quy-thu.png' %}"
-                     alt="Logo Quý Thu">
-            </a>
-
-            <!-- Bên phải -->
-            <div class="qt-header-right">
-                {% if request.user.is_authenticated %}
-                    <a href="{% url 'customer-purchase-history-page' %}" class="qt-account-link">
-                        <span class="qt-action-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" fill="none">
-                                <path d="M3 7h18v14H3z"></path>
-                                <path d="M7 7V4h10v3M8 12h8M8 16h5"></path>
-                            </svg>
-                        </span>
-
-                        <span class="qt-action-text">
-                            <small>Theo dõi</small>
-                            <strong>Đơn mua</strong>
-                        </span>
-                    </a>
-                {% endif %}
-            </div>
-
-        </div>
-
-        <!-- Tìm kiếm -->
+    <div class="qt-header-main qt-header-bar">
+        <a href="{% url 'storefront-home' %}" class="qt-brand" aria-label="Quý Thu - Trang chủ">
+            <img src="{% static 'images/logo-removebg-preview.png' %}" alt="Logo Quý Thu">
+        </a>
+        <nav class="qt-nav-inner" aria-label="Điều hướng chính">
+            <a href="{% url 'storefront-home' %}" class="qt-nav-link {% if request.resolver_match.url_name == 'storefront-home' %}active{% endif %}">Trang chủ</a>
+            <a href="{% url 'products:danh_sach' %}" class="qt-nav-link {% if request.resolver_match.namespace == 'products' %}active{% endif %}">Danh mục sản phẩm</a>
+            <a href="{% url 'storefront-home' %}#gioi-thieu" class="qt-nav-link">Giới thiệu</a>
+            <a href="{% url 'storefront-home' %}#lien-he" class="qt-nav-link">Liên hệ</a>
+        </nav>
         <div class="qt-search-row">
-            <form class="qt-search" method="get" action="/">
-                <span class="qt-search-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none">
-                        <circle cx="10.8" cy="10.8" r="6.8"></circle>
-                        <path d="m16 16 5 5"></path>
-                    </svg>
-                </span>
-
-                <input
-                    type="search"
-                    name="q"
-                    placeholder="Bạn đang tìm kiếm sản phẩm nào?"
-                    aria-label="Tìm kiếm sản phẩm"
-                    value="{{ request.GET.q|default:'' }}"
-                >
-
-                <button type="submit">Tìm kiếm</button>
+            <form class="qt-search" method="get" action="{% url 'storefront-home' %}#san-pham">
+                <span class="qt-search-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path></svg></span>
+                <input type="search" name="q" placeholder="Tìm kiếm sản phẩm..." aria-label="Tìm kiếm sản phẩm" value="{{ request.GET.q|default:'' }}">
+                <button type="submit" aria-label="Tìm kiếm">Tìm kiếm</button>
             </form>
         </div>
-
+        <div class="qt-header-right">
+            {% if request.user.is_authenticated and request.user.vai_tro == "CUSTOMER" %}
+            <a href="{% url 'cart-page' %}" class="qt-account-link" aria-label="Giỏ hàng"><span class="qt-action-icon" aria-hidden="true">▣</span><span class="qt-action-text"><small>MUA SẮM</small><strong>Giỏ hàng</strong></span></a>
+            <details class="qt-account-menu">
+                <summary aria-label="Mở menu tài khoản" title="Tài khoản">
+                    <span class="qt-account-menu-lines" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span class="visually-hidden">Tài khoản</span>
+                </summary>
+                <div class="qt-account-menu-panel">
+                    <strong class="qt-account-menu-title">Tài khoản của tôi</strong>
+                    <a href="{% url 'customer-profile-page' %}">Cài đặt tài khoản</a>
+                    <a href="{% url 'customer-profile-page' %}">Thông tin cá nhân</a>
+                    <a href="{% url 'customer-address-page' %}">Sổ địa chỉ</a>
+                    <a href="{% url 'customer-purchase-history-page' %}">Lịch sử mua hàng</a>
+                    <a href="{% url 'customer-orders-page' %}">Đơn hàng của tôi</a>
+                    <a href="{% url 'customer-after-sales' %}">Hậu mãi & hỗ trợ</a>
+                    <form method="post" action="{% url 'dang-xuat-giao-dien' %}">
+                        {% csrf_token %}
+                        <button type="submit">Đăng xuất</button>
+                    </form>
+                </div>
+            </details>
+            {% elif not request.user.is_authenticated %}
+            <a href="{% url 'login-page' %}" class="qt-login-link" aria-label="Đăng nhập"><span class="qt-action-icon" aria-hidden="true">♙</span><span class="qt-action-text"><small>CHÀO MỪNG</small><strong>Đăng nhập</strong></span></a>
+            {% endif %}
+        </div>
     </div>
-
-    <!-- Navigation -->
-    <div class="qt-navigation">
-        <nav class="qt-nav-inner" aria-label="Điều hướng chính">
-
-            <a href="{% url 'storefront-home' %}" class="qt-nav-link active">
-                <span aria-hidden="true">⌂</span>
-                Trang chủ
-            </a>
-
-            <a href="{% url 'storefront-home' %}#danh-muc" class="qt-nav-link">
-                Danh mục sản phẩm
-            </a>
-
-            <a href="{% url 'storefront-home' %}#san-pham" class="qt-nav-link">
-                Sản phẩm
-            </a>
-
-            <a href="{% url 'storefront-home' %}#uu-dai" class="qt-nav-link">
-                Ưu đãi
-            </a>
-
-        </nav>
-    </div>
-
 </header>
 
 <!-- Nội dung trang -->
@@ -553,7 +732,7 @@
 </main>
 
 <!-- Footer -->
-<footer class="qt-footer">
+<footer class="qt-footer" id="lien-he">
 
     <div class="qt-footer-main">
         <div class="qt-container">
@@ -562,14 +741,9 @@
 
                 <div class="qt-footer-brand">
                     <a href="{% url 'storefront-home' %}" class="qt-brand qt-footer-logo">
-                        <img src="{% static 'images/logo-quy-thu.png' %}"
-                             alt="Logo Quý Thu">
+                        <img src="{% static 'images/logo-removebg-preview.png' %}"
+                             alt="Logo Quý Thu" width="160" height="100">
                     </a>
-
-                    <p>
-                        Quý Thu mang đến trải nghiệm mua sắm trực tuyến
-                        thuận tiện, rõ ràng và thân thiện với khách hàng.
-                    </p>
                 </div>
 
                 <div class="qt-footer-column">
@@ -581,16 +755,22 @@
 
                 <div class="qt-footer-column">
                     <h6>HỖ TRỢ KHÁCH HÀNG</h6>
-                    <a href="{% url 'customer-purchase-history-page' %}">Theo dõi đơn mua</a>
+                    <a href="{% url 'products:danh_sach' %}">Danh sách sản phẩm</a>
+                    {% if request.user.is_authenticated and request.user.vai_tro == "CUSTOMER" %}
+                    <a href="{% url 'customer-orders-page' %}">Đơn hàng của tôi</a>
+                    <a href="{% url 'customer-after-sales' %}">Hậu mãi & hỗ trợ</a>
                     <a href="{% url 'customer-profile-page' %}">Tài khoản của tôi</a>
+                    {% elif not request.user.is_authenticated %}
                     <a href="{% url 'login-page' %}">Đăng nhập</a>
+                    <a href="{% url 'register-page' %}">Tạo tài khoản</a>
+                    {% endif %}
                 </div>
 
                 <div class="qt-footer-column">
                     <h6>THÔNG TIN</h6>
                     <p>Mua sắm trực tuyến</p>
                     <p>Hỗ trợ khách hàng</p>
-                    <p>Quý Thu Online Shopping</p>
+                    <p>Quý Thu · Mua sắm trực tuyến</p>
                 </div>
 
             </div>
@@ -599,17 +779,31 @@
 
     <div class="qt-footer-bottom">
         <div class="qt-container qt-footer-bottom-inner">
-            <span>© 2026 Quý Thu Online Shopping. All rights reserved.</span>
-            <span>Designed for a better shopping experience.</span>
+            <span>© 2026 Quý Thu. Bản quyền thuộc về Quý Thu.</span>
+            <span>Thiết kế vì trải nghiệm mua sắm tốt hơn.</span>
         </div>
     </div>
 
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener("click", function (event) {
+        document.querySelectorAll(".qt-account-menu[open]").forEach(function (menu) {
+            if (!menu.contains(event.target)) menu.open = false;
+        });
+    });
+    document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") {
+            document.querySelectorAll(".qt-account-menu[open]").forEach(function (menu) {
+                menu.open = false;
+                menu.querySelector("summary").focus();
+            });
+        }
+    });
+</script>
 
 {% block extra_js %}{% endblock %}
 
 </body>
 </html>
-```

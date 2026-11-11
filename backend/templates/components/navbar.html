@@ -2,12 +2,14 @@
 <header class="topbar">
 
     <div class="topbar-left">
-        <button class="sidebar-toggle" id="sidebarToggle">
+        <button class="sidebar-toggle" id="sidebarToggle"
+                type="button" aria-controls="sidebar" aria-expanded="false"
+                aria-label="Mở menu điều hướng">
             ☰
         </button>
 
         <div>
-            <span class="topbar-label">WORKSPACE</span>
+            <span class="topbar-label">{% if request.user.vai_tro == "MANAGER" %}KHÔNG GIAN QUẢN LÝ{% else %}KHÔNG GIAN NHÂN VIÊN{% endif %}</span>
             <h6>Quản lý bán hàng trực tuyến</h6>
         </div>
     </div>
@@ -16,7 +18,7 @@
 
 
         <div class="topbar-date">
-            <span>●</span> Không gian làm việc nhân viên
+            <span>●</span> {% if request.user.vai_tro == "MANAGER" %}Không gian quản lý{% else %}Không gian nhân viên{% endif %}
         </div>
 
 
@@ -39,7 +41,7 @@
                 </strong>
                 <span>
                     {% if request.user.is_authenticated %}
-                        {{ request.user.vai_tro }}
+                        {% if request.user.vai_tro == "MANAGER" %}Quản lý{% else %}Nhân viên{% endif %}
                     {% else %}
                         Khách
                     {% endif %}

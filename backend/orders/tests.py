@@ -792,7 +792,7 @@ class KiemThuApiGioHang(TestCase):
         self.kh.save()
         phan_hoi = self.client.get(URL_GIO)
         self.assertEqual(phan_hoi.status_code, 403)
-        self.assertIn("ngừng hoạt động", phan_hoi.data["message"])
+        self.assertIn("ngừng hoạt động", phan_hoi.data["detail"])
 
     # ---------- UC01: thêm vào giỏ ----------
     def test_them_thanh_cong_tra_ca_gio(self):
@@ -1239,6 +1239,25 @@ class KiemThuXuLyDonNhanVien(DuLieuDatHang, TestCase):
         self.assertEqual(self.dong_1.ket_qua_kiem_tra, KetQuaKiemTra.THIEU)
         self.assertEqual(self.dong_1.so_luong_thieu, 3)
 
+    def test_kiem_tra_khong_cho_thieu_nhieu_hon_so_luong_dat(self):
+        with self.assertRaisesMessage(
+            LoiNghiepVuDonHang,
+            "Số lượng thiếu không được lớn hơn số lượng đã đặt.",
+        ):
+            self.kiem_tra(thieu_dong_1=self.dong_1.so_luong + 1)
+        self.dong_1.refresh_from_db()
+        self.assertEqual(self.dong_1.ket_qua_kiem_tra, KetQuaKiemTra.CHUA_KIEM_TRA)
+        self.assertEqual(self.so_lich_su(), 1)
+
+    def test_kiem_tra_bi_chan_khi_yeu_cau_huy_dang_cho_xu_ly(self):
+        DonHang.objects.filter(pk=self.don.pk).update(trang_thai_hau_mai=MA_HAU_MAI_CHO_HUY)
+        self.don.refresh_from_db()
+        with self.assertRaisesMessage(
+            LoiNghiepVuDonHang,
+            "Đơn hàng đang có yêu cầu hủy chờ xử lý",
+        ):
+            self.kiem_tra()
+
     def test_kiem_tra_con_dong_chua_danh_dau(self):
         # E1: chỉ gửi kết quả một dòng
         with self.assertRaisesMessage(LoiNghiepVuDonHang, "Còn dòng hàng chưa được đánh dấu"):
@@ -1570,6 +1589,24 @@ class KiemThuChuanBiBanGiao(DuLieuDatHang, TestCase):
         DichVuGiaoHang.bat_dau_chuan_bi(don, self.nv)
         DichVuGiaoHang.san_sang_giao(don, self.nv)
         self.assertEqual(DonHang.objects.get(pk=don.pk).trang_thai, TrangThaiDonHang.SAN_SANG_GIAO)
+
+    def test_san_sang_giao_bi_chan_neu_kiem_tra_lai_phat_hien_thieu_hang(self):
+        don = self.don_da_xac_nhan()
+        DichVuGiaoHang.bat_dau_chuan_bi(don, self.nv)
+        ket_qua = {
+            dong.ma_ctdh: 1 if index == 0 else 0
+            for index, dong in enumerate(don.chi_tiet.order_by("ma_ctdh"))
+        }
+        DichVuXuLyDon.kiem_tra_kha_nang_cung_ung(don, self.nv, ket_qua)
+        with self.assertRaisesMessage(
+            LoiNghiepVuDonHang,
+            "Cần kiểm tra và xác nhận đủ hàng",
+        ):
+            DichVuGiaoHang.san_sang_giao(don, self.nv)
+        self.assertEqual(
+            DonHang.objects.get(pk=don.pk).trang_thai,
+            TrangThaiDonHang.DANG_CHUAN_BI,
+        )
 
     # ----- Bước 3–4: bàn giao -----
     def test_goi_y_hinh_thuc_theo_loai_khach(self):
@@ -1924,7 +1961,10 @@ class KiemThuTraCuuDon(DuLieuDatHang, TestCase):
         self.don_2.refresh_from_db()
         self.assertEqual(DichVuTraCuuDon.han_cua_so_doi_tra(self.don_2), giao_luc + timedelta(days=7))
         DichVuKetThucDon.khach_xac_nhan_da_nhan(self.don_2, self.kh)
-        self.assertIsNone(DichVuTraCuuDon.han_cua_so_doi_tra(self.don_2))  # đã đóng: ẩn hai nút
+        self.assertEqual(
+            DichVuTraCuuDon.han_cua_so_doi_tra(self.don_2),
+            giao_luc + timedelta(days=7),
+        )  # Xác nhận không làm mất thời hạn đổi/trả.
         self.assertIsNone(DichVuTraCuuDon.han_cua_so_doi_tra(self.don_1))  # chưa giao
 
     # ----- M3-UC07 -----
@@ -2088,7 +2128,8 @@ class KiemThuApiDonHangKhach(DuLieuDatHang, TestCase):
     # ----- M3-UC06: đã nhận hàng -----
     def test_da_nhan_hang_qua_api(self):
         don = self.giao_thanh_cong(self.dat())
-        self.assertIsNotNone(self.client.get(self.url_don(don)).data["data"]["han_cua_so_doi_tra"])
+        han_doi_tra = self.client.get(self.url_don(don)).data["data"]["han_cua_so_doi_tra"]
+        self.assertIsNotNone(han_doi_tra)
 
         khach_b = tao_khach_hang("KH_B", "b@test.vn")
         self.client.force_authenticate(user=khach_b.tai_khoan)
@@ -2099,7 +2140,7 @@ class KiemThuApiDonHangKhach(DuLieuDatHang, TestCase):
         self.assertEqual(phan_hoi.status_code, 200)
         du_lieu = phan_hoi.data["data"]
         self.assertIsNotNone(du_lieu["thoi_diem_xac_nhan_nhan_hang"])
-        self.assertIsNone(du_lieu["han_cua_so_doi_tra"])            # ẩn hai nút
+        self.assertEqual(du_lieu["han_cua_so_doi_tra"], han_doi_tra)
         self.assertEqual(du_lieu["trang_thai"], T.GIAO_THANH_CONG)  # COD chưa thu tiền
 
         phan_hoi = self.client.post(self.url_don(don, "da-nhan-hang/"))  # E1
@@ -2284,6 +2325,40 @@ class KiemThuApiThaoTacNhanVien(DuLieuDatHang, TestCase):
         self.assertEqual(phan_hoi.data["data"]["trang_thai"], T.CHO_THANH_TOAN)
         self.assertEqual(phan_hoi.data["data"]["ten_nhan_vien_xac_nhan"], self.nv.ho_ten)
         self.assertEqual(self.goi(don, "bat-dau-chuan-bi").status_code, 400)  # UC12-E1: chưa thanh toán
+
+    def test_nhan_vien_doi_soat_va_dinh_chinh_chuyen_khoan(self):
+        don = self.dat(ma_pttt=PhuongThucThanhToan.MA_CHUYEN_KHOAN)
+        self.goi(don, "kiem-tra-hang", self.ket_qua_du(don))
+        self.assertEqual(self.goi(don, "xac-nhan").status_code, 200)
+        giao_dich = don.giao_dich_thanh_toan.first()
+        payload = {
+            "so_tien_thuc_nhan": giao_dich.so_tien_phai_thu,
+            "ma_giao_dich_ngan_hang": "BANK-UI-001",
+        }
+        response = self.goi(don, "ghi-nhan-thanh-toan", payload)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["data"]["trang_thai_thanh_toan"], TrangThaiThanhToan.DA_THANH_TOAN)
+        self.assertEqual(self.goi(don, "bat-dau-chuan-bi").status_code, 200)
+
+        payload.update({
+            "so_tien_thuc_nhan": int(giao_dich.so_tien_phai_thu) + 1000,
+            "ma_giao_dich_ngan_hang": "BANK-UI-002",
+            "ly_do_dieu_chinh": "Đối soát lại giao dịch",
+        })
+        response = self.goi(don, "ghi-nhan-thanh-toan", payload)
+        self.assertEqual(response.status_code, 200, response.data)
+        giao_dich.refresh_from_db()
+        self.assertEqual(giao_dich.ma_giao_dich_ngan_hang, "BANK-UI-002")
+        self.assertIn("Đối soát lại giao dịch", giao_dich.ghi_chu)
+
+        DonHang.objects.filter(pk=don.pk).update(trang_thai=TrangThaiDonHang.HOAN_THANH)
+        payload["ma_giao_dich_ngan_hang"] = "BANK-UI-CLOSED"
+        response = self.goi(don, "ghi-nhan-thanh-toan", payload)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.data["message"],
+            "Không thể đính chính thanh toán khi đơn đã khép lại.",
+        )
 
     # ----- M3-UC10 -----
     def test_xu_ly_thieu_hang(self):

@@ -21,6 +21,8 @@
     </div>
 
 
+    {% include "components/customer_account_nav.html" with active="addresses" %}
+
     <div class="address-summary">
         <div class="address-summary-icon">⌖</div>
         <div>
@@ -29,6 +31,7 @@
         </div>
     </div>
 
+    <div class="address-feedback" id="addressMessage" role="status" aria-live="polite" hidden></div>
 
     <div class="address-list-header">
         <h3>Địa chỉ đã lưu</h3>
@@ -215,12 +218,12 @@
 
                 <div class="address-form-group full">
                     <label for="province">Tỉnh / Thành phố <span>*</span></label>
-                    <input
-                        type="text"
-                        id="province"
-                        placeholder="Nhập tỉnh / thành phố"
-                        required
-                    >
+                    <select id="province" required>
+                        <option value="">Chọn tỉnh / thành phố</option>
+                        {% for province in shipping_provinces %}
+                        <option value="{{ province.ten_tinh }}">{{ province.ten_tinh }}</option>
+                        {% endfor %}
+                    </select>
                     <small class="address-error" id="provinceError"></small>
                 </div>
 
@@ -264,7 +267,7 @@
         <h3>Xóa địa chỉ này?</h3>
 
         <p>
-            Địa chỉ sẽ bị xóa khỏi danh sách trong phiên demo hiện tại.
+            Địa chỉ sẽ bị xóa khỏi danh sách địa chỉ giao hàng của bạn.
         </p>
 
         <div class="address-modal-actions">
@@ -330,8 +333,17 @@ document.addEventListener("DOMContentLoaded", function () {
         tinh_thanh: "provinceError"
     };
 
-    function showMessage(message) {
-        window.alert(message);
+    let messageTimer;
+
+    function showMessage(message, type = "success") {
+        const feedback = document.getElementById("addressMessage");
+        window.clearTimeout(messageTimer);
+        feedback.textContent = message;
+        feedback.className = `address-feedback address-feedback-${type}`;
+        feedback.hidden = false;
+        messageTimer = window.setTimeout(() => {
+            feedback.hidden = true;
+        }, 5000);
     }
 
     function getErrorMessage(payload) {
@@ -623,7 +635,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             renderAddresses();
         } catch (error) {
-            showMessage(error.message);
+            showMessage(error.message, "error");
         }
     }
 
@@ -683,7 +695,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     : "Thêm địa chỉ thành công."
             );
         } catch (error) {
-            showMessage(error.message);
+            showMessage(error.message, "error");
         } finally {
             saveButton.disabled = false;
         }
@@ -716,7 +728,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 await loadAddresses();
                 showMessage("Đã đặt địa chỉ mặc định.");
             } catch (error) {
-                showMessage(error.message);
+                showMessage(error.message, "error");
             }
 
             return;
@@ -759,7 +771,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 showMessage("Xóa địa chỉ thành công.");
             } catch (error) {
-                showMessage(error.message);
+                showMessage(error.message, "error");
             } finally {
                 deleteButton.disabled = false;
             }

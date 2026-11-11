@@ -353,7 +353,7 @@ class DichVuDiaChiGiaoHang:
 #    Quy tắc: M3-BR02 (loại khách), M3-BR04 (giá sỉ theo từng dòng),
 #    M3-BR06 (thành tiền = tiền hàng + phí). Giá luôn tính ở máy chủ.
 # ==========================================================
-MA_LOAI_KHACH_SI = "LKH002"  # mã M1 nạp sẵn (customers/0003_seed_customer_types)
+MA_LOAI_KHACH_SI = "LKH002"  # Khách tự chọn khi đăng ký; quản lý cũng có thể cập nhật.
 
 
 class DichVuTinhTien:
@@ -361,7 +361,7 @@ class DichVuTinhTien:
     # ---------- Giá của một dòng ----------
     @staticmethod
     def la_khach_si(khach_hang):
-        """M3-BR02: M1 chỉ đổi khách sang LKH002 sau khi nhân viên duyệt."""
+        """Khách sỉ được phân loại khi đăng ký hoặc khi hồ sơ được cập nhật."""
         return khach_hang.loai_khach_hang_id == MA_LOAI_KHACH_SI
 
     @staticmethod
@@ -807,6 +807,10 @@ class DichVuXuLyDon:
             raise LoiNghiepVuDonHang(f"Có dòng hàng không thuộc đơn {don.ma_dh}.")
         if cac_ma_dong - set(ket_qua):  # E1
             raise LoiNghiepVuDonHang("Còn dòng hàng chưa được đánh dấu, vui lòng hoàn tất kiểm tra.")
+        so_luong_theo_dong = dict(don.chi_tiet.values_list("ma_ctdh", "so_luong"))
+        if any(so_thieu > so_luong_theo_dong[ma_ctdh] for ma_ctdh, so_thieu in ket_qua.items()):
+            raise LoiNghiepVuDonHang("Số lượng thiếu không được lớn hơn số lượng đã đặt.")
+        DichVuXuLyDon.kiem_tra_khong_cho_huy(don)
 
         so_dong_thieu = sum(1 for so_thieu in ket_qua.values() if so_thieu > 0)
         ket_luan = "đủ hàng" if so_dong_thieu == 0 else f"thiếu hàng ở {so_dong_thieu} dòng"
@@ -1025,6 +1029,87 @@ class DichVuThanhToan:
             raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
         return don
 
+    @staticmethod
+    def ghi_nhan_chuyen_khoan(don, nhan_vien, so_tien_thuc_nhan, ma_giao_dich_ngan_hang,
+                              ghi_chu="", ly_do_dieu_chinh=""):
+        """Đối soát chuyển khoản hoặc đính chính bản ghi trước đó (M3-UC11)."""
+        if don.phuong_thuc_thanh_toan_id != PhuongThucThanhToan.MA_CHUYEN_KHOAN:
+            raise LoiNghiepVuDonHang("Đơn hàng này không thanh toán bằng chuyển khoản.")
+        DichVuXuLyDon.kiem_tra_khong_cho_huy(don)
+        da_thanh_toan = don.trang_thai_thanh_toan == TrangThaiThanhToan.DA_THANH_TOAN
+        if da_thanh_toan and don.trang_thai in TRANG_THAI_CUOI:
+            raise LoiNghiepVuDonHang("Không thể đính chính thanh toán khi đơn đã khép lại.")
+        if don.trang_thai == T.DA_HUY and not da_thanh_toan:
+            raise LoiNghiepVuDonHang("Không thể ghi nhận thanh toán cho đơn đã hủy.")
+
+        giao_dich = DichVuThanhToan.lay_giao_dich(don)
+        if giao_dich is None:
+            raise LoiNghiepVuDonHang("Không tìm thấy giao dịch thanh toán của đơn hàng.")
+        ma_giao_dich_ngan_hang = (ma_giao_dich_ngan_hang or "").strip()
+        if not ma_giao_dich_ngan_hang:
+            raise LoiNghiepVuDonHang("Vui lòng nhập mã giao dịch ngân hàng.")
+        if GiaoDichThanhToan.objects.filter(
+            ma_giao_dich_ngan_hang=ma_giao_dich_ngan_hang,
+        ).exclude(ma_giao_dich=giao_dich.ma_giao_dich).exists():
+            raise LoiNghiepVuDonHang("Mã giao dịch ngân hàng đã được ghi nhận.")
+
+        so_tien_thuc_nhan = Decimal(so_tien_thuc_nhan)
+        if so_tien_thuc_nhan < giao_dich.so_tien_phai_thu:
+            raise LoiNghiepVuDonHang(
+                f"Số tiền thực nhận thấp hơn số tiền phải thu ({giao_dich.so_tien_phai_thu} đ)."
+            )
+
+        bay_gio = timezone.now()
+        try:
+            with transaction.atomic():
+                if da_thanh_toan:
+                    ly_do = (ly_do_dieu_chinh or "").strip()
+                    if not ly_do:
+                        raise LoiNghiepVuDonHang("Vui lòng nhập lý do đính chính ghi nhận thanh toán.")
+                    ghi_chu_dieu_chinh = (
+                        f"Đính chính {giao_dich.so_tien_thuc_nhan}/{giao_dich.ma_giao_dich_ngan_hang or '—'} "
+                        f"thành {so_tien_thuc_nhan}/{ma_giao_dich_ngan_hang}. Lý do: {ly_do}. {ghi_chu}"
+                    ).strip()
+                    if len(ghi_chu_dieu_chinh) > 255:
+                        raise LoiNghiepVuDonHang("Rút gọn ghi chú hoặc lý do đính chính để lưu được lịch sử.")
+                    giao_dich.so_tien_thuc_nhan = so_tien_thuc_nhan
+                    giao_dich.ma_giao_dich_ngan_hang = ma_giao_dich_ngan_hang
+                    giao_dich.nhan_vien_ghi_nhan = nhan_vien
+                    giao_dich.thoi_diem_thanh_toan = bay_gio
+                    giao_dich.ghi_chu = ghi_chu_dieu_chinh
+                    giao_dich.save(update_fields=[
+                        "so_tien_thuc_nhan", "ma_giao_dich_ngan_hang", "nhan_vien_ghi_nhan",
+                        "thoi_diem_thanh_toan", "ghi_chu",
+                    ])
+                    DichVuTrangThai.ghi_lich_su(
+                        don, don.trang_thai, don.trang_thai, TacNhan.NHAN_VIEN,
+                        nhan_vien=nhan_vien, ghi_chu=ghi_chu_dieu_chinh,
+                    )
+                else:
+                    DichVuXuLyDon.kiem_tra_trang_thai(don, {T.CHO_THANH_TOAN}, "ghi nhận thanh toán")
+                    ghi_chu_thanh_toan = ghi_chu
+                    if so_tien_thuc_nhan > giao_dich.so_tien_phai_thu:
+                        ghi_chu_thanh_toan = (
+                            f"Nhận thừa {so_tien_thuc_nhan - giao_dich.so_tien_phai_thu} đ, "
+                            f"chờ hoàn phần thừa. {ghi_chu}"
+                        ).strip()
+                    DichVuThanhToan.ghi_da_thanh_toan(
+                        don,
+                        so_tien_thuc_nhan,
+                        bay_gio,
+                        nhan_vien=nhan_vien,
+                        ma_giao_dich_ngan_hang=ma_giao_dich_ngan_hang,
+                        ghi_chu=ghi_chu_thanh_toan,
+                    )
+                    DichVuTrangThai.ghi_lich_su(
+                        don, don.trang_thai, don.trang_thai, TacNhan.NHAN_VIEN,
+                        nhan_vien=nhan_vien,
+                        ghi_chu=f"Đã ghi nhận chuyển khoản {ma_giao_dich_ngan_hang}. {ghi_chu}".strip(),
+                    )
+        except DatabaseError as loi:
+            raise LoiNghiepVuDonHang(CAU_LOI_LUU) from loi
+        return don
+
     # ----- Hủy đơn chuyển khoản quá hạn (A2, tác vụ định kỳ) -----
     @staticmethod
     def huy_don_qua_han_thanh_toan():
@@ -1128,6 +1213,10 @@ class DichVuGiaoHang:
     @staticmethod
     def san_sang_giao(don, nhan_vien, ghi_chu=""):
         DichVuXuLyDon.kiem_tra_trang_thai(don, {T.DANG_CHUAN_BI}, "chuyển sẵn sàng giao")  # E4
+        if don.chi_tiet.exclude(ket_qua_kiem_tra=KetQuaKiemTra.DU).exists():
+            raise LoiNghiepVuDonHang(
+                "Cần kiểm tra và xác nhận đủ hàng trước khi chuyển sẵn sàng giao."
+            )
         try:
             DichVuTrangThai.chuyen_trang_thai(don, T.SAN_SANG_GIAO, TacNhan.NHAN_VIEN,
                                               nhan_vien=nhan_vien, ghi_chu=ghi_chu)
@@ -1408,9 +1497,11 @@ class DichVuTraCuuDon:
 
     @staticmethod
     def han_cua_so_doi_tra(don):
-        """BR21: cửa sổ đang mở thì trả thời điểm hết hạn (giao diện hiện [Đã nhận hàng]
-        và [Yêu cầu đổi/trả]); cửa sổ chưa mở hoặc đã đóng thì trả None."""
-        if don.trang_thai == T.GIAO_THANH_CONG and don.thoi_diem_xac_nhan_nhan_hang is None:
+        """BR21: giữ thời hạn đổi/trả tính từ lúc giao thành công, kể cả khách đã xác nhận."""
+        if (
+            don.trang_thai in (T.GIAO_THANH_CONG, T.HOAN_THANH)
+            and don.thoi_diem_giao_thanh_cong is not None
+        ):
             return don.thoi_diem_giao_thanh_cong + CUA_SO_DOI_TRA
         return None
 

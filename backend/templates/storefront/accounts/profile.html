@@ -23,6 +23,7 @@
         </span>
     </div>
 
+    {% include "components/customer_account_nav.html" with active="profile" %}
 
     <!-- Thẻ thông tin khách hàng -->
     <div class="profile-summary-card">
@@ -150,7 +151,7 @@
                             type="tel"
                             id="profilePhone"
                             name="so_dien_thoai"
-                            value="{{ customer.so_dien_thoai }}"
+                            value="{{ customer.so_dien_thoai|default:'' }}"
                             maxlength="15"
                             readonly
                             required

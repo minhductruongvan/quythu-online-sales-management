@@ -32,6 +32,7 @@ from .serializers import (
     GhiChuSerializer,
     GiaoThanhCongSerializer,
     GioHangSerializer,
+    GhiNhanChuyenKhoanSerializer,
     HenCungCapSerializer,
     KiemTraHangSerializer,
     LocDonCuaToiSerializer,
@@ -453,6 +454,18 @@ def nv_thu_cod(don, nhan_vien, du_lieu):  # M3-UC11 (COD)
     return "Đã ghi nhận thu tiền COD."
 
 
+def nv_ghi_nhan_chuyen_khoan(don, nhan_vien, du_lieu):  # M3-UC11 (chuyển khoản)
+    DichVuThanhToan.ghi_nhan_chuyen_khoan(
+        don,
+        nhan_vien,
+        du_lieu["so_tien_thuc_nhan"],
+        du_lieu["ma_giao_dich_ngan_hang"],
+        du_lieu["ghi_chu"],
+        du_lieu["ly_do_dieu_chinh"],
+    )
+    return "Đã lưu thông tin thanh toán chuyển khoản."
+
+
 def nv_bat_dau_chuan_bi(don, nhan_vien, du_lieu):  # M3-UC12 bước 1
     DichVuGiaoHang.bat_dau_chuan_bi(don, nhan_vien, du_lieu["ghi_chu"])
     return "Đã bắt đầu chuẩn bị hàng."
@@ -486,6 +499,7 @@ CAC_THAO_TAC = {
     "gia-han": (HenCungCapSerializer, nv_gia_han),
     "da-du-hang": (GhiChuSerializer, nv_da_du_hang),
     "thu-cod": (ThuCodSerializer, nv_thu_cod),
+    "ghi-nhan-thanh-toan": (GhiNhanChuyenKhoanSerializer, nv_ghi_nhan_chuyen_khoan),
     "bat-dau-chuan-bi": (GhiChuSerializer, nv_bat_dau_chuan_bi),
     "san-sang-giao": (GhiChuSerializer, nv_san_sang_giao),
     "ban-giao": (BanGiaoSerializer, nv_ban_giao),

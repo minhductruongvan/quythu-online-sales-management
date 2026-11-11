@@ -2,8 +2,19 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from .models import SanPham, DanhMucSanPham, BienTheSanPham, HinhAnhSanPham
-from .forms import SanPhamForm, BienTheForm
-from django.db.models import Q
+from .image_assets import PRODUCT_IMAGE_ASSETS
+from .search import search_products_by_name
+from .forms import (
+    SanPhamForm,
+    BienTheForm,
+    CapNhatMaVachForm,
+    CapNhatGiaForm,
+    DanhMucForm,
+)
+from django.db.models import Prefetch, Q
+from django.views.decorators.http import require_POST
+from config.decorators import role_required
+from customers.models import KhachHang, TaiKhoan
 
 # ==============================================================================
 # USE CASE 1 & USE CASE 8: XEM DANH SÁCH, TÌM KIẾM & LỌC SẢN PHẨM PHÍA KHÁCH HÀNG
@@ -12,41 +23,51 @@ from django.db.models import Q
 def danh_sach_san_pham(request):
     """
     Hiển thị danh sách sản phẩm cho Khách hàng:
-    - Tìm kiếm theo tên sản phẩm, mã SP hoặc mã vạch 13 số (EAN-13).
+    - Tìm kiếm theo từ khóa có trong tên sản phẩm.
     - Lọc theo danh mục, lọc theo hương vị, lọc theo quy cách đóng gói.
     - Khách hàng chỉ xem sản phẩm đang có trạng thái Đang kinh doanh (ACTIVE).
     """
     # 1. Nhận các tham số tìm kiếm và bộ lọc từ thanh địa chỉ (GET)
     tu_khoa = request.GET.get('q', '').strip()
-    ma_dm_chon = request.GET.get('category', '').strip()
-    huong_vi_chon = request.GET.get('flavor', '').strip()
-    quy_cach_chon = request.GET.get('pack', '').strip()
+    ma_dm_da_chon = [value.strip() for value in request.GET.getlist('category') if value.strip()]
+    huong_vi_da_chon = [value.strip() for value in request.GET.getlist('flavor') if value.strip()]
+    quy_cach_da_chon = [value.strip() for value in request.GET.getlist('pack') if value.strip()]
 
     # 2. Khách hàng chỉ xem sản phẩm đang kinh doanh (ACTIVE)
     danh_sach_sp = SanPham.objects.filter(trang_thai='ACTIVE')
 
     # 3. Xử lý TÌM KIẾM (Use Case 8): tìm theo tên, mã SP hoặc mã vạch biến thể
     if tu_khoa:
-        danh_sach_sp = danh_sach_sp.filter(
-            Q(ten_sp__icontains=tu_khoa) |
-            Q(ma_sp__icontains=tu_khoa) |
-            Q(bienthesanpham__barcode__icontains=tu_khoa)
-        ).distinct()
+        danh_sach_sp = search_products_by_name(danh_sach_sp, tu_khoa)
 
     # 4. Xử lý LỌC THEO DANH MỤC
-    if ma_dm_chon:
-        danh_sach_sp = danh_sach_sp.filter(danh_muc__ma_dm=ma_dm_chon)
+    if ma_dm_da_chon:
+        danh_sach_sp = danh_sach_sp.filter(danh_muc__ma_dm__in=ma_dm_da_chon)
 
-    # 5. Xử lý LỌC THEO HƯƠNG VỊ (Truyền thống, Mè đen, Gừng, Lá dứa)
-    if huong_vi_chon:
-        danh_sach_sp = danh_sach_sp.filter(bienthesanpham__huong_vi=huong_vi_chon).distinct()
-
-    # 6. Xử lý LỌC THEO QUY CÁCH (120g, 125g, 150g, 225g)
-    if quy_cach_chon:
-        danh_sach_sp = danh_sach_sp.filter(bienthesanpham__quy_cach=quy_cach_chon).distinct()
+    # Keep flavor and package filters on the same active variant.
+    variant_filters = {'bienthesanpham__trang_thai': 'ACTIVE'}
+    if huong_vi_da_chon:
+        variant_filters['bienthesanpham__huong_vi__in'] = huong_vi_da_chon
+    if quy_cach_da_chon:
+        variant_filters['bienthesanpham__quy_cach__in'] = quy_cach_da_chon
+    if huong_vi_da_chon or quy_cach_da_chon:
+        danh_sach_sp = danh_sach_sp.filter(**variant_filters).distinct()
 
     # Sắp xếp sản phẩm mới nhất lên đầu
-    danh_sach_sp = danh_sach_sp.order_by('-ngay_tao')
+    danh_sach_sp = danh_sach_sp.order_by('-ngay_tao').prefetch_related(
+        Prefetch(
+            'hinhanhsanpham_set',
+            queryset=HinhAnhSanPham.objects.order_by('-anh_chinh', 'ma_hinh_anh'),
+            to_attr='catalog_images',
+        )
+    )
+    for san_pham in danh_sach_sp:
+        san_pham.catalog_image_url = (
+            san_pham.catalog_images[0].duong_dan
+            if san_pham.catalog_images
+            else None
+        )
+        san_pham.catalog_image_asset = PRODUCT_IMAGE_ASSETS.get(san_pham.ma_sp)
 
     # 7. Lấy danh sách các lựa chọn để hiển thị ra các ô chọn Dropdown
     danh_sach_dm = DanhMucSanPham.objects.filter(trang_thai='ACTIVE')
@@ -54,7 +75,9 @@ def danh_sach_san_pham(request):
     danh_sach_quy_cach = ['120g', '125g', '150g', '225g']
 
     # Kiểm tra xem người dùng có đang áp dụng bất kỳ bộ lọc nào không
-    dang_loc = bool(tu_khoa or ma_dm_chon or huong_vi_chon or quy_cach_chon)
+    dang_loc = bool(
+        tu_khoa or ma_dm_da_chon or huong_vi_da_chon or quy_cach_da_chon
+    )
 
     # 8. Đóng gói dữ liệu gửi sang giao diện HTML
     du_lieu = {
@@ -63,9 +86,9 @@ def danh_sach_san_pham(request):
         'danh_sach_huong_vi': danh_sach_huong_vi,
         'danh_sach_quy_cach': danh_sach_quy_cach,
         'tu_khoa': tu_khoa,
-        'ma_dm_chon': ma_dm_chon,
-        'huong_vi_chon': huong_vi_chon,
-        'quy_cach_chon': quy_cach_chon,
+        'ma_dm_da_chon': ma_dm_da_chon,
+        'huong_vi_da_chon': huong_vi_da_chon,
+        'quy_cach_da_chon': quy_cach_da_chon,
         'dang_loc': dang_loc,
     }
     return render(request, 'products/danh_sach.html', du_lieu)
@@ -80,19 +103,23 @@ def chi_tiet_san_pham(request, ma_sp):
 
     # 2. Lấy tất cả các biến thể đang bán của sản phẩm này
     danh_sach_bien_the = BienTheSanPham.objects.filter(san_pham=san_pham, trang_thai='ACTIVE')
-
-    # 3. Lấy các hình ảnh của sản phẩm
-    danh_sach_anh = HinhAnhSanPham.objects.filter(san_pham=san_pham)
+    danh_sach_anh = HinhAnhSanPham.objects.filter(san_pham=san_pham).order_by('-anh_chinh', 'ma_hinh_anh')
 
     # 4. Kiểm tra loại khách hàng (Liên kết Module 1)
     # Mặc định là Khách lẻ, nếu đăng nhập là Khách sỉ thì sẽ được xem thêm giá sỉ
-    loai_khach = request.session.get('loai_khach_hang', 'KHACH_LE')
-    la_khach_si = (loai_khach == 'KHACH_SI')
+    la_khach_si = (
+        request.user.is_authenticated
+        and request.user.vai_tro == TaiKhoan.VaiTro.CUSTOMER
+        and hasattr(request.user, "khach_hang")
+        and request.user.khach_hang.trang_thai == KhachHang.TrangThai.ACTIVE
+        and request.user.khach_hang.loai_khach_hang.ten_loai_kh == "Khách sỉ"
+    )
 
     du_lieu = {
         'san_pham': san_pham,
         'danh_sach_bien_the': danh_sach_bien_the,
         'danh_sach_anh': danh_sach_anh,
+        'anh_dai_dien_du_phong': PRODUCT_IMAGE_ASSETS.get(san_pham.ma_sp),
         'la_khach_si': la_khach_si,
     }
     return render(request, 'products/chi_tiet.html', du_lieu)
@@ -102,6 +129,7 @@ def chi_tiet_san_pham(request, ma_sp):
 # PHẦN 2: DÀNH CHO NHÂN VIÊN / QUẢN LÝ (USE CASE 2 - M2-UC02)
 # ==============================================================================
 
+@role_required(TaiKhoan.VaiTro.EMPLOYEE, TaiKhoan.VaiTro.MANAGER)
 def quan_ly_san_pham(request):
     """
     Trang quản lý sản phẩm dành cho Nhân viên:
@@ -110,6 +138,7 @@ def quan_ly_san_pham(request):
     """
     tu_khoa = request.GET.get('q', '').strip()
     trang_thai_loc = request.GET.get('status', '').strip()
+    ma_dm_loc = request.GET.get('category', '').strip()
 
     danh_sach_sp = SanPham.objects.all()
 
@@ -125,15 +154,54 @@ def quan_ly_san_pham(request):
     if trang_thai_loc:
         danh_sach_sp = danh_sach_sp.filter(trang_thai=trang_thai_loc)
 
-    danh_sach_sp = danh_sach_sp.order_by('-ngay_tao')
+    if ma_dm_loc:
+        danh_sach_sp = danh_sach_sp.filter(danh_muc__ma_dm=ma_dm_loc)
+
+    danh_sach_sp = danh_sach_sp.order_by('-ngay_tao').select_related(
+        "danh_muc"
+    ).prefetch_related(
+        Prefetch(
+            "hinhanhsanpham_set",
+            queryset=HinhAnhSanPham.objects.order_by("-anh_chinh", "ma_hinh_anh"),
+            to_attr="admin_images",
+        )
+    )
+    for san_pham in danh_sach_sp:
+        san_pham.admin_image_url = (
+            san_pham.admin_images[0].duong_dan if san_pham.admin_images else None
+        )
+        san_pham.admin_image_asset = PRODUCT_IMAGE_ASSETS.get(san_pham.ma_sp)
 
     du_lieu = {
         'danh_sach_sp': danh_sach_sp,
         'trang_thai_loc': trang_thai_loc,
+        'ma_dm_loc': ma_dm_loc,
+        'danh_sach_dm': DanhMucSanPham.objects.all().order_by('ten_dm'),
         'tu_khoa': tu_khoa,
     }
     return render(request, 'products/quan_ly.html', du_lieu)
 
+
+@role_required(TaiKhoan.VaiTro.EMPLOYEE, TaiKhoan.VaiTro.MANAGER)
+def chi_tiet_quan_ly_san_pham(request, ma_sp):
+    san_pham = get_object_or_404(
+        SanPham.objects.select_related("danh_muc").prefetch_related(
+            "hinhanhsanpham_set", "bienthesanpham_set"
+        ),
+        ma_sp=ma_sp,
+    )
+    danh_sach_anh = san_pham.hinhanhsanpham_set.all().order_by(
+        "-anh_chinh", "ma_hinh_anh"
+    )
+    return render(request, "products/chi_tiet_quan_ly.html", {
+        "san_pham": san_pham,
+        "danh_sach_anh": danh_sach_anh,
+        "anh_dai_dien_du_phong": PRODUCT_IMAGE_ASSETS.get(san_pham.ma_sp),
+        "danh_sach_bien_the": san_pham.bienthesanpham_set.all().order_by("ma_bien_the"),
+    })
+
+
+@role_required(TaiKhoan.VaiTro.EMPLOYEE, TaiKhoan.VaiTro.MANAGER)
 def them_san_pham(request):
     """
     Thêm sản phẩm mới vào hệ thống.
@@ -156,6 +224,7 @@ def them_san_pham(request):
     return render(request, 'products/form_san_pham.html', du_lieu)
 
 
+@role_required(TaiKhoan.VaiTro.EMPLOYEE, TaiKhoan.VaiTro.MANAGER)
 def sua_san_pham(request, ma_sp):
     """
     Chỉnh sửa thông tin sản phẩm.
@@ -177,10 +246,13 @@ def sua_san_pham(request, ma_sp):
         'form': form,
         'tieu_de': f'Chỉnh sửa sản phẩm: {san_pham.ten_sp}',
         'san_pham': san_pham,
+        'danh_sach_bien_the': BienTheSanPham.objects.filter(san_pham=san_pham).order_by('ma_bien_the'),
     }
     return render(request, 'products/form_san_pham.html', du_lieu)
 
 
+@role_required(TaiKhoan.VaiTro.EMPLOYEE, TaiKhoan.VaiTro.MANAGER)
+@require_POST
 def doi_trang_thai_san_pham(request, ma_sp):
     """
     Chuyển đổi trạng thái kinh doanh giữa 'ACTIVE' (Đang bán) và 'INACTIVE' (Ngừng bán).
@@ -198,6 +270,8 @@ def doi_trang_thai_san_pham(request, ma_sp):
     san_pham.save()
     return redirect('products:quan_ly')
 
+@role_required(TaiKhoan.VaiTro.EMPLOYEE, TaiKhoan.VaiTro.MANAGER)
+@require_POST
 def xoa_san_pham(request, ma_sp):
     """
     Xóa sản phẩm: Chỉ cho phép xóa khi chưa có biến thể nào gắn vào.
@@ -221,6 +295,7 @@ def xoa_san_pham(request, ma_sp):
 # PHẦN 3: USE CASE 3 - QUẢN LÝ BIẾN THỂ SẢN PHẨM (M2-UC03)
 # ==============================================================================
 
+@role_required(TaiKhoan.VaiTro.EMPLOYEE, TaiKhoan.VaiTro.MANAGER)
 def danh_sach_bien_the(request, ma_sp):
     """
     1. Xem danh sách các gói bánh (biến thể) thuộc về 1 sản phẩm cha.
@@ -239,6 +314,7 @@ def danh_sach_bien_the(request, ma_sp):
     return render(request, 'products/danh_sach_bien_the.html', du_lieu)
 
 
+@role_required(TaiKhoan.VaiTro.EMPLOYEE, TaiKhoan.VaiTro.MANAGER)
 def them_bien_the(request, ma_sp):
     """
     2. Thêm gói bánh mới cho sản phẩm cha.
@@ -295,6 +371,7 @@ def them_bien_the(request, ma_sp):
     return render(request, 'products/form_bien_the.html', du_lieu)
 
 
+@role_required(TaiKhoan.VaiTro.EMPLOYEE, TaiKhoan.VaiTro.MANAGER)
 def sua_bien_the(request, ma_bien_the):
     """
     3. Chỉnh sửa thông tin một gói bánh đã có.
@@ -339,6 +416,8 @@ def sua_bien_the(request, ma_bien_the):
     return render(request, 'products/form_bien_the.html', du_lieu)
 
 
+@role_required(TaiKhoan.VaiTro.EMPLOYEE, TaiKhoan.VaiTro.MANAGER)
+@require_POST
 def doi_trang_thai_bien_the(request, ma_bien_the):
     """
     4. Bật / Tắt trạng thái kinh doanh của biến thể (M2-BR09, M2-BR13).
@@ -354,6 +433,8 @@ def doi_trang_thai_bien_the(request, ma_bien_the):
     return redirect('products:danh_sach_bien_the', ma_sp=bien_the.san_pham.ma_sp)
 
 
+@role_required(TaiKhoan.VaiTro.EMPLOYEE, TaiKhoan.VaiTro.MANAGER)
+@require_POST
 def xoa_bien_the(request, ma_bien_the):
     """
     5. Xóa gói bánh khỏi CSDL (Ngoại lệ E5 của M2-UC03).
@@ -365,9 +446,6 @@ def xoa_bien_the(request, ma_bien_the):
     bien_the.delete()
     messages.success(request, f'Đã xóa biến thể "{ma_bien_the}" thành công!')
     return redirect('products:danh_sach_bien_the', ma_sp=ma_sp)
-
-
-from .forms import CapNhatMaVachForm
 
 
 # ==============================================================================
@@ -397,6 +475,7 @@ def tao_ma_ean13_hop_le(ma_bien_the):
 # PHẦN 4: USE CASE 4 - QUẢN LÝ MÃ VẠCH (M2-UC04, WIREFRAME M2-WF09)
 # ==============================================================================
 
+@role_required(TaiKhoan.VaiTro.EMPLOYEE, TaiKhoan.VaiTro.MANAGER)
 def quan_ly_ma_vach(request, ma_sp):
     """
     Xem và cập nhật mã vạch EAN-13 cho từng biến thể của một sản phẩm.
@@ -459,13 +538,11 @@ def quan_ly_ma_vach(request, ma_sp):
     }
     return render(request, 'products/quan_ly_ma_vach.html', du_lieu)
 
-from .forms import CapNhatGiaForm
-
-
 # ==============================================================================
 # PHẦN 5: USE CASE 5 - QUẢN LÝ GIÁ BÁN (M2-UC05, WIREFRAME M2-WF10)
 # ==============================================================================
 
+@role_required(TaiKhoan.VaiTro.EMPLOYEE, TaiKhoan.VaiTro.MANAGER)
 def quan_ly_gia(request, ma_sp):
     """
     Xem và cập nhật giá bán lẻ, giá bán sỉ và mức số lượng sỉ tối thiểu
@@ -521,6 +598,7 @@ from django.core.files.storage import FileSystemStorage
 # PHẦN 6: USE CASE 6 - QUẢN LÝ HÌNH ẢNH SẢN PHẨM (TẢI ẢNH TỪ MÁY TÍNH)
 # ==============================================================================
 
+@role_required(TaiKhoan.VaiTro.EMPLOYEE, TaiKhoan.VaiTro.MANAGER)
 def quan_ly_hinh_anh(request, ma_sp):
     """
     Xem bộ sưu tập ảnh, tải ảnh từ máy tính lên, đổi ảnh đại diện chính hoặc xóa ảnh.
@@ -562,7 +640,13 @@ def quan_ly_hinh_anh(request, ma_sp):
                     HinhAnhSanPham.objects.filter(san_pham=san_pham).update(anh_chinh=False)
 
                 # 5. Tự động sinh mã ảnh (HA001, HA002...)
-                so_luong_anh = HinhAnhSanPham.objects.count() + 1
+                ma_anh_hien_co = HinhAnhSanPham.objects.filter(
+                    ma_hinh_anh__startswith='HA'
+                ).values_list('ma_hinh_anh', flat=True)
+                so_luong_anh = max(
+                    (int(ma_anh[2:]) for ma_anh in ma_anh_hien_co if ma_anh[2:].isdigit()),
+                    default=0,
+                ) + 1
                 ma_ha_moi = f"HA{so_luong_anh:03d}"
 
                 # 6. Tạo bản ghi ảnh vào database
@@ -607,13 +691,11 @@ def quan_ly_hinh_anh(request, ma_sp):
     }
     return render(request, 'products/quan_ly_hinh_anh.html', du_lieu)
 
-from .forms import DanhMucForm
-
-
 # ==============================================================================
 # PHẦN 7: USE CASE 9 - QUẢN LÝ DANH MỤC SẢN PHẨM (M2-UC09, WIREFRAME M2-WF13)
 # ==============================================================================
 
+@role_required(TaiKhoan.VaiTro.EMPLOYEE, TaiKhoan.VaiTro.MANAGER)
 def quan_ly_danh_muc(request):
     """
     Xem danh sách danh mục, số lượng sản phẩm của từng danh mục và thêm mới danh mục.
@@ -642,6 +724,7 @@ def quan_ly_danh_muc(request):
     return render(request, 'products/quan_ly_danh_muc.html', du_lieu)
 
 
+@role_required(TaiKhoan.VaiTro.EMPLOYEE, TaiKhoan.VaiTro.MANAGER)
 def sua_danh_muc(request, ma_dm):
     """
     Chỉnh sửa thông tin của một danh mục đã có.
@@ -666,6 +749,8 @@ def sua_danh_muc(request, ma_dm):
     return render(request, 'products/form_danh_muc.html', du_lieu)
 
 
+@role_required(TaiKhoan.VaiTro.EMPLOYEE, TaiKhoan.VaiTro.MANAGER)
+@require_POST
 def doi_trang_thai_danh_muc(request, ma_dm):
     """
     Bật / Tắt trạng thái hoạt động của danh mục.

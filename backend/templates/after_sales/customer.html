@@ -1,0 +1,46 @@
+{% extends "layouts/base_customer.html" %}
+{% load static %}
+{% block title %}Chăm sóc sau mua | Quý Thu{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}">{% endblock %}
+{% block content %}
+<main class="module-page" id="customer-after-sales">
+    {% csrf_token %}
+    <header class="module-heading"><div><span class="module-eyebrow">DỊCH VỤ SAU MUA</span><h1>Hậu mãi & hỗ trợ</h1><p>Gửi yêu cầu hủy, đổi/trả và xem tiến độ xử lý một cách minh bạch.</p></div><a class="module-link-button secondary" href="{% url 'customer-orders-page' %}">← Đơn hàng</a></header>
+    <div id="after-sales-message" role="status"></div>
+    <div class="module-grid">
+        <section class="module-panel">
+            <h2>Gửi yêu cầu hủy đơn</h2>
+            <form id="cancel-request-form">
+                <div><label for="cancel-order">Đơn hàng</label><select id="cancel-order" name="ma_dh" required></select></div>
+                <div><label for="cancel-reason">Lý do</label><select id="cancel-reason" name="ma_nguyen_nhan"></select></div>
+                <div><label for="cancel-note">Ghi chú thêm</label><textarea id="cancel-note" name="ghi_chu" maxlength="500"></textarea></div>
+                <fieldset class="module-form-grid"><legend>Thông tin nhận hoàn tiền (nếu cần)</legend>
+                    <div><label for="cancel-account-number">Số tài khoản</label><input id="cancel-account-number" name="so_tai_khoan" maxlength="34" autocomplete="off"></div>
+                    <div><label for="cancel-account-name">Tên người nhận tiền (không dấu)</label><input id="cancel-account-name" name="ten_nguoi_nhan_tien" maxlength="100" pattern="[A-Za-z][A-Za-z .'-]*" autocomplete="off"></div>
+                    <div><label for="cancel-account-bank">Ngân hàng</label><input id="cancel-account-bank" name="ngan_hang_nhan" maxlength="100"></div>
+                </fieldset>
+                <button class="module-button" type="submit">Gửi yêu cầu hủy</button>
+            </form>
+        </section>
+        <section class="module-panel">
+            <h2>Yêu cầu đổi / trả</h2>
+            <form id="return-request-form">
+                <div><label for="return-order">Đơn hàng đã giao</label><select id="return-order" name="ma_dh" required></select></div>
+                <div><label for="return-type">Hình thức</label><select id="return-type" name="hinh_thuc"><option value="DOI">Đổi sản phẩm</option><option value="TRA">Trả hàng / hoàn tiền</option></select></div>
+                <div><label for="return-reason">Lý do</label><select id="return-reason" name="ma_nguyen_nhan"></select></div>
+                <div><label for="return-note">Mô tả tình trạng</label><textarea id="return-note" name="mo_ta" maxlength="500"></textarea></div>
+                <div><label for="return-images">Ảnh minh chứng (JPG/PNG, tối đa 5 ảnh, 5 MB/ảnh)</label><input id="return-images" name="anh" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" multiple></div>
+                <fieldset id="return-refund-account" class="module-form-grid" hidden><legend>Tài khoản nhận tiền hoàn</legend>
+                    <div><label for="return-account-number">Số tài khoản</label><input id="return-account-number" name="so_tai_khoan" maxlength="34" autocomplete="off"></div>
+                    <div><label for="return-account-name">Tên người nhận tiền (không dấu)</label><input id="return-account-name" name="ten_nguoi_nhan_tien" maxlength="100" pattern="[A-Za-z][A-Za-z .'-]*" autocomplete="off"></div>
+                    <div><label for="return-account-bank">Ngân hàng</label><input id="return-account-bank" name="ngan_hang_nhan" maxlength="100"></div>
+                </fieldset>
+                <div id="return-lines" class="module-alert">Chọn đơn hàng để xem các dòng còn đủ điều kiện đổi/trả.</div>
+                <button class="module-button" type="submit">Gửi yêu cầu đổi/trả</button>
+            </form>
+        </section>
+    </div>
+    <section class="module-panel" style="margin-top:20px"><div class="module-heading"><div><span class="module-eyebrow">THEO DÕI</span><h2>Thông báo & lịch sử hậu mãi</h2></div><button id="refresh-after-sales" class="module-button secondary" type="button">Làm mới</button></div><div id="after-sales-notifications"></div><div id="after-sales-history"></div></section>
+</main>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/after-sales.js' %}" defer></script>{% endblock %}

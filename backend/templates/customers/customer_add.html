@@ -6,7 +6,8 @@
 {% block content %}
 <style>
     .add-customer-page {
-        max-width: 1050px;
+        width: 100%;
+        max-width: 1600px;
         margin: 0 auto;
     }
 
@@ -180,7 +181,7 @@
     }
 </style>
 
-<div class="add-customer-page">
+<div class="add-customer-page m1-admin-page">
     <div class="add-customer-header">
         <div>
             <div class="text-muted small mb-2">
@@ -188,7 +189,7 @@
             </div>
             <h1 class="add-customer-title">Thêm khách hàng</h1>
             <p class="add-customer-subtitle">
-                Nhập thông tin để tạo hồ sơ khách hàng mới trong hệ thống.
+                Tạo hồ sơ khách hàng, kiểm tra trùng email và số điện thoại trước khi lưu.
             </p>
         </div>
 
@@ -199,8 +200,8 @@
     </div>
 
     <div class="add-customer-note">
-        <strong>Lưu ý:</strong> Đây là chức năng tạo hồ sơ khách hàng.
-        Hồ sơ này không tự động tạo tài khoản đăng nhập cho khách hàng.
+        <strong>Lưu ý:</strong> Hồ sơ khách hàng và tài khoản đăng nhập là hai dữ liệu riêng.
+        Khách chưa đăng ký tài khoản vẫn có thể được quản lý tại đây.
     </div>
 
     <div class="add-customer-card">
@@ -211,9 +212,6 @@
 
         <form id="customerForm" method="post">
             {% csrf_token %}
-
-            <div id="addCustomerMessage" class="add-customer-message"
-                 role="alert"></div>
 
             <div class="row g-4">
                 <div class="col-md-12">
@@ -234,7 +232,22 @@
                     </div>
                 </div>
 
-                <div class="col-md-12">
+                <div class="col-md-6">
+                    <label for="customerEmail" class="add-customer-label">
+                        Email
+                    </label>
+                    <input
+                        type="email"
+                        id="customerEmail"
+                        name="email"
+                        class="add-customer-input"
+                        value="{{ form_data.email|default:'' }}"
+                        maxlength="254"
+                        placeholder="example@email.com"
+                    >
+                </div>
+
+                <div class="col-md-6">
                     <label for="customerPhone" class="add-customer-label">
                         Số điện thoại
                     </label>
@@ -243,12 +256,28 @@
                         id="customerPhone"
                         name="so_dien_thoai"
                         class="add-customer-input"
+                        value="{{ form_data.so_dien_thoai|default:'' }}"
                         placeholder="Ví dụ: 0901234567"
                         maxlength="15"
                     >
                     <div class="add-customer-help">
                         Có thể để trống nếu khách hàng chưa cung cấp số điện thoại.
                     </div>
+                </div>
+
+                <div class="col-md-6">
+                    <label for="customerType" class="add-customer-label">
+                        Loại khách hàng <span class="required">*</span>
+                    </label>
+                    <select id="customerType" name="loai_khach_hang"
+                            class="add-customer-input" required>
+                        {% for type in customer_types %}
+                        <option value="{{ type.ten_loai_kh }}"
+                            {% if form_data.loai_khach_hang == type.ten_loai_kh or not form_data and type.ten_loai_kh == "Khách lẻ" %}selected{% endif %}>
+                            {{ type.ten_loai_kh }}
+                        </option>
+                        {% endfor %}
+                    </select>
                 </div>
             </div>
 
@@ -267,86 +296,4 @@
     </div>
 </div>
 
-<script>
-
-document.addEventListener("DOMContentLoaded", function () {
-    const form = document.getElementById("customerForm");
-
-    if (!form) return;
-
-    form.addEventListener("submit", async function (event) {
-        event.preventDefault();
-
-        const submitButton = form.querySelector(
-            'button[type="submit"]'
-        );
-
-        const hoTen = form.querySelector('[name="ho_ten"]')?.value.trim();
-        const soDienThoai = form.querySelector(
-            '[name="so_dien_thoai"]'
-        )?.value.trim() || "";
-
-        if (!hoTen) {
-            alert("Vui lòng nhập họ và tên khách hàng.");
-            return;
-        }
-
-        const csrfToken = form.querySelector(
-            '[name="csrfmiddlewaretoken"]'
-        )?.value;
-
-        if (submitButton) {
-            submitButton.disabled = true;
-            submitButton.textContent = "Đang xử lý...";
-        }
-
-        try {
-            const response = await fetch("/api/customers/", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRFToken": csrfToken,
-                    "Accept": "application/json"
-                },
-                body: JSON.stringify({
-                    ho_ten: hoTen,
-                    so_dien_thoai: soDienThoai
-                })
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                const errors = result.errors
-                    ? Object.entries(result.errors)
-                        .map(([field, messages]) =>
-                            `${field}: ${messages.join(", ")}`
-                        )
-                        .join("\n")
-                    : result.message || "Không thể thêm khách hàng.";
-
-                alert(errors);
-                return;
-            }
-
-            alert(
-                `${result.message}\nMã khách hàng: ${result.data.ma_kh}`
-            );
-
-            window.location.href =
-                "{% url 'employee-customer-list' %}";
-
-        } catch (error) {
-            console.error("Lỗi thêm khách hàng:", error);
-            alert("Không thể kết nối đến máy chủ. Vui lòng thử lại.");
-        } finally {
-            if (submitButton) {
-                submitButton.disabled = false;
-                submitButton.textContent = "Thêm khách hàng";
-            }
-        }
-    });
-});
-
-</script>
 {% endblock %}

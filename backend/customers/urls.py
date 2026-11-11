@@ -13,8 +13,22 @@ from .views import (
     TrangThaiKhachHangView,
     TrangThaiTaiKhoanView,
 )
+from .password_recovery import (
+    PasswordResetConfirmView,
+    PasswordResetRequestView,
+)
 
 urlpatterns = [
+    path(
+        "password-reset/request/",
+        PasswordResetRequestView.as_view(),
+        name="password-reset-request",
+    ),
+    path(
+        "password-reset/confirm/",
+        PasswordResetConfirmView.as_view(),
+        name="password-reset-confirm",
+    ),
     path(
         "register/",
         DangKyKhachHangView.as_view(),

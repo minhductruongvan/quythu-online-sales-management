@@ -1,4 +1,5 @@
 {% extends "auth_base.html" %}
+{% load static %}
 
 {% block title %}Đăng ký tài khoản | Quý Thu{% endblock %}
 
@@ -8,26 +9,27 @@
 
     <!-- Khu vực thương hiệu -->
     <section class="auth-brand">
+        <img class="auth-brand-image" src="{% static 'images/quythu-banner.png' %}" alt="">
         <div class="auth-brand-content">
 
             <div class="auth-logo">
-                <span class="auth-logo-icon">Q</span>
-                <span>QUÝ THU</span>
+                <a href="{% url 'storefront-home' %}" class="auth-logo-link">
+                    <img class="auth-logo-image" src="{% static 'images/logo-removebg-preview.png' %}" alt="Logo Quý Thu">
+                </a>
             </div>
 
             <div class="auth-brand-text">
-                <span class="auth-eyebrow">QUÝ THU CUSTOMER</span>
+                <span class="auth-eyebrow">ĐẶC SẢN DỪA NƯỚNG · QUÝ THU</span>
 
-                <h1>Bắt đầu hành trình mua sắm cùng Quý Thu.</h1>
+                <h1>Một chút giòn thơm,<br>thêm vị thân quen.</h1>
 
                 <p>
-                    Tạo tài khoản để quản lý thông tin cá nhân,
-                    địa chỉ nhận hàng và trải nghiệm dịch vụ thuận tiện hơn.
+                    Tạo tài khoản để chọn món ngon, lưu địa chỉ nhận hàng và theo dõi đơn hàng dễ dàng.
                 </p>
             </div>
 
             <div class="auth-brand-footer">
-                © 2026 Quý Thu Online Sales Management
+                © 2026 Quý Thu
             </div>
 
         </div>
@@ -39,9 +41,9 @@
 
         <div class="auth-form-container auth-register-form">
 
+            <img class="auth-mobile-banner" src="{% static 'images/quythu-banner.png' %}" alt="Đặc sản bánh dừa nướng Quý Thu">
             <div class="auth-mobile-logo">
-                <span class="auth-logo-icon">Q</span>
-                <span>QUÝ THU</span>
+                <img class="auth-mobile-logo-image" src="{% static 'images/logo-removebg-preview.png' %}" alt="Logo Quý Thu">
             </div>
 
             <div class="auth-heading">
@@ -50,7 +52,7 @@
                 <h2>Đăng ký</h2>
 
                 <p>
-                    Điền thông tin bên dưới để tạo tài khoản khách hàng.
+                    Điền thông tin để bắt đầu mua sắm tại Quý Thu.
                 </p>
             </div>
 
@@ -63,7 +65,7 @@
             ></div>
 
 
-            <form id="registerForm" novalidate>
+            <form id="registerForm" method="post" action="{% url 'register-page' %}" novalidate>
 
                 {% csrf_token %}
 
@@ -99,6 +101,8 @@
                         placeholder="example@email.com"
                         maxlength="254"
                         autocomplete="email"
+                        autocapitalize="none"
+                        spellcheck="false"
                         required
                     >
 
@@ -126,7 +130,6 @@
                     <small class="auth-error" id="phoneError"></small>
 
                 </div>
-
 
                 <!-- Mật khẩu -->
                 <div class="auth-field">
@@ -227,10 +230,6 @@
                 </a>
             </div>
 
-            <p class="auth-demo-note">
-                Giao diện thử nghiệm – chưa lưu dữ liệu vào hệ thống.
-            </p>
-
         </div>
 
     </section>
@@ -257,6 +256,7 @@ document.addEventListener("DOMContentLoaded", function () {
     };
 
     const message = document.getElementById("registerMessage");
+    const submitButton = form.querySelector('[type="submit"]');
 
 
     // Hiện / ẩn mật khẩu
@@ -301,7 +301,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
     // Kiểm tra dữ liệu
-    form.addEventListener("submit", function (event) {
+    form.addEventListener("submit", async function (event) {
 
         event.preventDefault();
 
@@ -359,7 +359,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
         }
 
-
         // Mật khẩu
         if (!password) {
 
@@ -402,12 +401,97 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
 
-        // Chỉ mô phỏng, chưa gửi dữ liệu đến backend
-        message.textContent =
-            "Thông tin hợp lệ. Chức năng đăng ký sẽ được kết nối với hệ thống ở giai đoạn tích hợp.";
+        submitButton.disabled = true;
+        submitButton.textContent = "Đang tạo tài khoản...";
 
-        message.classList.add("success");
-        message.hidden = false;
+        const csrfToken = form.querySelector('[name="csrfmiddlewaretoken"]').value;
+        const loginUrl = new URL("/tai-khoan/dang-nhap/", window.location.origin);
+        loginUrl.searchParams.set("email", email);
+        const next = new URLSearchParams(window.location.search).get("next");
+        if (next) loginUrl.searchParams.set("next", next);
+        let accountCreated = false;
+
+        try {
+            const response = await fetch("/api/customers/register/", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": csrfToken
+                },
+                body: JSON.stringify({
+                    ho_ten: fullName,
+                    email: email,
+                    so_dien_thoai: phone,
+                    mat_khau: password
+                })
+            });
+            const result = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                const errorTargets = {
+                    ho_ten: "fullNameError",
+                    email: "registerEmailError",
+                    so_dien_thoai: "phoneError",
+                    mat_khau: "registerPasswordError"
+                };
+                Object.entries(result.errors || {}).forEach(([field, errors]) => {
+                    if (errorTargets[field]) {
+                        showError(
+                            errorTargets[field],
+                            Array.isArray(errors) ? errors.join(" ") : String(errors)
+                        );
+                    }
+                });
+                throw new Error(result.message || "Không thể tạo tài khoản.");
+            }
+            accountCreated = true;
+
+            const loginResponse = await fetch("/api/customers/login/", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": csrfToken
+                },
+                body: JSON.stringify({
+                    email: email,
+                    mat_khau: password,
+                    ghi_nho: false
+                })
+            });
+            const loginResult = await loginResponse.json().catch(() => ({}));
+            if (!loginResponse.ok) {
+                throw new Error(
+                    `Tài khoản đã được tạo nhưng chưa thể đăng nhập tự động. ${
+                        loginResult.message || loginResult.detail || "Vui lòng đăng nhập lại."
+                    }`
+                );
+            }
+            const safeNext = next && new URL(next, window.location.origin).origin === window.location.origin
+                ? new URL(next, window.location.origin).href
+                : "/";
+            window.location.assign(safeNext);
+        } catch (error) {
+            if (error instanceof TypeError) {
+                message.textContent = "Không thể kết nối máy chủ. Vui lòng thử lại.";
+                message.className = "auth-message error";
+                message.hidden = false;
+            } else {
+                message.textContent = error.message || "Không thể tạo tài khoản.";
+                message.className = "auth-message error";
+                message.hidden = false;
+            }
+            if (accountCreated) {
+                message.append(" ");
+                const loginLink = document.createElement("a");
+                loginLink.href = loginUrl.href;
+                loginLink.textContent = "Đăng nhập ngay";
+                message.appendChild(loginLink);
+            }
+            submitButton.disabled = false;
+            submitButton.innerHTML = 'Tạo tài khoản <span aria-hidden="true">→</span>';
+        }
 
     });
 

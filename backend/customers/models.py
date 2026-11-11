@@ -1,9 +1,44 @@
-from django.contrib.auth.models import AbstractUser
+﻿from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+from django.contrib.auth.base_user import BaseUserManager
+
+
+class TaiKhoanManager(BaseUserManager):
+
+    def create_user(self, email, ma_tk, password=None, **extra_fields):
+        if not email:
+            raise ValueError("Email không được để trống")
+
+        email = self.normalize_email(email)
+        user = self.model(email=email, ma_tk=ma_tk, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, email, ma_tk, password=None, **extra_fields):
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        extra_fields.setdefault("is_active", True)
+        extra_fields.setdefault("vai_tro", "MANAGER")
+        extra_fields.setdefault("trang_thai", "ACTIVE")
+
+        if extra_fields.get("is_staff") is not True:
+            raise ValueError("Superuser phải có is_staff=True")
+
+        if extra_fields.get("is_superuser") is not True:
+            raise ValueError("Superuser phải có is_superuser=True")
+
+        return self.create_user(
+            email=email,
+            ma_tk=ma_tk,
+            password=password,
+            **extra_fields
+        )
 
 class TaiKhoan(AbstractUser):
     username = None
+    objects = TaiKhoanManager()
 
     class VaiTro(models.TextChoices):
         CUSTOMER = "CUSTOMER", "Khách hàng"
@@ -115,6 +150,13 @@ class KhachHang(models.Model):
     ho_ten = models.CharField(
         max_length=100,
         verbose_name="Họ tên",
+    )
+
+    email = models.EmailField(
+        max_length=254,
+        null=True,
+        blank=True,
+        verbose_name="Email liên hệ",
     )
 
     so_dien_thoai = models.CharField(
@@ -261,6 +303,7 @@ class DiaChiKH(models.Model):
 
 class LichSuKhachHang(models.Model):
     class LoaiThayDoi(models.TextChoices):
+        PROFILE_CREATE = "PROFILE_CREATE", "Tạo hồ sơ"
         PROFILE_UPDATE = "PROFILE_UPDATE", "Cập nhật hồ sơ"
         CUSTOMER_TYPE = "CUSTOMER_TYPE", "Thay đổi loại khách hàng"
         STATUS = "STATUS", "Thay đổi trạng thái"
@@ -317,3 +360,32 @@ class LichSuKhachHang(models.Model):
 
     def __str__(self):
         return f"{self.ma_lich_su} - {self.get_loai_thay_doi_display()}"
+
+
+class GhiChuKhachHang(models.Model):
+    khach_hang = models.ForeignKey(
+        KhachHang,
+        on_delete=models.CASCADE,
+        related_name="ghi_chu_noi_bo",
+        verbose_name="Khách hàng",
+    )
+    nguoi_tao = models.ForeignKey(
+        TaiKhoan,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="ghi_chu_khach_hang_da_tao",
+        verbose_name="Người ghi chú",
+    )
+    noi_dung = models.TextField(verbose_name="Nội dung")
+    thoi_gian = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Thời gian tạo",
+    )
+
+    class Meta:
+        ordering = ["-thoi_gian"]
+        verbose_name = "Ghi chú khách hàng"
+        verbose_name_plural = "Ghi chú khách hàng"
+
+    def __str__(self):
+        return f"{self.khach_hang_id} - {self.thoi_gian:%Y-%m-%d %H:%M}"

@@ -20,6 +20,9 @@ urlpatterns = [
     # Quản lý danh sách sản phẩm
     path('quan-ly/', views.quan_ly_san_pham, name='quan_ly'),
 
+    # Xem đầy đủ thông tin sản phẩm và biến thể trong giao diện quản lý
+    path('quan-ly/chi-tiet/<str:ma_sp>/', views.chi_tiet_quan_ly_san_pham, name='chi_tiet_quan_ly'),
+
     # Thêm sản phẩm mới
     path('quan-ly/them/', views.them_san_pham, name='them'),
 

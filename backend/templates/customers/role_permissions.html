@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Quản lý nhân sự | Quý Thu{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 m1-admin-page">
+    <div class="mb-4">
+        <h1 class="h3 fw-bold">Quản lý nhân sự</h1>
+        <p class="text-muted">Cập nhật vai trò truy cập cho tài khoản nội bộ.</p>
+    </div>
+
+    <section class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <h2 class="h5 fw-bold">Tài khoản nội bộ</h2>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead><tr><th>Nhân viên</th><th>Email</th><th>Vai trò hiện tại</th><th>Đổi vai trò</th></tr></thead>
+                    <tbody>
+                    {% for member in staff %}
+                    <tr>
+                        <td>{{ member.ho_ten }}</td>
+                        <td>{{ member.tai_khoan.email }}</td>
+                        <td>{{ member.tai_khoan.get_vai_tro_display }}</td>
+                        <td>
+                            <form method="post" class="d-flex gap-2">
+                                {% csrf_token %}
+                                <input type="hidden" name="tai_khoan_id" value="{{ member.tai_khoan_id }}">
+                                <select class="form-select form-select-sm" name="vai_tro" aria-label="Vai trò mới">
+                                    <option value="EMPLOYEE" {% if member.tai_khoan.vai_tro == "EMPLOYEE" %}selected{% endif %}>Nhân viên</option>
+                                    <option value="MANAGER" {% if member.tai_khoan.vai_tro == "MANAGER" %}selected{% endif %}>Quản lý</option>
+                                </select>
+                                <button class="btn btn-sm btn-outline-primary" type="submit">Lưu</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="text-center text-muted py-4">Chưa có tài khoản nội bộ.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}

@@ -10,22 +10,46 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+import os
 from pathlib import Path
+
+from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR.parent / ".env")
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-+pg-vmgbjg&fbc=e@=*p&(3k^x&($f=e)4rk7xvol3%j*^(3co"
+_development_secret_key = (
+    "django-insecure-+pg-vmgbjg&fbc=e@=*p&(3k^x&($f=e)4rk7xvol3%j*^(3co"
+)
+_debug_value = os.environ.get("DJANGO_DEBUG", "true").strip().lower()
+if _debug_value not in {"true", "false"}:
+    raise ImproperlyConfigured("DJANGO_DEBUG must be set to 'true' or 'false'.")
+DEBUG = _debug_value == "true"
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "").strip()
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured(
+            "DJANGO_SECRET_KEY must be configured when DJANGO_DEBUG is false."
+        )
+    SECRET_KEY = _development_secret_key
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",")
+    if host.strip()
+]
+if not DEBUG and not ALLOWED_HOSTS:
+    raise ImproperlyConfigured(
+        "DJANGO_ALLOWED_HOSTS must be configured when DJANGO_DEBUG is false."
+    )
 
 
 # Application definition
@@ -109,9 +133,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.1/topics/i18n/
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = "vi"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Asia/Ho_Chi_Minh"
 
 USE_I18N = True
 
@@ -128,16 +152,40 @@ STATICFILES_DIRS = [
 ]
 
 
-# Email
-# https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
-
+# Email. Gmail requires an App Password when 2-Step Verification is enabled.
+smtp_host = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+smtp_port = int(os.environ.get("EMAIL_PORT", "587"))
+smtp_use_tls = os.environ.get("EMAIL_USE_TLS", "true").lower() == "true"
+smtp_username = os.environ.get("EMAIL_HOST_USER", "")
+smtp_password = os.environ.get("EMAIL_HOST_PASSWORD", "")
+email_mailer_backend = os.environ.get("EMAIL_BACKEND") or (
+    "django.core.mail.backends.smtp.EmailBackend"
+    if smtp_username and smtp_password
+    else (
+        "django.core.mail.backends.console.EmailBackend"
+        if DEBUG
+        else "django.core.mail.backends.smtp.EmailBackend"
+    )
+)
+email_mailer_options = {}
+if email_mailer_backend == "django.core.mail.backends.smtp.EmailBackend":
+    email_mailer_options = {
+        "host": smtp_host,
+        "port": smtp_port,
+        "username": smtp_username,
+        "password": smtp_password,
+        "use_tls": smtp_use_tls,
+    }
 MAILERS = {
     "default": {
-        "BACKEND": "django.core.mail.backends.console.EmailBackend",
+        "BACKEND": email_mailer_backend,
+        "OPTIONS": email_mailer_options,
     },
 }
-
-import os
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL",
+    smtp_username or "Quý Thu <no-reply@quythu.local>",
+)
 
 # Cấu hình lưu trữ hình ảnh tải lên từ máy tính (Media files)
 MEDIA_URL = '/media/'

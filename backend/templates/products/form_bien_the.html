@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ tieu_de }} | Quý Thu{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}">{% endblock %}
+{% block content %}
+<main class="module-page">
+    <header class="module-heading"><div><span class="module-eyebrow">{{ san_pham.ma_sp }} · {{ san_pham.ten_sp }}</span><h1>{{ tieu_de }}</h1><p>Thiết lập giá bán, mức giá sỉ và định danh sản phẩm.</p></div><a class="module-link-button secondary" href="{% url 'products:danh_sach_bien_the' san_pham.ma_sp %}">← Biến thể</a></header>
+    <section class="module-panel"><form method="post">{% csrf_token %}{{ form.as_p }}<button class="module-button" type="submit">Lưu biến thể</button></form></section>
+</main>
+{% endblock %}

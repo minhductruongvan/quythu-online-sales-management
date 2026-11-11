@@ -1,0 +1,25 @@
+<nav class="account-nav" aria-label="Điều hướng tài khoản">
+    <span class="account-nav-label">TÀI KHOẢN CỦA TÔI</span>
+    <div class="account-nav-links">
+        <a href="{% url 'customer-profile-page' %}"
+           {% if active == "profile" %}aria-current="page"{% endif %}>
+            <span class="account-nav-number">01</span>
+            <span>Thông tin cá nhân</span>
+        </a>
+        <a href="{% url 'customer-address-page' %}"
+           {% if active == "addresses" %}aria-current="page"{% endif %}>
+            <span class="account-nav-number">02</span>
+            <span>Sổ địa chỉ</span>
+        </a>
+        <a href="{% url 'customer-purchase-history-page' %}"
+           {% if active == "orders" %}aria-current="page"{% endif %}>
+            <span class="account-nav-number">03</span>
+            <span>Lịch sử mua hàng</span>
+        </a>
+        <a href="{% url 'customer-after-sales' %}"
+           {% if active == "after-sales" %}aria-current="page"{% endif %}>
+            <span class="account-nav-number">04</span>
+            <span>Hậu mãi & hỗ trợ</span>
+        </a>
+    </div>
+</nav>
