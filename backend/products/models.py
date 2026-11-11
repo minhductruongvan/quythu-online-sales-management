@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Min
 
 
 # ==========================================================
@@ -60,24 +61,12 @@ class SanPham(models.Model):
         return self.ten_sp
 
     # Hàm tính giá thấp nhất từ các biến thể đang bán (theo yêu cầu M2-BR07)
-    # Viết bằng vòng lặp for cơ bản để bạn dễ hiểu nhất:
     def lay_gia_thap_nhat(self):
-        # 1. Tìm tất cả biến thể của sản phẩm này có trạng thái ACTIVE
-        danh_sach_bien_the = BienTheSanPham.objects.filter(san_pham=self, trang_thai='ACTIVE')
-
-        # Nếu chưa có biến thể nào thì trả về 0 đồng
-        if len(danh_sach_bien_the) == 0:
-            return 0
-
-        # Lấy giá của biến thể đầu tiên làm giá nhỏ nhất tạm thời
-        gia_nho_nhat = danh_sach_bien_the[0].gia_ban_le
-
-        # Duyệt qua từng biến thể để tìm giá nhỏ nhất
-        for bien_the in danh_sach_bien_the:
-            if bien_the.gia_ban_le < gia_nho_nhat:
-                gia_nho_nhat = bien_the.gia_ban_le
-
-        return gia_nho_nhat
+        gia_thap_nhat = BienTheSanPham.objects.filter(
+            san_pham=self,
+            trang_thai='ACTIVE',
+        ).aggregate(gia_thap_nhat=Min('gia_ban_le'))['gia_thap_nhat']
+        return gia_thap_nhat if gia_thap_nhat is not None else 0
 
     # Hàm lấy link ảnh đại diện chính của sản phẩm
     def lay_anh_dai_dien(self):

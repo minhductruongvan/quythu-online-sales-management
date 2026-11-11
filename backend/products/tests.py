@@ -63,6 +63,35 @@ class ProductCatalogTests(TestCase):
 			ho_ten="Quản lý kiểm thử",
 		)
 
+	def test_lowest_active_variant_price_uses_database_aggregate(self):
+		BienTheSanPham.objects.create(
+			ma_bien_the="BT002",
+			san_pham=self.product,
+			huong_vi="Mè đen",
+			quy_cach="125g",
+			barcode="8938501000002",
+			gia_ban_le=Decimal("29000"),
+			trang_thai="ACTIVE",
+		)
+		BienTheSanPham.objects.create(
+			ma_bien_the="BT003",
+			san_pham=self.product,
+			huong_vi="Gừng",
+			quy_cach="150g",
+			barcode="8938501000003",
+			gia_ban_le=Decimal("25000"),
+			trang_thai="INACTIVE",
+		)
+
+		self.assertEqual(
+			self.product.lay_gia_thap_nhat(),
+			Decimal("29000"),
+		)
+		BienTheSanPham.objects.filter(san_pham=self.product).update(
+			trang_thai="INACTIVE",
+		)
+		self.assertEqual(self.product.lay_gia_thap_nhat(), 0)
+
 	def test_customer_catalog_and_detail_render_product_images(self):
 		catalog_response = self.client.get(
 			reverse("products:danh_sach"),

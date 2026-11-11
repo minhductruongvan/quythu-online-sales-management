@@ -10,6 +10,10 @@ Yêu cầu máy đã có Python 3.12 và kết nối internet ở lần chạy �
 
 > Python là nền tảng cần thiết để chạy Django. Nếu Python 3.12 chưa có trên máy, cần cài Python một lần; thư viện dự án được tập lệnh tự cài vào `.venv` và không ảnh hưởng Python toàn hệ thống. Kết nối internet cần thiết khi tải thư viện ở lần chạy đầu.
 
+## Cấu hình Django theo môi trường
+
+Các thiết lập `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS` và `DJANGO_SECRET_KEY` được đọc từ biến môi trường hoặc tệp `.env` ở thư mục gốc. Mặc định vẫn phù hợp để chạy và kiểm thử ở máy cá nhân. Khi triển khai, đặt `DJANGO_DEBUG=False`, khai báo danh sách tên miền trong `DJANGO_ALLOWED_HOSTS` (phân cách bằng dấu phẩy) và tạo một khóa riêng cho `DJANGO_SECRET_KEY` bằng `python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"`; ứng dụng sẽ báo lỗi rõ ràng nếu thiếu các cấu hình bắt buộc này.
+
 ## Chạy kiểm thử
 
 Từ thư mục `backend`:
