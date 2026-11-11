@@ -24,8 +24,8 @@ REPORT_PRESETS = {
 }
 
 
-def _read_report_date_range(request):
-    preset = request.GET.get("preset", "this_month")
+def _read_report_date_range(request, default_preset="this_month"):
+    preset = request.GET.get("preset") or default_preset
     if preset not in REPORT_PRESETS:
         return None, "Kỳ báo cáo không hợp lệ. Hãy chọn lại khoảng thời gian."
     if preset != "custom":
@@ -106,7 +106,7 @@ def dashboard_view(request):
     M5-UC01: Giao diện Dashboard tổng quan
     """
     customer_type = request.GET.get("customer_type", "ALL")
-    date_range, date_error = _read_report_date_range(request)
+    date_range, date_error = _read_report_date_range(request, default_preset="7days")
     if date_error:
         return _filter_error_response(request, date_error)
     preset = date_range["preset"]
@@ -116,11 +116,11 @@ def dashboard_view(request):
 
     # Lấy dữ liệu
     kpis = services.get_dashboard_kpis(date_range, customer_type, **filters)
-    timeline = services.get_revenue_timeline(date_range, customer_type, group_by="day", **filters)
+    timeline = services.get_revenue_timeline(date_range, group_by="day")
     customer_ratio = services.get_customer_type_ratio(date_range, **filters)
     status_list = services.get_order_status_distribution(date_range, customer_type, **filters)
     top_products = services.get_top_selling_products(
-        date_range, top_n=7, sort_by="revenue", customer_type=customer_type, **filters
+        date_range, top_n=5, sort_by="revenue", customer_type=customer_type, **filters
     )
     customer_types = LoaiKhachHang.objects.all()
 
@@ -183,10 +183,24 @@ def detail_report_view(request):
         return _filter_error_response(request, "Số trang phải là số nguyên lớn hơn 0.")
     try:
         page_size = int(request.GET.get("page_size", 10))
-        if page_size not in {10, 25, 50}:
-            raise ValueError
+        if page_size not in {10, 20, 25, 50}:
+            page_size = 10
     except ValueError:
-        return _filter_error_response(request, "Số dòng mỗi trang không hợp lệ.")
+        page_size = 10
+
+    try:
+        top_n = int(request.GET.get("top_n", 5))
+        if top_n not in {5, 10, 20}:
+            top_n = 5
+    except ValueError:
+        top_n = 5
+
+    try:
+        recent_limit = int(request.GET.get("recent_limit", 10))
+        if recent_limit not in {10, 20, 50}:
+            recent_limit = 10
+    except ValueError:
+        recent_limit = 10
 
     # 1. Tab Doanh thu: Timeline kết hợp (cột DT + đường đơn hàng) & Bảng chi tiết đơn HT
     rev_timeline = services.get_revenue_timeline(
@@ -218,7 +232,7 @@ def detail_report_view(request):
     # 2. Tab Top sản phẩm
     top_products = services.get_top_selling_products(
         date_range=date_range,
-        top_n=20,
+        top_n=top_n,
         sort_by=sort_by,
         group_level=group_level,
         customer_type=customer_type,
@@ -228,7 +242,7 @@ def detail_report_view(request):
 
     # 3. Tab Bán gần đây
     recent_products = services.get_recent_products(
-        limit=15,
+        limit=recent_limit,
         category_id=filters["category_id"],
         product_id=filters["product_id"],
         date_range=date_range,
@@ -260,6 +274,8 @@ def detail_report_view(request):
         "amount_min_input": request.GET.get("amount_min", ""),
         "amount_max_input": request.GET.get("amount_max", ""),
         "selected_sort": sort_by,
+        "selected_top_n": top_n,
+        "selected_recent_limit": recent_limit,
         "selected_order_sort": order_sort,
         "selected_order_sort_dir": order_sort_dir,
         "selected_page_size": page_size,
@@ -290,7 +306,7 @@ def api_dashboard_data(request):
     API JSON phục vụ cập nhật Dashboard bằng AJAX
     """
     customer_type = request.GET.get("customer_type", "ALL")
-    date_range, date_error = _read_report_date_range(request)
+    date_range, date_error = _read_report_date_range(request, default_preset="7days")
     if date_error:
         return _filter_error_response(request, date_error, api=True)
     filters, error = _read_report_filters(request)

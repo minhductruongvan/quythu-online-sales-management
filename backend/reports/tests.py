@@ -210,7 +210,7 @@ class Module5ReportsTestCase(TestCase):
 
         resp_detail = client.get("/reports/chi-tiet/?tab=revenue")
         self.assertEqual(resp_detail.status_code, 200)
-        self.assertContains(resp_detail, "Cơ cấu doanh thu")
+        self.assertContains(resp_detail, "Chi tiết đơn hàng")
 
         resp_api = client.get("/reports/api/dashboard-data/")
         self.assertEqual(resp_api.status_code, 200)
@@ -285,7 +285,7 @@ class Module5ReportsTestCase(TestCase):
         self.assertNotContains(detail, "product=None")
         self.assertContains(detail, 'action="/reports/chi-tiet/"')
         self.assertContains(detail, 'name="amount_min" min="0" step="1"')
-        self.assertNotContains(detail, "Số dòng / trang")
+        self.assertContains(detail, "Số dòng / trang")
         self.assertContains(detail, "Tổng cộng")
         self.assertContains(detail, "Sản phẩm bán chạy")
         self.assertContains(detail, "Áp dụng bộ lọc")

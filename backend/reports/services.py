@@ -497,10 +497,26 @@ def get_customer_type_ratio(
     pct_si = round((data["Khách sỉ"] / total * 100), 1) if total > 0 else 0.0
     pct_le = round(100.0 - pct_si, 1) if total > 0 else 0.0
 
+    if total >= 1_000_000:
+        total_display = f"{total / 1_000_000:.1f} tr".replace(".", ",")
+    elif total > 0:
+        total_display = f"{total:,}đ".replace(",", ".")
+    else:
+        total_display = "0đ"
+
+    total_formatted = f"{total:,}đ".replace(",", ".")
+
     return {
         "labels": ["Khách sỉ", "Khách lẻ"],
         "values": [data["Khách sỉ"], data["Khách lẻ"]],
         "percentages": [pct_si, pct_le],
+        "formatted_values": [
+            f"{data['Khách sỉ']:,}đ".replace(",", "."),
+            f"{data['Khách lẻ']:,}đ".replace(",", "."),
+        ],
+        "total": total,
+        "total_display": total_display,
+        "total_formatted": total_formatted,
     }
 
 
@@ -519,30 +535,29 @@ def get_order_status_distribution(date_range, customer_type=None, product_id=Non
     counts = dict(qs.values("trang_thai").annotate(c=Count("ma_dh")).values_list("trang_thai", "c"))
 
     ORDER_STATUS_METADATA = [
-        {"key": TrangThaiDonHang.CHO_XAC_NHAN, "label": "Chờ xác nhận", "color": "#D99132"},
-        {"key": TrangThaiDonHang.DA_XAC_NHAN, "label": "Đã xác nhận", "color": "#5287B3"},
-        {"key": TrangThaiDonHang.DANG_CHUAN_BI, "label": "Đang chuẩn bị hàng", "color": "#5287B3"},
-        {"key": TrangThaiDonHang.CHO_BO_SUNG, "label": "Chờ bổ sung hàng", "color": "#5287B3"},
-        {"key": TrangThaiDonHang.SAN_SANG_GIAO, "label": "Sẵn sàng giao", "color": "#5287B3"},
-        {"key": TrangThaiDonHang.DANG_GIAO, "label": "Đang giao", "color": "#5287B3"},
-        {"key": TrangThaiDonHang.GIAO_THANH_CONG, "label": "Giao thành công", "color": "#57976C"},
-        {"key": TrangThaiDonHang.HOAN_THANH, "label": "Hoàn thành", "color": "#57976C"},
-        {"key": TrangThaiDonHang.DA_HUY, "label": "Đã hủy", "color": "#D9534F"},
+        {"key": TrangThaiDonHang.CHO_XAC_NHAN, "label": "Chờ xác nhận", "color": "#d9822b"},
+        {"key": TrangThaiDonHang.DA_XAC_NHAN, "label": "Đã xác nhận", "color": "#4a7c9b"},
+        {"key": TrangThaiDonHang.DANG_CHUAN_BI, "label": "Đang chuẩn bị hàng", "color": "#4a7c9b"},
+        {"key": TrangThaiDonHang.CHO_BO_SUNG, "label": "Chờ bổ sung hàng", "color": "#4a7c9b"},
+        {"key": TrangThaiDonHang.SAN_SANG_GIAO, "label": "Sẵn sàng giao", "color": "#4a7c9b"},
+        {"key": TrangThaiDonHang.DANG_GIAO, "label": "Đang giao", "color": "#4a7c9b"},
+        {"key": TrangThaiDonHang.GIAO_THANH_CONG, "label": "Giao thành công", "color": "#4d8c57"},
+        {"key": TrangThaiDonHang.HOAN_THANH, "label": "Hoàn thành", "color": "#4d8c57"},
+        {"key": TrangThaiDonHang.DA_HUY, "label": "Đã hủy", "color": "#c54a4a"},
     ]
 
-    max_count = max(counts.values()) if counts else 1
-    if max_count == 0:
-        max_count = 1
+    max_count = max(counts.values(), default=0)
+    max_scale = max(max_count, 10)
 
     result = []
     for s in ORDER_STATUS_METADATA:
         count = counts.get(s["key"], 0)
-        pct = round((count / max_count) * 100, 1)
+        pct = round((count / max_scale) * 100, 1) if count > 0 else 0
         result.append({
             "key": s["key"],
             "label": s["label"],
             "count": count,
-            "pct": max(pct, 5) if count > 0 else 0,
+            "pct": pct,
             "color": s["color"],
         })
 

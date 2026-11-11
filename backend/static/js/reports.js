@@ -12,9 +12,8 @@
 
         const data = JSON.parse(dataElement.textContent);
         const revenue = data.revenue_millions || [];
-        const orders = data.orders_count || [];
         const labels = data.labels || [];
-        if (!labels.length || (!revenue.some(value => value > 0) && !orders.some(value => value > 0))) {
+        if (!labels.length || !revenue.some(value => value > 0)) {
             chart.replaceChildren();
             const empty = document.createElement("div");
             empty.className = "report-chart-empty";
@@ -25,31 +24,31 @@
 
         const width = 1000;
         const height = 320;
-        const margin = { top: 24, right: 54, bottom: 46, left: 62 };
+        const margin = { top: 24, right: 28, bottom: 46, left: 54 };
         const plotWidth = width - margin.left - margin.right;
         const plotHeight = height - margin.top - margin.bottom;
-        const revenueMax = Math.max(...revenue, 1) * 1.12;
-        const ordersMax = Math.max(...orders, 1) * 1.12;
+        const maxRevVal = Math.max(...revenue, 1);
+        const yMax = maxRevVal > 10 ? Math.ceil(maxRevVal / 10) * 10 : 10;
+        const yStep = yMax / 5;
+        const yTicks = [yMax, yMax - yStep, yMax - 2 * yStep, yMax - 3 * yStep, yMax - 4 * yStep, 0];
         const stepX = plotWidth / labels.length;
         const xAt = index => margin.left + stepX * (index + 0.5);
         const points = labels.map((label, index) => ({
             x: xAt(index),
-            y: margin.top + plotHeight - ((orders[index] || 0) / ordersMax) * plotHeight,
-            revenueY: margin.top + plotHeight - ((revenue[index] || 0) / revenueMax) * plotHeight,
+            revenueY: margin.top + plotHeight - ((revenue[index] || 0) / yMax) * plotHeight,
             revenue: revenue[index] || 0,
-            orders: orders[index] || 0,
             label,
         }));
         const svg = makeSvgElement("svg", {
             class: "report-chart",
             viewBox: `0 0 ${width} ${height}`,
             role: "img",
-            "aria-label": "Doanh thu dạng cột và số đơn dạng đường theo kỳ",
+            "aria-label": "Doanh thu theo thời gian dạng cột",
             preserveAspectRatio: "xMidYMid meet",
         });
         const gridGroup = makeSvgElement("g");
-        for (let index = 0; index <= 4; index += 1) {
-            const ratio = index / 4;
+        yTicks.forEach(tickVal => {
+            const ratio = (yMax - tickVal) / yMax;
             const y = margin.top + plotHeight * ratio;
             gridGroup.append(
                 makeSvgElement("line", {
@@ -63,14 +62,9 @@
             const revenueLabel = makeSvgElement("text", {
                 x: margin.left - 10, y: y + 4, "text-anchor": "end",
             });
-            revenueLabel.textContent = (revenueMax * (1 - ratio)).toFixed(1);
+            revenueLabel.textContent = Math.round(tickVal);
             gridGroup.append(revenueLabel);
-            const ordersLabel = makeSvgElement("text", {
-                x: width - margin.right + 10, y: y + 4, "text-anchor": "start",
-            });
-            ordersLabel.textContent = Math.round(ordersMax * (1 - ratio));
-            gridGroup.append(ordersLabel);
-        }
+        });
         svg.append(gridGroup);
 
         const barWidth = Math.max(3, Math.min(32, stepX * 0.48));
@@ -90,11 +84,6 @@
         });
         svg.append(bars);
 
-        const linePath = points.map((point, index) =>
-            `${index ? "L" : "M"} ${point.x} ${point.y}`
-        ).join(" ");
-        svg.append(makeSvgElement("path", { class: "report-chart-orders", d: linePath }));
-
         const labelStep = Math.max(1, Math.ceil(labels.length / 7));
         points.forEach((point, index) => {
             if (index % labelStep === 0 || index === points.length - 1) {
@@ -104,16 +93,6 @@
                 label.textContent = point.label;
                 svg.append(label);
             }
-            const circle = makeSvgElement("circle", {
-                class: "report-chart-order-point",
-                cx: point.x,
-                cy: point.y,
-                r: labels.length > 40 ? 2.5 : 4,
-            });
-            const title = makeSvgElement("title");
-            title.textContent = `${point.label}: ${point.orders} đơn`;
-            circle.append(title);
-            svg.append(circle);
         });
         chart.replaceChildren(svg);
     };

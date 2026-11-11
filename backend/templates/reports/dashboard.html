@@ -11,7 +11,6 @@
         <div>
             <span class="module-eyebrow">KINH DOANH</span>
             <h1>Dashboard tổng quan</h1>
-            <p>Doanh thu, đơn hàng và sản phẩm theo kỳ đã chọn.</p>
         </div>
         <a class="module-button" href="{% url 'reports:detail' %}">Báo cáo chi tiết <span aria-hidden="true">→</span></a>
     </header>
@@ -76,22 +75,58 @@
         <article class="report-kpi">
             <span>{% if has_product_filter %}Doanh thu sản phẩm{% else %}Doanh thu thuần{% endif %}</span>
             <strong>{{ kpis.revenue.formatted }}</strong>
-            <small class="report-kpi-change {% if kpis.revenue.pct_change is None %}neutral{% elif kpis.revenue.pct_change >= 0 %}up{% else %}down{% endif %}">{% if kpis.revenue.pct_change is None %}—{% else %}<i aria-hidden="true"></i>{{ kpis.revenue.pct_change|floatformat:1 }}% so kỳ trước{% endif %}</small>
+            <small class="report-kpi-change">
+                {% if kpis.revenue.pct_change is None %}
+                <span class="report-kpi-diff neutral">—</span>
+                {% elif kpis.revenue.pct_change >= 0 %}
+                <span class="report-kpi-diff up">▲ {{ kpis.revenue.pct_change|floatformat:1 }}%</span>
+                {% else %}
+                <span class="report-kpi-diff down">▼ {{ kpis.revenue.pct_change|floatformat:1|cut:"-" }}%</span>
+                {% endif %}
+                <span class="report-kpi-subtext">so kỳ trước</span>
+            </small>
         </article>
         <article class="report-kpi">
             <span>Đơn hàng trong kỳ</span>
             <strong>{{ kpis.orders.formatted }}</strong>
-            <small class="report-kpi-change {% if kpis.orders.pct_change is None %}neutral{% elif kpis.orders.pct_change >= 0 %}up{% else %}down{% endif %}">{% if kpis.orders.pct_change is None %}—{% else %}<i aria-hidden="true"></i>{{ kpis.orders.pct_change|floatformat:1 }}% so kỳ trước{% endif %}</small>
+            <small class="report-kpi-change">
+                {% if kpis.orders.pct_change is None %}
+                <span class="report-kpi-diff neutral">—</span>
+                {% elif kpis.orders.pct_change >= 0 %}
+                <span class="report-kpi-diff up">▲ {{ kpis.orders.pct_change|floatformat:1 }}%</span>
+                {% else %}
+                <span class="report-kpi-diff down">▼ {{ kpis.orders.pct_change|floatformat:1|cut:"-" }}%</span>
+                {% endif %}
+                <span class="report-kpi-subtext">so kỳ trước</span>
+            </small>
         </article>
         <article class="report-kpi">
             <span>Đơn đang xử lý</span>
             <strong>{{ kpis.processing_orders.formatted }}</strong>
-            <small class="report-kpi-change {% if kpis.processing_orders.pct_change is None %}neutral{% elif kpis.processing_orders.pct_change >= 0 %}up{% else %}down{% endif %}">{% if kpis.processing_orders.pct_change is None %}—{% else %}<i aria-hidden="true"></i>{{ kpis.processing_orders.pct_change|floatformat:1 }}% so kỳ trước{% endif %}</small>
+            <small class="report-kpi-change">
+                {% if kpis.processing_orders.pct_change is None %}
+                <span class="report-kpi-diff neutral">—</span>
+                {% elif kpis.processing_orders.pct_change >= 0 %}
+                <span class="report-kpi-diff up">▲ {{ kpis.processing_orders.pct_change|floatformat:1 }}%</span>
+                {% else %}
+                <span class="report-kpi-diff down">▼ {{ kpis.processing_orders.pct_change|floatformat:1|cut:"-" }}%</span>
+                {% endif %}
+                <span class="report-kpi-subtext">so kỳ trước</span>
+            </small>
         </article>
         <article class="report-kpi">
-            <span>Giá trị trung bình / đơn</span>
-            <strong>{{ kpis.avg_order_value.formatted }}</strong>
-            <small class="report-kpi-change {% if kpis.avg_order_value.pct_change is None %}neutral{% elif kpis.avg_order_value.pct_change >= 0 %}up{% else %}down{% endif %}">{% if kpis.avg_order_value.pct_change is None %}—{% else %}<i aria-hidden="true"></i>{{ kpis.avg_order_value.pct_change|floatformat:1 }}% so kỳ trước{% endif %}</small>
+            <span>Khách hàng mới</span>
+            <strong>{{ kpis.new_customers.formatted }}</strong>
+            <small class="report-kpi-change">
+                {% if kpis.new_customers.pct_change is None %}
+                <span class="report-kpi-diff neutral">—</span>
+                {% elif kpis.new_customers.pct_change >= 0 %}
+                <span class="report-kpi-diff up">▲ {{ kpis.new_customers.pct_change|floatformat:1 }}%</span>
+                {% else %}
+                <span class="report-kpi-diff down">▼ {{ kpis.new_customers.pct_change|floatformat:1|cut:"-" }}%</span>
+                {% endif %}
+                <span class="report-kpi-subtext">so kỳ trước</span>
+            </small>
         </article>
     </section>
 
@@ -99,12 +134,8 @@
         <section class="report-panel">
             <div class="report-panel-heading">
                 <div>
-                    <h2>Xu hướng doanh thu và đơn hàng</h2>
-                    <p>Cột: doanh thu (triệu đồng) · Đường: số đơn</p>
-                </div>
-                <div class="report-legend" aria-label="Chú giải biểu đồ">
-                    <span class="report-legend-item"><i class="report-legend-dot"></i>Doanh thu</span>
-                    <span class="report-legend-item"><i class="report-legend-dot orders"></i>Số đơn</span>
+                    <h2>Doanh thu theo thời gian</h2>
+                    <p>Doanh thu (triệu đồng)</p>
                 </div>
             </div>
             <div id="revenue-chart"></div>
@@ -112,19 +143,25 @@
 
         <section class="report-panel">
             <div class="report-panel-heading">
-                <div><h2>Cơ cấu doanh thu</h2><p>Theo loại khách hàng</p></div>
+                <div><h2>Cơ cấu doanh thu</h2><p>Theo loại khách hàng trong kỳ đã chọn</p></div>
             </div>
             {% if has_customer_revenue %}
             <div class="report-donut-wrap">
-                <div class="report-donut" role="img" aria-label="Cơ cấu doanh thu: khách sỉ {{ customer_ratio.percentages.0 }}%, khách lẻ {{ customer_ratio.percentages.1 }}%" style="--wholesale-share: {{ customer_ratio.percentages.0|unlocalize }}%">
-                    <span class="report-donut-center">
-                        <strong>{{ customer_ratio.percentages.0 }}%</strong>
-                        <small>Khách sỉ</small>
+                <div class="report-donut" role="img" title="Khách sỉ: {{ customer_ratio.formatted_values.0 }} ({{ customer_ratio.percentages.0 }}%) | Khách lẻ: {{ customer_ratio.formatted_values.1 }} ({{ customer_ratio.percentages.1 }}%)" aria-label="Cơ cấu doanh thu: khách sỉ {{ customer_ratio.percentages.0 }}%, khách lẻ {{ customer_ratio.percentages.1 }}%" style="--wholesale-share: {{ customer_ratio.percentages.0|unlocalize }}%">
+                    <span class="report-donut-center" title="Tổng doanh thu: {{ customer_ratio.total_formatted }}">
+                        <small style="color:#333; font-size:12px; font-weight:500; margin-bottom:2px;">Doanh thu</small>
+                        <strong style="color:#000; font-size:18px; font-weight:800;">{{ customer_ratio.total_display }}</strong>
                     </span>
                 </div>
                 <div class="report-legend-list">
-                    <span class="report-legend-item"><span><i class="report-legend-dot"></i> Khách sỉ</span><strong>{{ customer_ratio.percentages.0 }}%</strong></span>
-                    <span class="report-legend-item"><span><i class="report-legend-dot gold"></i> Khách lẻ</span><strong>{{ customer_ratio.percentages.1 }}%</strong></span>
+                    <span class="report-legend-item" title="Tổng doanh thu khách sỉ: {{ customer_ratio.formatted_values.0 }} ({{ customer_ratio.percentages.0 }}%)">
+                        <span><i class="report-legend-dot" style="background:#6d4327;"></i> Khách sỉ</span>
+                        <strong style="color:#000;">{{ customer_ratio.formatted_values.0 }} <small style="color:#6d4327;font-weight:600;">({{ customer_ratio.percentages.0 }}%)</small></strong>
+                    </span>
+                    <span class="report-legend-item" title="Tổng doanh thu khách lẻ: {{ customer_ratio.formatted_values.1 }} ({{ customer_ratio.percentages.1 }}%)">
+                        <span><i class="report-legend-dot gold" style="background:#d8b68a;"></i> Khách lẻ</span>
+                        <strong style="color:#000;">{{ customer_ratio.formatted_values.1 }} <small style="color:#a67c4e;font-weight:600;">({{ customer_ratio.percentages.1 }}%)</small></strong>
+                    </span>
                 </div>
             </div>
             {% else %}
@@ -139,10 +176,10 @@
                 <div><h2>Đơn hàng theo trạng thái</h2><p>Số đơn đặt trong kỳ đã chọn</p></div>
             </div>
             <div class="report-status-legend" aria-label="Chú giải màu trạng thái đơn hàng">
-                <span><i class="pending"></i>Chờ xác nhận</span>
-                <span><i class="processing"></i>Đang xử lý</span>
-                <span><i class="completed"></i>Đã giao / hoàn thành</span>
-                <span><i class="cancelled"></i>Đã hủy</span>
+                <span><i class="pending" style="background:#d9822b;"></i>Chờ xác nhận</span>
+                <span><i class="processing" style="background:#4a7c9b;"></i>Đang xử lý</span>
+                <span><i class="completed" style="background:#4d8c57;"></i>Đã giao / hoàn thành</span>
+                <span><i class="cancelled" style="background:#c54a4a;"></i>Đã hủy</span>
             </div>
             <div class="report-status-list">
                 {% for status in status_list %}
@@ -158,22 +195,33 @@
         </section>
 
         <section class="report-panel">
-            <div class="report-panel-heading">
-                <div><h2>Sản phẩm dẫn đầu</h2><p>Xếp theo doanh thu hoàn thành</p></div>
-                <a class="module-link-button secondary" href="{% url 'reports:detail' %}?tab=products&preset={{ selected_preset }}&start_date={{ date_range.start_date|date:'Y-m-d' }}&end_date={{ date_range.end_date|date:'Y-m-d' }}&customer_type={{ selected_customer_type }}&product={{ selected_product|default_if_none:''|urlencode }}&amount_min={{ amount_min_input|urlencode }}&amount_max={{ amount_max_input|urlencode }}">Chi tiết</a>
+            <div class="report-panel-heading" style="align-items: center; margin-bottom: 12px;">
+                <div><h2>Top 5 sản phẩm bán chạy</h2></div>
+                <a class="module-link-button secondary" href="{% url 'reports:detail' %}?tab=products&preset={{ selected_preset }}&start_date={{ date_range.start_date|date:'Y-m-d' }}&end_date={{ date_range.end_date|date:'Y-m-d' }}&customer_type={{ selected_customer_type }}&product={{ selected_product|default_if_none:''|urlencode }}&amount_min={{ amount_min_input|urlencode }}&amount_max={{ amount_max_input|urlencode }}" style="background: #edf3f0; color: #173c32; border: 1px solid #d5e4dd; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 700;">Xem tất cả</a>
             </div>
-            <div class="report-product-list">
-                {% for item in top_products %}
-                <div class="report-product-row">
-                    <span class="report-product-name"><strong>{{ item.name }}</strong><small>{{ item.code }} · {{ item.spec }}</small></span>
-                    <div class="report-meter" role="progressbar" aria-label="Tỷ trọng doanh thu {{ item.name }}" aria-valuenow="{{ item.percentage }}" aria-valuemin="0" aria-valuemax="100">
-                        <span style="width:{{ item.percentage }}%"></span>
-                    </div>
-                    <strong>{{ item.revenue_formatted }}</strong>
-                </div>
-                {% empty %}
-                <p class="report-empty">Chưa có sản phẩm bán trong kỳ này. <a href="{% url 'reports:dashboard' %}">Xóa bộ lọc</a></p>
-                {% endfor %}
+            <div class="module-table-wrap">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #edf3f0; color: #173c32; font-size: 13px; font-weight: 700;">
+                            <th style="padding: 11px 14px; text-align: left; border-radius: 8px 0 0 8px; width: 60px;">Hạng</th>
+                            <th style="padding: 11px 14px; text-align: left;">Sản phẩm</th>
+                            <th style="padding: 11px 14px; text-align: right; width: 90px;">SL bán</th>
+                            <th style="padding: 11px 14px; text-align: right; border-radius: 0 8px 8px 0; width: 130px;">Doanh thu</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in top_products|slice:":5" %}
+                        <tr style="border-bottom: 1px solid #e2ebe6; font-size: 13px;">
+                            <td style="padding: 12px 14px; font-weight: 700; color: #173c32; text-align: center;">{{ item.rank }}</td>
+                            <td style="padding: 12px 14px; color: #000; font-weight: 500;">{{ item.name }}</td>
+                            <td style="padding: 12px 14px; text-align: right; color: #000; font-weight: 600;">{{ item.qty_formatted }}</td>
+                            <td style="padding: 12px 14px; text-align: right; color: #173c32; font-weight: 700;">{{ item.revenue_formatted }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" style="text-align:center; padding: 20px; color:#555;">Chưa có sản phẩm bán trong kỳ này.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </section>
     </div>
