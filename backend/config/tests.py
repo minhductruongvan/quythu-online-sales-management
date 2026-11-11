@@ -293,7 +293,7 @@ class M1CustomerManagementTests(TestCase):
     def test_storefront_home_displays_only_active_catalog_data(self):
         self.client.force_login(self.customer_account)
         category = DanhMucSanPham.objects.create(
-            ma_dm="DM_HOME",
+            ma_dm="DM001",
             ten_dm="Bánh dừa nướng",
             mo_ta="Đặc sản Quý Thu",
         )
@@ -335,7 +335,11 @@ class M1CustomerManagementTests(TestCase):
             [product],
         )
         self.assertContains(response, "Bánh dừa nướng truyền thống")
-        self.assertContains(response, "45000")
+        self.assertContains(
+            response,
+            "/static/images/Gemini_Generated_Image_8i30aj8i30aj8i30.png",
+        )
+        self.assertContains(response, "45.000 ₫")
         self.assertContains(response, "/media/catalog/")
         self.assertNotContains(response, "Thời trang")
         self.assertNotIn(
@@ -352,7 +356,7 @@ class M1CustomerManagementTests(TestCase):
         matching = SanPham.objects.create(
             ma_sp="SP_FIND",
             danh_muc=category,
-            ten_sp="Bánh dừa nướng",
+            ten_sp="Bánh dừa nướng Mè đen",
         )
         BienTheSanPham.objects.create(
             ma_bien_the="BT_FIND",
@@ -361,6 +365,20 @@ class M1CustomerManagementTests(TestCase):
             quy_cach="120g",
             barcode="8930000000002",
             gia_ban_le=50000,
+        )
+        unrelated = SanPham.objects.create(
+            ma_sp="SP_NOISE",
+            danh_muc=category,
+            ten_sp="Túi quà sum vầy",
+            mo_ta="Mè đen thơm bùi trong hộp quà.",
+        )
+        BienTheSanPham.objects.create(
+            ma_bien_the="BT_NOISE",
+            san_pham=unrelated,
+            huong_vi="Thập cẩm",
+            quy_cach="3 gói",
+            barcode="8930000000003",
+            gia_ban_le=100000,
         )
 
         response = self.client.get(
@@ -372,6 +390,17 @@ class M1CustomerManagementTests(TestCase):
         self.assertEqual(response.context["search_query"], "Mè đen")
         self.assertEqual(list(response.context["products"]), [matching])
         self.assertContains(response, "Mè đen")
+        self.assertNotContains(response, unrelated.ten_sp)
+        self.assertNotContains(response, "home-category-card")
+        self.assertContains(response, 'action="/#san-pham"')
+
+        matching.mo_ta = "Mè rang giòn, thơm bùi."
+        matching.save(update_fields=["mo_ta"])
+        description_match = self.client.get(
+            reverse("storefront-home"),
+            {"q": "Mè rang giòn"},
+        )
+        self.assertEqual(list(description_match.context["products"]), [])
 
     def test_customer_profile_update_syncs_account_and_records_audit(self):
         self.client.force_login(self.customer_account)

@@ -51,6 +51,60 @@ ORDERS = (
     (TrangThaiDonHang.CHO_XAC_NHAN, PhuongThucThanhToan.MA_COD, TrangThaiThanhToan.CHUA_THANH_TOAN),
 )
 
+ORDER_HISTORY = {
+    TrangThaiDonHang.CHO_XAC_NHAN: (TrangThaiDonHang.CHO_XAC_NHAN,),
+    TrangThaiDonHang.CHO_THANH_TOAN: (
+        TrangThaiDonHang.CHO_XAC_NHAN,
+        TrangThaiDonHang.DA_XAC_NHAN,
+        TrangThaiDonHang.CHO_THANH_TOAN,
+    ),
+    TrangThaiDonHang.DANG_CHUAN_BI: (
+        TrangThaiDonHang.CHO_XAC_NHAN,
+        TrangThaiDonHang.DA_XAC_NHAN,
+        TrangThaiDonHang.DANG_CHUAN_BI,
+    ),
+    TrangThaiDonHang.CHO_BO_SUNG: (
+        TrangThaiDonHang.CHO_XAC_NHAN,
+        TrangThaiDonHang.DA_XAC_NHAN,
+        TrangThaiDonHang.DANG_CHUAN_BI,
+        TrangThaiDonHang.CHO_BO_SUNG,
+    ),
+    TrangThaiDonHang.SAN_SANG_GIAO: (
+        TrangThaiDonHang.CHO_XAC_NHAN,
+        TrangThaiDonHang.DA_XAC_NHAN,
+        TrangThaiDonHang.DANG_CHUAN_BI,
+        TrangThaiDonHang.SAN_SANG_GIAO,
+    ),
+    TrangThaiDonHang.DANG_GIAO: (
+        TrangThaiDonHang.CHO_XAC_NHAN,
+        TrangThaiDonHang.DA_XAC_NHAN,
+        TrangThaiDonHang.DANG_CHUAN_BI,
+        TrangThaiDonHang.SAN_SANG_GIAO,
+        TrangThaiDonHang.DANG_GIAO,
+    ),
+    TrangThaiDonHang.GIAO_THANH_CONG: (
+        TrangThaiDonHang.CHO_XAC_NHAN,
+        TrangThaiDonHang.DA_XAC_NHAN,
+        TrangThaiDonHang.DANG_CHUAN_BI,
+        TrangThaiDonHang.SAN_SANG_GIAO,
+        TrangThaiDonHang.DANG_GIAO,
+        TrangThaiDonHang.GIAO_THANH_CONG,
+    ),
+    TrangThaiDonHang.HOAN_THANH: (
+        TrangThaiDonHang.CHO_XAC_NHAN,
+        TrangThaiDonHang.DA_XAC_NHAN,
+        TrangThaiDonHang.DANG_CHUAN_BI,
+        TrangThaiDonHang.SAN_SANG_GIAO,
+        TrangThaiDonHang.DANG_GIAO,
+        TrangThaiDonHang.GIAO_THANH_CONG,
+        TrangThaiDonHang.HOAN_THANH,
+    ),
+    TrangThaiDonHang.DA_HUY: (
+        TrangThaiDonHang.CHO_XAC_NHAN,
+        TrangThaiDonHang.DA_HUY,
+    ),
+}
+
 
 class Command(BaseCommand):
     help = "Create repeatable sample customers, addresses, orders and transactions."
@@ -139,7 +193,11 @@ class Command(BaseCommand):
         for index, (status, payment_code, payment_status) in enumerate(ORDERS, start=1):
             customer, address, city = customers[(index - 1) % len(customers)]
             method = payments[payment_code]
-            created_at = now - timedelta(days=(index - 1) * 3, hours=index)
+            created_at = (
+                now - timedelta(hours=2)
+                if status == TrangThaiDonHang.CHO_THANH_TOAN
+                else now - timedelta(days=min(index - 1, 4), hours=index)
+            )
             variant = variants[(index - 1) % len(variants)]
             wholesale = customer.loai_khach_hang_id == wholesale_type.ma_loai_kh
             quantity = (
@@ -294,17 +352,18 @@ class Command(BaseCommand):
                     "ghi_chu": "Khách hàng tạo đơn.",
                 },
             )
-            if status != TrangThaiDonHang.CHO_XAC_NHAN:
+            history = ORDER_HISTORY[status]
+            for step_index, history_status in enumerate(history[1:], start=1):
                 LichSuTrangThaiDonHang.objects.get_or_create(
-                    ma_lstt=f"TSTLS{index:03d}B",
+                    ma_lstt=f"TSTLS{index:03d}{chr(65 + step_index)}",
                     defaults={
                         "don_hang": order,
-                        "trang_thai_cu": TrangThaiDonHang.CHO_XAC_NHAN,
-                        "trang_thai": status,
-                        "thoi_diem": confirmed_at + timedelta(minutes=30),
+                        "trang_thai_cu": history[step_index - 1],
+                        "trang_thai": history_status,
+                        "thoi_diem": confirmed_at + timedelta(minutes=(step_index - 1) * 10),
                         "tac_nhan": TacNhan.NHAN_VIEN,
                         "nhan_vien": staff,
-                        "ghi_chu": "Cập nhật trạng thái mẫu để thử giao diện.",
+                        "ghi_chu": f"Cập nhật trạng thái {history_status} để thử giao diện.",
                     },
                 )
 

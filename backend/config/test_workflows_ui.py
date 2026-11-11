@@ -115,7 +115,7 @@ class IntegratedActorPagesTests(TestCase):
         )
         self.assertNotContains(no_matching_variant, "Hộp vị phối hợp")
 
-    def test_product_detail_uses_placeholder_and_keeps_variant_cart_selection(self):
+    def test_product_detail_uses_fallback_image_and_keeps_variant_cart_selection(self):
         category = DanhMucSanPham.objects.create(
             ma_dm="UIDM010",
             ten_dm="Đặc sản Quý Thu",
@@ -141,12 +141,14 @@ class IntegratedActorPagesTests(TestCase):
         )
 
         guest_page = self.client.get("/products/chi-tiet/UISP010/")
-        self.assertContains(guest_page, "Hình ảnh sản phẩm sẽ được cập nhật")
+        self.assertContains(guest_page, 'src="https://placehold.co/400x300?text=Banh+Dua+Quy+Thu"')
+        self.assertNotContains(guest_page, "Hình ảnh sản phẩm sẽ được cập nhật")
         self.assertContains(guest_page, 'data-product-variant-picker')
         self.assertContains(guest_page, "THÔNG TIN MINH BẠCH")
         self.assertContains(guest_page, "Danh sách thành phần chi tiết chưa được cung cấp")
         self.assertContains(guest_page, 'data-product-variant-select="UIBT010"')
-        self.assertContains(guest_page, "Quy cách đóng gói")
+        self.assertContains(guest_page, "Khối lượng")
+        self.assertNotContains(guest_page, "Giá sỉ")
         self.assertContains(guest_page, "Đăng nhập để mua hàng")
         self.assertNotContains(guest_page, "js-add-to-cart")
 
@@ -158,6 +160,17 @@ class IntegratedActorPagesTests(TestCase):
         )
         self.assertContains(customer_page, 'name="ma_bien_the"')
         self.assertContains(customer_page, "Mô tả sản phẩm thử nghiệm.")
+        self.assertNotContains(customer_page, "Giá sỉ")
+
+        wholesale_type, _ = LoaiKhachHang.objects.get_or_create(
+            ma_loai_kh="LKH002",
+            defaults={"ten_loai_kh": "Khách sỉ"},
+        )
+        customer = KhachHang.objects.get(tai_khoan=self.customer_account)
+        customer.loai_khach_hang = wholesale_type
+        customer.save(update_fields=["loai_khach_hang"])
+        wholesale_page = self.client.get("/products/chi-tiet/UISP010/")
+        self.assertContains(wholesale_page, "Giá sỉ")
 
         self.client.force_login(self.manager_account)
         manager_page = self.client.get("/products/chi-tiet/UISP010/")
@@ -193,7 +206,7 @@ class IntegratedActorPagesTests(TestCase):
         customer = KhachHang.objects.get(tai_khoan__email="new-customer@example.test")
         self.assertEqual(customer.loai_khach_hang_id, "LKH001")
 
-    def test_registration_respects_selected_wholesale_type_and_requires_a_choice(self):
+    def test_registration_ignores_self_selected_wholesale_type(self):
         registration = self.client.post(
             "/api/customers/register/",
             {
@@ -207,11 +220,11 @@ class IntegratedActorPagesTests(TestCase):
         )
         self.assertEqual(registration.status_code, 201, registration.json())
         customer = KhachHang.objects.get(tai_khoan__email="wholesale@example.test")
-        self.assertEqual(customer.loai_khach_hang_id, "LKH002")
+        self.assertEqual(customer.loai_khach_hang_id, "LKH001")
         self.assertEqual(customer.tai_khoan.vai_tro, TaiKhoan.VaiTro.CUSTOMER)
         self.assertEqual(
             registration.json()["data"]["ma_loai_khach_hang"],
-            "LKH002",
+            "LKH001",
         )
 
         missing_type = self.client.post(
@@ -224,8 +237,11 @@ class IntegratedActorPagesTests(TestCase):
             },
             content_type="application/json",
         )
-        self.assertEqual(missing_type.status_code, 400)
-        self.assertIn("loai_khach_hang", missing_type.json()["errors"])
+        self.assertEqual(missing_type.status_code, 201, missing_type.json())
+        self.assertEqual(
+            KhachHang.objects.get(tai_khoan__email="no-type@example.test").loai_khach_hang_id,
+            "LKH001",
+        )
 
     def test_auth_forms_use_post_and_registration_script_is_async(self):
         registration_page = self.client.get("/tai-khoan/dang-ky/")
@@ -235,13 +251,26 @@ class IntegratedActorPagesTests(TestCase):
             'form.addEventListener("submit", async function (event)',
         )
         self.assertContains(registration_page, "/api/customers/register/")
-        self.assertContains(registration_page, 'value="LKH001"')
-        self.assertContains(registration_page, 'value="LKH002"')
-        self.assertContains(registration_page, "loai_khach_hang: customerType.value")
+        self.assertNotContains(registration_page, 'name="loai_khach_hang"')
 
         login_page = self.client.get("/tai-khoan/dang-nhap/")
         self.assertContains(login_page, 'method="post"')
         self.assertContains(login_page, "/api/customers/login/")
+
+    def test_customer_address_checkout_and_staff_filter_controls_render(self):
+        self.client.force_login(self.customer_account)
+        addresses = self.client.get("/tai-khoan/dia-chi/")
+        self.assertContains(addresses, '<select id="province" required>')
+        checkout = self.client.get("/thanh-toan/?chon=CG001")
+        self.assertContains(checkout, '<select id="checkout-province"')
+        cart = self.client.get("/gio-hang/")
+        self.assertContains(cart, 'id="cart-select-all"')
+        self.assertContains(cart, 'id="cart-selected-count"')
+
+        self.client.force_login(self.employee_account)
+        staff_orders = self.client.get("/don-hang/")
+        self.assertContains(staff_orders, 'name="loai_khach"')
+        self.assertContains(staff_orders, "Tất cả loại khách")
 
     def test_customer_workflows_render_and_remain_customer_only(self):
         self.client.force_login(self.customer_account)
@@ -260,7 +289,7 @@ class IntegratedActorPagesTests(TestCase):
         self.assertContains(checkout, "Lưu địa chỉ và tiếp tục")
         self.assertContains(checkout, 'data-address-api="/api/customers/addresses/"')
         self.assertContains(checkout, 'data-cart-api="/api/orders/cart/"')
-        self.assertContains(checkout, 'id="checkout-province-options"')
+        self.assertContains(checkout, '<select id="checkout-province"')
         storefront = self.client.get("/products/")
         self.assertContains(storefront, 'class="qt-account-menu"')
         self.assertContains(storefront, 'aria-label="Mở menu tài khoản"')
@@ -287,6 +316,20 @@ class IntegratedActorPagesTests(TestCase):
         self.assertTrue(
             DiaChiKH.objects.filter(khach_hang__tai_khoan=self.customer_account).exists()
         )
+        invalid_address = self.client.post(
+            "/api/customers/addresses/",
+            {
+                "ten_nguoi_nhan": "Khách giao diện",
+                "so_dien_thoai": "0901234568",
+                "dia_chi_chi_tiet": "2 đường Mẫu",
+                "phuong_xa": "Phường không hợp lệ",
+                "quan_huyen": "Không hợp lệ",
+                "tinh_thanh": "Tỉnh tự nhập",
+                "mac_dinh": False,
+            },
+            content_type="application/json",
+        )
+        self.assertEqual(invalid_address.status_code, 400)
         self.assertEqual(self.client.get("/products/quan-ly/").status_code, 403)
         self.assertEqual(self.client.get("/reports/dashboard/").status_code, 403)
 

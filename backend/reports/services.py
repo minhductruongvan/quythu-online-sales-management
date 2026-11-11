@@ -438,7 +438,15 @@ def get_revenue_timeline(
     }
 
 
-def get_customer_type_ratio(date_range, customer_type=None, product_id=None, amount_min=None, amount_max=None, category_id=None):
+def get_customer_type_ratio(
+    date_range,
+    customer_type=None,
+    product_id=None,
+    amount_min=None,
+    amount_max=None,
+    category_id=None,
+    pttt_id=None,
+):
     """
     Tỉ trọng doanh thu sỉ / lẻ từ các đơn Hoàn thành
     M5-BR08: Khách lẻ vs Khách sỉ
@@ -450,6 +458,8 @@ def get_customer_type_ratio(date_range, customer_type=None, product_id=None, amo
             trang_thai=TrangThaiDonHang.HOAN_THANH,
             thoi_diem_hoan_thanh__range=(start_dt, end_dt),
         ), product_id, amount_min, amount_max, category_id)
+    if pttt_id and pttt_id != "ALL":
+        completed_orders = completed_orders.filter(phuong_thuc_thanh_toan_id=pttt_id)
     if customer_type and customer_type != "ALL":
         completed_orders = completed_orders.filter(
             loai_khach_hang_ap_dung_id=customer_type

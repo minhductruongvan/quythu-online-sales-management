@@ -92,9 +92,8 @@
 .user-info strong,
 .user-info span {
     display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    white-space: normal;
 }
 
 .user-info strong {

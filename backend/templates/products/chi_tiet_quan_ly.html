@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load static money %}
+{% block title %}Chi tiết sản phẩm {{ san_pham.ten_sp }} | Quý Thu{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}">{% endblock %}
+{% block content %}
+<main class="module-page">
+    <header class="module-heading"><div><span class="module-eyebrow">CHI TIẾT SẢN PHẨM</span><h1>{{ san_pham.ten_sp }}</h1><p>{{ san_pham.ma_sp }} · {{ san_pham.danh_muc.ten_dm }}</p></div><div class="module-inline-form"><a class="module-link-button secondary" href="{% url 'products:quan_ly' %}">← Danh sách</a><a class="module-button" href="{% url 'products:sua' san_pham.ma_sp %}">Sửa sản phẩm</a></div></header>
+    <section class="module-panel">
+        <div class="product-detail-layout">
+            <div class="product-gallery" data-product-gallery>
+                {% if danh_sach_anh %}
+                <img class="product-image-placeholder" src="{{ danh_sach_anh.0.duong_dan }}" alt="{{ san_pham.ten_sp }}" data-product-main-image>
+                <div class="product-gallery-thumbnails" aria-label="Ảnh chi tiết sản phẩm">
+                    {% for image in danh_sach_anh %}
+                    <button type="button" class="product-gallery-thumbnail" data-product-image="{{ image.duong_dan }}" data-image-alt="{{ san_pham.ten_sp }}{% if image.anh_chinh %}, ảnh đại diện{% else %}, ảnh chi tiết {{ forloop.counter }}{% endif %}" aria-label="Xem ảnh {{ forloop.counter }}" aria-pressed="{% if forloop.first %}true{% else %}false{% endif %}">
+                        <img src="{{ image.duong_dan }}" alt="" loading="lazy">
+                    </button>
+                    {% endfor %}
+                </div>
+                {% else %}
+                {% if anh_dai_dien_du_phong %}<img class="product-image-placeholder" src="{% static anh_dai_dien_du_phong %}" alt="{{ san_pham.ten_sp }}" data-product-main-image>{% else %}<img class="product-image-placeholder" src="{{ san_pham.lay_anh_dai_dien }}" alt="{{ san_pham.ten_sp }}" data-product-main-image>{% endif %}
+                {% endif %}
+                <div class="product-gallery-caption"><span class="product-gallery-dot" aria-hidden="true"></span>Ảnh sản phẩm Quý Thu</div>
+                <a class="module-link-button secondary" href="{% url 'products:quan_ly_hinh_anh' san_pham.ma_sp %}">Quản lý ảnh sản phẩm</a>
+            </div>
+            <div class="product-detail-card">
+                <div class="product-detail-meta"><span class="catalog-category">{{ san_pham.danh_muc.ten_dm }}</span><span>Mã sản phẩm: {{ san_pham.ma_sp }}</span></div>
+                <h1>{{ san_pham.ten_sp }}</h1>
+                <p class="product-detail-description">{{ san_pham.mo_ta|default:"Chưa có mô tả chi tiết."|linebreaksbr }}</p>
+                <p><strong>Trạng thái:</strong> {% if san_pham.trang_thai == "ACTIVE" %}Đang kinh doanh{% else %}Ngừng kinh doanh{% endif %}</p>
+                <div class="product-service-notes">
+                    <a class="module-button" href="{% url 'products:sua' san_pham.ma_sp %}">Sửa thông tin sản phẩm</a>
+                    <a class="module-button secondary" href="{% url 'products:quan_ly_gia' san_pham.ma_sp %}">Quản lý giá</a>
+                    <a class="module-button secondary" href="{% url 'products:quan_ly_ma_vach' san_pham.ma_sp %}">Quản lý mã vạch</a>
+                </div>
+            </div>
+        </div>
+    </section>
+    <section class="module-panel" style="margin-top:20px">
+        <div class="module-heading"><div><h2>Biến thể, giá và khối lượng</h2></div><a class="module-button secondary" href="{% url 'products:them_bien_the' san_pham.ma_sp %}">＋ Thêm biến thể</a></div>
+        <div class="module-table-wrap"><table class="module-table"><thead><tr><th>Mã biến thể</th><th>Hương vị</th><th>Khối lượng / quy cách</th><th>Giá lẻ</th><th>Giá sỉ</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+            {% for variant in danh_sach_bien_the %}<tr><td>{{ variant.ma_bien_the }}</td><td>{{ variant.huong_vi }}</td><td>{{ variant.quy_cach }}</td><td>{{ variant.gia_ban_le|vnd }} ₫</td><td>{{ variant.gia_ban_si|vnd }} ₫</td><td>{% if variant.trang_thai == "ACTIVE" %}Đang kinh doanh{% else %}Ngừng kinh doanh{% endif %}</td><td><a href="{% url 'products:sua_bien_the' variant.ma_bien_the %}">Sửa</a></td></tr>{% empty %}<tr><td colspan="7" class="module-empty">Sản phẩm chưa có biến thể.</td></tr>{% endfor %}
+        </tbody></table></div>
+    </section>
+</main>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/storefront.js' %}" defer></script>{% endblock %}

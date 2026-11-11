@@ -18,7 +18,7 @@ from rest_framework import serializers
 
 from products.models import BienTheSanPham
 
-from .models import HinhThucGiao, LoaiGia, TrangThaiDonHang
+from .models import HinhThucGiao, LoaiGia, TrangThaiDonHang, TrangThaiThanhToan
 from .services import DichVuGiaoHang, DichVuThanhToan, DichVuTraCuuDon
 
 # Câu báo trùng với câu của DichVuGioHang.kiem_tra_so_luong (M3-BR03)
@@ -163,6 +163,7 @@ class DiaChiGiaoHangSerializer(serializers.Serializer):
 class PhuongThucThanhToanSerializer(serializers.Serializer):
     ma_pttt = serializers.CharField()
     ten_pttt = serializers.CharField()
+    ghi_chu_huong_dan = serializers.CharField(allow_null=True, required=False)
 
 
 class TrangThanhToanSerializer(serializers.Serializer):
@@ -204,6 +205,9 @@ class DonHangSerializer(serializers.Serializer):
     ngay_dat = serializers.DateTimeField()
     trang_thai = serializers.CharField()
     ten_trang_thai = serializers.CharField(source="get_trang_thai_display")
+    ten_trang_thai_hien_thi = serializers.SerializerMethodField()
+    trang_thai_hau_mai = serializers.CharField(allow_null=True, required=False)
+    ten_trang_thai_hau_mai = serializers.SerializerMethodField()
     trang_thai_thanh_toan = serializers.CharField()
     ten_trang_thai_thanh_toan = serializers.CharField(source="get_trang_thai_thanh_toan_display")
     ma_pttt = serializers.CharField(source="phuong_thuc_thanh_toan_id")
@@ -216,6 +220,15 @@ class DonHangSerializer(serializers.Serializer):
     phi_van_chuyen = serializers.IntegerField()
     tong_thanh_toan = serializers.IntegerField()
     chi_tiet = ChiTietDonHangSerializer(many=True)  # don.chi_tiet.all()
+
+    def get_ten_trang_thai_hien_thi(self, don):
+        if (don.trang_thai == TrangThaiDonHang.CHO_THANH_TOAN
+                and don.trang_thai_thanh_toan == TrangThaiThanhToan.DA_THANH_TOAN):
+            return "Đã thanh toán · chờ chuẩn bị"
+        return don.get_trang_thai_display()
+
+    def get_ten_trang_thai_hau_mai(self, don):
+        return ten_hau_mai(don)
 
 
 # ==========================================================

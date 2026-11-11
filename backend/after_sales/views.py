@@ -110,7 +110,10 @@ class GuiYeuCauHuyView(APIView):
         if not s.is_valid():
             return du_lieu_sai(s)
         d = s.validated_data
-        yc = DichVuHuyDon.gui_yeu_cau(d["ma_dh"], lay_khach(request), d["ma_nguyen_nhan"], d["ghi_chu"])
+        yc = DichVuHuyDon.gui_yeu_cau(
+            d["ma_dh"], lay_khach(request), d["ma_nguyen_nhan"], d["ghi_chu"],
+            d["so_tai_khoan"], d["ten_nguoi_nhan_tien"], d["ngan_hang_nhan"],
+        )
         return ok("Gửi yêu cầu hủy đơn thành công.", sr.YeuCauHuyChoKhachSerializer(yc).data, status.HTTP_201_CREATED)
 
 
@@ -170,7 +173,8 @@ class GuiYeuCauDoiTraView(APIView):
         d = s.validated_data
         yc = DichVuDoiTra.gui_yeu_cau(
             d["ma_dh"], lay_khach(request), d["hinh_thuc"], d["ma_nguyen_nhan"], d["mo_ta"], d["dong"],
-            anh=request.FILES.getlist("anh"))
+            anh=request.FILES.getlist("anh"), so_tai_khoan=d["so_tai_khoan"],
+            ten_nguoi_nhan_tien=d["ten_nguoi_nhan_tien"], ngan_hang_nhan=d["ngan_hang_nhan"])
         return ok("Gửi yêu cầu đổi/trả thành công.", sr.YeuCauDoiTraChoKhachSerializer(yc).data, status.HTTP_201_CREATED)
 
 

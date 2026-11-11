@@ -1,7 +1,7 @@
 {% extends "layouts/base_customer.html" %}
-{% load static %}
+{% load static money %}
 {% block title %}{{ san_pham.ten_sp }} | Quý Thu{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}?v=3">{% endblock %}
 {% block content %}
 <main class="module-page product-detail" data-product-detail>
     <nav class="product-breadcrumb" aria-label="Đường dẫn">
@@ -11,11 +11,23 @@
     </nav>
 
     <section class="product-detail-layout">
-        <div class="product-gallery">
-            <div class="product-image-placeholder" role="img" aria-label="Ảnh sản phẩm đang được cập nhật">
-                <span class="product-placeholder-mark" aria-hidden="true">Q</span>
-                <span>Hình ảnh sản phẩm sẽ được cập nhật</span>
+        <div class="product-gallery" data-product-gallery>
+            {% if danh_sach_anh %}
+            <img class="product-image-placeholder" src="{{ danh_sach_anh.0.duong_dan }}" alt="{{ san_pham.ten_sp }}" data-product-main-image>
+            {% elif anh_dai_dien_du_phong %}
+            <img class="product-image-placeholder" src="{% static anh_dai_dien_du_phong %}" alt="{{ san_pham.ten_sp }}" data-product-main-image>
+            {% else %}
+            <img class="product-image-placeholder" src="{{ san_pham.lay_anh_dai_dien }}" alt="{{ san_pham.ten_sp }}" data-product-main-image>
+            {% endif %}
+            {% if danh_sach_anh|length > 1 %}
+            <div class="product-gallery-thumbnails" aria-label="Ảnh chi tiết sản phẩm">
+                {% for image in danh_sach_anh %}
+                <button type="button" class="product-gallery-thumbnail" data-product-image="{{ image.duong_dan }}" data-image-alt="{{ san_pham.ten_sp }}{% if image.anh_chinh %}, ảnh đại diện{% else %}, ảnh chi tiết {{ forloop.counter }}{% endif %}" aria-label="Xem ảnh {{ forloop.counter }}" aria-pressed="{% if forloop.first %}true{% else %}false{% endif %}">
+                    <img src="{{ image.duong_dan }}" alt="" loading="lazy">
+                </button>
+                {% endfor %}
             </div>
+            {% endif %}
             <div class="product-gallery-caption">
                 <span class="product-gallery-dot" aria-hidden="true"></span>
                 Đặc sản chính hãng từ Quý Thu
@@ -31,17 +43,17 @@
             <p class="product-detail-description">{{ san_pham.mo_ta|default:"Đặc sản Quý Thu với hương vị truyền thống, phù hợp để thưởng thức hoặc làm quà tặng." }}</p>
 
             {% if la_khach_si %}
-            <div class="module-alert success product-wholesale-note">Tài khoản khách sỉ của bạn được áp dụng giá sỉ theo quy cách và số lượng tối thiểu.</div>
+            <div class="module-alert success product-wholesale-note">Tài khoản khách sỉ của bạn được áp dụng giá sỉ theo khối lượng và số lượng tối thiểu.</div>
             {% endif %}
 
             {% if danh_sach_bien_the %}
             {% with variant=danh_sach_bien_the|first %}
             <div class="product-price-panel">
                 <span>Giá bán lẻ</span>
-                <strong id="product-retail-price" aria-live="polite">{{ variant.gia_ban_le|floatformat:0 }} ₫</strong>
+                <strong id="product-retail-price" aria-live="polite">{{ variant.gia_ban_le|vnd }} ₫</strong>
                 {% if la_khach_si %}
                 <p id="product-wholesale-line" {% if not variant.gia_ban_si %}hidden{% endif %}>
-                    Giá sỉ <strong id="product-wholesale-price">{% if variant.gia_ban_si %}{{ variant.gia_ban_si|floatformat:0 }} ₫{% endif %}</strong>
+                    Giá sỉ <strong id="product-wholesale-price">{% if variant.gia_ban_si %}{{ variant.gia_ban_si|vnd }} ₫{% endif %}</strong>
                     <span>· tối thiểu <span id="product-wholesale-min">{{ variant.so_luong_toi_thieu_si }}</span> gói</span>
                 </p>
                 {% endif %}
@@ -54,7 +66,7 @@
                     {% for variant in danh_sach_bien_the %}
                     <option value="{{ variant.ma_bien_the }}"
                             data-retail-price="{{ variant.gia_ban_le }}"
-                            data-wholesale-price="{{ variant.gia_ban_si|default_if_none:'' }}"
+                            data-wholesale-price="{% if la_khach_si %}{{ variant.gia_ban_si|default_if_none:'' }}{% endif %}"
                             data-wholesale-min="{{ variant.so_luong_toi_thieu_si }}"
                             {% if forloop.first %}selected{% endif %}>
                         {{ variant.huong_vi }} · {{ variant.quy_cach }}
@@ -87,7 +99,7 @@
 
             <div class="product-service-notes">
                 <span><b aria-hidden="true">✓</b> Sản phẩm được quản lý trực tiếp bởi Quý Thu</span>
-                <span><b aria-hidden="true">✓</b> Giá và quy cách được cập nhật theo từng lựa chọn</span>
+                <span><b aria-hidden="true">✓</b> Giá và khối lượng được cập nhật theo từng lựa chọn</span>
             </div>
         </div>
     </section>
@@ -96,7 +108,7 @@
         <nav class="product-information-nav" aria-label="Thông tin sản phẩm">
             <a href="#product-description">Mô tả sản phẩm</a>
             <a href="#product-ingredients">Thành phần</a>
-            <a href="#product-specifications">Hương vị và quy cách</a>
+            <a href="#product-specifications">Hương vị và khối lượng</a>
         </nav>
         <div class="product-information-grid">
             <section class="product-info-description" id="product-description">
@@ -117,7 +129,7 @@
                 <div class="product-info-section-heading">
                     <div>
                         <span class="product-info-kicker">CÁC LỰA CHỌN ĐANG BÁN</span>
-                        <h2>Hương vị và quy cách</h2>
+                        <h2>Hương vị và khối lượng</h2>
                     </div>
                     {% if danh_sach_bien_the %}
                     <span class="product-info-count">{{ danh_sach_bien_the|length }} phiên bản</span>
@@ -129,19 +141,19 @@
                     <button class="product-variant-card" type="button"
                             data-product-variant-select="{{ variant.ma_bien_the }}"
                             data-product-retail-price="{{ variant.gia_ban_le }}"
-                            data-product-wholesale-price="{{ variant.gia_ban_si|default_if_none:'' }}"
+                                data-product-wholesale-price="{% if la_khach_si %}{{ variant.gia_ban_si|default_if_none:'' }}{% endif %}"
                             data-product-wholesale-min="{{ variant.so_luong_toi_thieu_si }}"
                             aria-pressed="{% if forloop.first %}true{% else %}false{% endif %}">
                         <span class="product-variant-card-top">
                             <span class="product-variant-flavor">{{ variant.huong_vi }}</span>
                             <span class="product-variant-check" aria-hidden="true">✓</span>
                         </span>
-                        <span class="product-variant-pack-label">Quy cách đóng gói</span>
+                        <span class="product-variant-pack-label">Khối lượng</span>
                         <strong class="product-variant-pack">{{ variant.quy_cach }}</strong>
                         <span class="product-variant-price-label">Giá bán lẻ</span>
-                        <strong class="product-variant-price" data-product-variant-price>{{ variant.gia_ban_le|floatformat:0 }} ₫</strong>
-                        {% if variant.gia_ban_si %}
-                        <span class="product-variant-wholesale">Giá sỉ: <strong data-product-variant-wholesale-price>{{ variant.gia_ban_si|floatformat:0 }} ₫</strong>{% if variant.so_luong_toi_thieu_si %}, từ {{ variant.so_luong_toi_thieu_si }} gói{% endif %}</span>
+                        <strong class="product-variant-price" data-product-variant-price>{{ variant.gia_ban_le|vnd }} ₫</strong>
+                        {% if la_khach_si and variant.gia_ban_si %}
+                        <span class="product-variant-wholesale">Giá sỉ: <strong data-product-variant-wholesale-price>{{ variant.gia_ban_si|vnd }} ₫</strong>{% if variant.so_luong_toi_thieu_si %}, từ {{ variant.so_luong_toi_thieu_si }} gói{% endif %}</span>
                         {% endif %}
                     </button>
                     {% endfor %}

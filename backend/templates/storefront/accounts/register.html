@@ -14,7 +14,7 @@
 
             <div class="auth-logo">
                 <a href="{% url 'storefront-home' %}" class="auth-logo-link">
-                    <img class="auth-logo-image" src="{% static 'images/logo-quy-thu.png' %}" alt="Logo Quý Thu">
+                    <img class="auth-logo-image" src="{% static 'images/logo-removebg-preview.png' %}" alt="Logo Quý Thu">
                 </a>
             </div>
 
@@ -43,7 +43,7 @@
 
             <img class="auth-mobile-banner" src="{% static 'images/quythu-banner.png' %}" alt="Đặc sản bánh dừa nướng Quý Thu">
             <div class="auth-mobile-logo">
-                <img class="auth-mobile-logo-image" src="{% static 'images/logo-quy-thu.png' %}" alt="Logo Quý Thu">
+                <img class="auth-mobile-logo-image" src="{% static 'images/logo-removebg-preview.png' %}" alt="Logo Quý Thu">
             </div>
 
             <div class="auth-heading">
@@ -130,42 +130,6 @@
                     <small class="auth-error" id="phoneError"></small>
 
                 </div>
-
-                <fieldset class="auth-field auth-customer-type">
-                    <legend>Loại khách hàng <span>*</span></legend>
-                    <div class="auth-customer-type-options">
-                        <label class="auth-customer-type-option" for="retailCustomer">
-                            <input
-                                type="radio"
-                                id="retailCustomer"
-                                name="loai_khach_hang"
-                                value="LKH001"
-                                required
-                            >
-                            <span class="auth-customer-type-card">
-                                <strong>Khách lẻ</strong>
-                                <small>Mua sắm cho cá nhân và gia đình</small>
-                            </span>
-                        </label>
-                        <label class="auth-customer-type-option" for="wholesaleCustomer">
-                            <input
-                                type="radio"
-                                id="wholesaleCustomer"
-                                name="loai_khach_hang"
-                                value="LKH002"
-                                required
-                            >
-                            <span class="auth-customer-type-card">
-                                <strong>Khách sỉ</strong>
-                                <small>Giá sỉ áp dụng khi đạt số lượng tối thiểu từng sản phẩm</small>
-                            </span>
-                        </label>
-                    </div>
-                    <small class="auth-error" id="customerTypeError"></small>
-                    <small class="auth-customer-type-note">
-                        Loại khách hàng quyết định chính sách giá; tài khoản đăng ký vẫn là tài khoản khách hàng.
-                    </small>
-                </fieldset>
 
                 <!-- Mật khẩu -->
                 <div class="auth-field">
@@ -286,7 +250,6 @@ document.addEventListener("DOMContentLoaded", function () {
         fullName: document.getElementById("fullName"),
         email: document.getElementById("registerEmail"),
         phone: document.getElementById("phone"),
-        customerType: document.querySelectorAll('input[name="loai_khach_hang"]'),
         password: document.getElementById("registerPassword"),
         confirmPassword: document.getElementById("confirmPassword"),
         agreeTerms: document.getElementById("agreeTerms")
@@ -349,7 +312,6 @@ document.addEventListener("DOMContentLoaded", function () {
         const fullName = fields.fullName.value.trim();
         const email = fields.email.value.trim();
         const phone = fields.phone.value.trim();
-        const customerType = form.querySelector('input[name="loai_khach_hang"]:checked');
         const password = fields.password.value;
         const confirmPassword = fields.confirmPassword.value;
 
@@ -395,11 +357,6 @@ document.addEventListener("DOMContentLoaded", function () {
             showError("phoneError", "Số điện thoại không được vượt quá 15 ký tự.");
             isValid = false;
 
-        }
-
-        if (!customerType) {
-            showError("customerTypeError", "Vui lòng chọn khách lẻ hoặc khách sỉ.");
-            isValid = false;
         }
 
         // Mật khẩu
@@ -466,7 +423,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     ho_ten: fullName,
                     email: email,
                     so_dien_thoai: phone,
-                    loai_khach_hang: customerType.value,
                     mat_khau: password
                 })
             });
@@ -477,7 +433,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     ho_ten: "fullNameError",
                     email: "registerEmailError",
                     so_dien_thoai: "phoneError",
-                    loai_khach_hang: "customerTypeError",
                     mat_khau: "registerPasswordError"
                 };
                 Object.entries(result.errors || {}).forEach(([field, errors]) => {
@@ -544,13 +499,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // Xóa lỗi khi người dùng chỉnh sửa
     Object.values(fields).forEach(field => {
 
-        if (field && typeof field.forEach === "function") {
-            field.forEach(input => {
-                input.addEventListener("change", function () {
-                    document.getElementById("customerTypeError").textContent = "";
-                });
-            });
-        } else if (field && field.addEventListener) {
+        if (field && field.addEventListener) {
 
             field.addEventListener("input", function () {
 

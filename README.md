@@ -17,6 +17,15 @@ pip install -r requirements.txt
 
 Nếu PowerShell chặn kích hoạt môi trường ảo, có thể gọi trực tiếp `.\.venv\Scripts\python.exe` thay cho `python`.
 
+## Mở và chạy bằng PyCharm
+
+1. Mở thư mục gốc `quythu-develop` trong PyCharm.
+2. Tạo Python 3.12 virtualenv tại thư mục gốc với tên `.venv` (hoặc chọn interpreter `.venv\Scripts\python.exe` đã có), sau đó cài `requirements.txt`.
+3. Mở Terminal của PyCharm tại thư mục `backend` và chạy các lệnh migrate/seed bên dưới một lần.
+4. Chọn cấu hình **Quy Thu - runserver** trên thanh Run rồi nhấn Run/Debug. Cấu hình dùng `backend\manage.py`, thư mục làm việc `backend` và địa chỉ `http://127.0.0.1:8000/`.
+
+Nếu chưa thấy cấu hình dùng chung, chọn **File → Open** và mở đúng thư mục gốc chứa `.run`; có thể tạo cấu hình Python tương đương bằng Script path `backend\manage.py`, Parameters `runserver 127.0.0.1:8000`, Working directory `backend` và interpreter `.venv`.
+
 ## Chạy hệ thống
 
 Từ thư mục dự án:
@@ -42,13 +51,13 @@ python manage.py test
 
 ## Tài khoản dùng thử
 
-Khi chạy môi trường phát triển (`DEBUG=True`), lệnh tạo tài khoản mẫu đặt mật khẩu dùng thử là `Quythu123!`. Chạy lệnh từ thư mục `backend`:
+Khi chạy môi trường phát triển (`DEBUG=True`), các tài khoản mẫu đăng nhập tại `http://127.0.0.1:8000/tai-khoan/dang-nhap/` với mật khẩu mặc định `Quythu123!`. Nếu đặt `M1_DEMO_PASSWORD` trong `.env`, dùng giá trị đó. Lệnh này đặt lại mật khẩu của ba tài khoản mẫu mỗi lần chạy; chỉ dùng trong môi trường phát triển.
 
 ```powershell
 python manage.py seed_m1_demo_accounts
 ```
 
-Tài khoản: `khachhang@gmail.com` (khách hàng), `nhanvien@gmail.com` (nhân viên) và `quanly@gmail.com` (quản lý). Lệnh chỉ chạy khi `DEBUG=True`; không dùng tài khoản mẫu cho môi trường triển khai.
+Tài khoản: `khachhang@gmail.com` (khách hàng), `nhanvien@gmail.com` (nhân viên) và `quanly@gmail.com` (quản lý).
 
 ## Khôi phục mật khẩu qua Gmail
 
@@ -62,10 +71,10 @@ Khi chưa cấu hình SMTP trong môi trường phát triển, email và OTP đ�
 
 ## Luồng sử dụng
 
-- Khách hàng có thể chọn loại khách lẻ hoặc khách sỉ khi đăng ký; lựa chọn được lưu vào hồ sơ và quyết định chính sách giá (giá sỉ chỉ áp dụng khi đạt số lượng tối thiểu của từng biến thể). Cả hai loại đều đăng nhập với vai trò khách hàng, không cấp quyền nhân viên/quản lý.
+- Tài khoản đăng ký mới mặc định là khách lẻ; nhân viên hoặc quản lý phân loại khách sỉ sau khi xác minh. Giá sỉ chỉ áp dụng khi đạt số lượng tối thiểu của từng biến thể.
 - Khách hàng có thể xem catalog, đăng ký/đăng nhập, quản lý địa chỉ, thêm biến thể vào giỏ, đặt hàng COD hoặc chuyển khoản giả lập, theo dõi đơn và gửi yêu cầu hậu mãi.
 - Nhân viên xử lý đơn theo trạng thái, quản lý catalog, làm việc với yêu cầu hậu mãi và xem báo cáo; quản lý có các chức năng đó cùng phân quyền nhân viên và dashboard quản trị.
 - Từ cửa hàng, khách chọn sản phẩm → giỏ hàng → thanh toán → theo dõi đơn. Nhân viên xử lý đơn trong `/don-hang/`; khách tìm đơn và hỗ trợ trong khu vực tài khoản.
 - Nghiệp vụ và dữ liệu được lưu trong SQLite qua các model/migration Django hiện có; giao diện gọi API cùng dịch vụ nghiệp vụ thay vì tự tính giá hoặc tự đổi trạng thái.
 
-`seed_demo_catalog` thêm 10 sản phẩm với nhiều quy cách và hương vị; `seed_demo_sales` tạo thêm 8 hồ sơ khách hàng, địa chỉ, 10 đơn hàng ở các trạng thái khác nhau và một yêu cầu hủy mẫu gắn với tài khoản khách hàng mẫu. Các lệnh chỉ chạy khi `DEBUG=True`, có thể chạy lặp lại và không ghi đè các bản ghi đã tồn tại. Người dùng mới có thể tự đăng ký trực tiếp trên website.
+`seed_demo_catalog` thêm 10 sản phẩm với nhiều quy cách và hương vị; `seed_demo_sales` tạo thêm 8 hồ sơ khách hàng, địa chỉ, 10 đơn hàng ở các trạng thái khác nhau, lịch sử trạng thái minh họa và một yêu cầu hủy mẫu gắn với tài khoản khách hàng mẫu. Các lệnh chỉ chạy khi `DEBUG=True`, có thể chạy lặp lại và không ghi đè các bản ghi đã tồn tại. Người dùng mới có thể tự đăng ký trực tiếp trên website.

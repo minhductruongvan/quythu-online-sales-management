@@ -205,12 +205,56 @@ class Module5ReportsTestCase(TestCase):
         client.force_login(self.user_manager)
         resp_dashboard = client.get("/reports/dashboard/")
         self.assertEqual(resp_dashboard.status_code, 200, resp_dashboard.get("Location"))
+        self.assertEqual(resp_dashboard.content.count(b'class="report-kpi"'), 4)
+        self.assertContains(resp_dashboard, "Bốn chỉ số kinh doanh quan trọng")
 
         resp_detail = client.get("/reports/chi-tiet/?tab=revenue")
         self.assertEqual(resp_detail.status_code, 200)
+        self.assertContains(resp_detail, "Cơ cấu doanh thu")
 
         resp_api = client.get("/reports/api/dashboard-data/")
         self.assertEqual(resp_api.status_code, 200)
+
+    def test_revenue_composition_includes_both_customer_types_even_when_filtered(self):
+        DonHang.objects.create(
+            ma_dh="DH004",
+            khach_hang=self.khach_hang,
+            loai_khach_hang_ap_dung=self.loai_si,
+            ho_ten_nguoi_nhan="Nguyễn Văn A",
+            sdt_nguoi_nhan="0901234567",
+            dia_chi_giao_hang="123 Hải Phòng, Đà Nẵng",
+            tinh_thanh=self.tinh_danang,
+            tong_tien_hang=Decimal("200000"),
+            phi_van_chuyen=Decimal("0"),
+            tong_thanh_toan=Decimal("200000"),
+            phuong_thuc_thanh_toan=self.pttt,
+            trang_thai_thanh_toan=TrangThaiThanhToan.DA_THANH_TOAN,
+            trang_thai=TrangThaiDonHang.HOAN_THANH,
+            ngay_dat=self.now,
+            thoi_diem_hoan_thanh=self.now,
+        )
+        client = Client()
+        client.force_login(self.user_manager)
+
+        dashboard = client.get(
+            "/reports/dashboard/",
+            {"customer_type": self.loai_le.ma_loai_kh},
+        )
+        detail = client.get(
+            "/reports/chi-tiet/",
+            {"tab": "revenue", "customer_type": self.loai_le.ma_loai_kh},
+        )
+
+        for response in (dashboard, detail):
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(
+                response.context["customer_ratio"]["values"],
+                [200000, 100000],
+            )
+            self.assertEqual(
+                response.context["customer_ratio"]["percentages"],
+                [66.7, 33.3],
+            )
 
     def test_product_and_revenue_filters_apply_to_reports(self):
         client = Client()
@@ -237,18 +281,34 @@ class Module5ReportsTestCase(TestCase):
         self.assertEqual(detail.context["order_details"]["total_records"], 1)
         self.assertEqual(detail.context["order_details"]["items"][0]["line_items"][0]["product_name"], self.san_pham.ten_sp)
         self.assertContains(detail, "q=DH001")
+        self.assertNotContains(detail, "category=None")
+        self.assertNotContains(detail, "product=None")
         self.assertContains(detail, 'action="/reports/chi-tiet/"')
         self.assertContains(detail, 'name="amount_min" min="0" step="1"')
-        self.assertContains(detail, "Số dòng / trang")
+        self.assertNotContains(detail, "Số dòng / trang")
         self.assertContains(detail, "Tổng cộng")
         self.assertContains(detail, "Sản phẩm bán chạy")
+        self.assertContains(detail, "Áp dụng bộ lọc")
+        self.assertNotContains(detail, "<details class=\"report-extra-filters\">")
 
         for tab in ("products", "recent", "area"):
+            no_filter_response = client.get("/reports/chi-tiet/", {"tab": tab})
+            self.assertEqual(no_filter_response.status_code, 200, tab)
             response = client.get(
                 "/reports/chi-tiet/",
                 {"tab": tab, "product": "SP01", "pttt": "PT001"},
             )
             self.assertEqual(response.status_code, 200, tab)
+
+        self.san_pham.trang_thai = "INACTIVE"
+        self.san_pham.save(update_fields=["trang_thai"])
+        historical_product_report = client.get(
+            "/reports/chi-tiet/",
+            {"tab": "revenue", "product": self.san_pham.ma_sp},
+        )
+        self.assertEqual(historical_product_report.status_code, 200)
+        self.assertEqual(historical_product_report.context["active_tab"], "revenue")
+        self.assertContains(historical_product_report, 'name="product"')
 
         export = client.get(
             "/reports/export/csv/",

@@ -11,7 +11,11 @@ body,
 button,
 input,
 select,
-textarea {
+textarea,
+code,
+pre,
+kbd,
+samp {
     font-family: var(--qt-font-body);
 }
 
@@ -80,9 +84,16 @@ body small,
     object-fit: contain;
 }
 
+.qt-footer-logo {
+    display: flex;
+    width: 100%;
+}
+
 .qt-footer-logo img {
-    width: 155px;
-    height: 125px;
+    width: 150px;
+    height: 90px;
+    max-height: none;
+    object-fit: contain;
 }
 
 .auth-logo-image {
@@ -193,8 +204,8 @@ body small,
     }
 
     .qt-footer-logo img {
-        width: 115px;
-        height: 90px;
+        width: 130px;
+        height: 78px;
     }
 
     .auth-logo-image {

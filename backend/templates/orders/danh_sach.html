@@ -10,10 +10,11 @@
         <div><label for="staff-order-query">Mã đơn / khách hàng</label><input id="staff-order-query" name="tu_khoa" placeholder="Ví dụ: DH001, tên hoặc số điện thoại"></div>
         <div><label for="staff-order-status">Trạng thái</label><select id="staff-order-status" name="trang_thai"><option value="">Tất cả trạng thái</option><option value="CHO_XAC_NHAN">Chờ xác nhận</option><option value="DA_XAC_NHAN">Đã xác nhận</option><option value="CHO_THANH_TOAN">Chờ thanh toán</option><option value="DANG_CHUAN_BI">Đang chuẩn bị</option><option value="CHO_BO_SUNG">Chờ bổ sung hàng</option><option value="SAN_SANG_GIAO">Sẵn sàng giao</option><option value="DANG_GIAO">Đang giao</option><option value="GIAO_THANH_CONG">Giao thành công</option><option value="HOAN_THANH">Hoàn thành</option><option value="DA_HUY">Đã hủy</option></select></div>
         <div><label for="order-start">Từ ngày</label><input id="order-start" name="tu_ngay" type="date"></div><div><label for="order-end">Đến ngày</label><input id="order-end" name="den_ngay" type="date"></div>
+        <div><label for="staff-order-customer-type">Loại khách</label><select id="staff-order-customer-type" name="loai_khach"><option value="">Tất cả loại khách</option>{% for type in loai_khach_hang %}<option value="{{ type.ma_loai_kh }}">{{ type.ten_loai_kh }}</option>{% endfor %}</select></div>
         <div><button class="module-button" type="submit">Áp dụng bộ lọc</button></div>
     </form>
     <div id="staff-orders-message" role="status"></div>
-    <section class="module-card module-table-wrap"><table class="module-table"><thead><tr><th>Mã đơn / ngày đặt</th><th>Khách hàng</th><th>Loại khách</th><th>Tổng thanh toán</th><th>Trạng thái đơn</th><th>Hậu mãi</th><th></th></tr></thead><tbody id="staff-order-rows"><tr><td colspan="7" class="module-empty">Đang tải đơn…</td></tr></tbody></table></section>
+    <section class="module-card module-table-wrap"><table class="module-table"><thead><tr><th>Mã đơn / ngày đặt</th><th>Khách hàng</th><th>Loại khách</th><th>Tổng thanh toán</th><th>Trạng thái đơn</th><th>Thanh toán</th><th>Hậu mãi</th><th></th></tr></thead><tbody id="staff-order-rows"><tr><td colspan="8" class="module-empty">Đang tải đơn…</td></tr></tbody></table></section>
     <nav id="staff-order-pagination" class="module-toolbar" aria-label="Phân trang"></nav>
 </main>
 {% endblock %}

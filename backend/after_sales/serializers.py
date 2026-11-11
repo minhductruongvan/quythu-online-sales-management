@@ -19,7 +19,7 @@ from .models import (
     YeuCauDoiTra,
     YeuCauHuy,
 )
-from .services import DichVuHuyDon, tai_khoan_nhan_da_che
+from .services import DichVuHuyDon, tai_khoan_yeu_cau_da_giai_ma
 
 
 # ==========================================================
@@ -29,6 +29,19 @@ class GuiYeuCauHuySerializer(serializers.Serializer):
     ma_dh = serializers.CharField(max_length=10)
     ma_nguyen_nhan = serializers.CharField(max_length=10, required=False, allow_blank=True, default="")
     ghi_chu = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
+    so_tai_khoan = serializers.RegexField(
+        r"^[0-9]{6,34}$", max_length=34, required=False, allow_blank=True, default=""
+    )
+    ten_nguoi_nhan_tien = serializers.RegexField(
+        r"^[A-Za-z][A-Za-z .'-]*$", max_length=100, required=False, allow_blank=True, default=""
+    )
+    ngan_hang_nhan = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+
+    def validate(self, attrs):
+        account_fields = ("so_tai_khoan", "ten_nguoi_nhan_tien", "ngan_hang_nhan")
+        if any(attrs.get(field) for field in account_fields) and not all(attrs.get(field) for field in account_fields):
+            raise serializers.ValidationError("Vui lòng nhập đủ số tài khoản, tên người nhận và ngân hàng.")
+        return attrs
 
 
 class XuLyYeuCauHuySerializer(serializers.Serializer):
@@ -71,6 +84,22 @@ class GuiYeuCauDoiTraSerializer(serializers.Serializer):
     ma_nguyen_nhan = serializers.CharField(max_length=10, required=False, allow_blank=True, default="")
     mo_ta = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
     dong = DongYeuCauField()
+    so_tai_khoan = serializers.RegexField(
+        r"^[0-9]{6,34}$", max_length=34, required=False, allow_blank=True, default=""
+    )
+    ten_nguoi_nhan_tien = serializers.RegexField(
+        r"^[A-Za-z][A-Za-z .'-]*$", max_length=100, required=False, allow_blank=True, default=""
+    )
+    ngan_hang_nhan = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+
+    def validate(self, attrs):
+        account_fields = ("so_tai_khoan", "ten_nguoi_nhan_tien", "ngan_hang_nhan")
+        present = [bool(attrs.get(field)) for field in account_fields]
+        if attrs["hinh_thuc"] == HinhThucDoiTra.TRA and not all(present):
+            raise serializers.ValidationError("Yêu cầu trả hàng cần đủ số tài khoản, tên người nhận và ngân hàng.")
+        if any(present) and not all(present):
+            raise serializers.ValidationError("Vui lòng nhập đủ số tài khoản, tên người nhận và ngân hàng.")
+        return attrs
 
 
 class DuyetDoiTraSerializer(serializers.Serializer):
@@ -113,6 +142,7 @@ class XuLyGiaoThatBaiSerializer(serializers.Serializer):
     ten_nguoi_nhan_moi = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
     sdt_nguoi_nhan_moi = serializers.CharField(max_length=15, required=False, allow_blank=True, default="")
     dia_chi_giao_moi = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
+    dia_chi_kho = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
     hinh_thuc_giao = serializers.ChoiceField(choices=["XE_TAI", "SHIPPER", "DVVC"], required=False, allow_null=True, default=None)
     don_vi_van_chuyen = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
     sdt_shipper = serializers.CharField(max_length=15, required=False, allow_blank=True, default="")
@@ -198,21 +228,25 @@ class YeuCauHuySerializer(serializers.ModelSerializer):
     trang_thai_don = serializers.CharField(source="don_hang.trang_thai", read_only=True)
     trang_thai_thanh_toan = serializers.CharField(source="don_hang.trang_thai_thanh_toan", read_only=True)
     qua_han_xu_ly = serializers.SerializerMethodField()
+    tai_khoan_hoan = serializers.SerializerMethodField()
 
     class Meta:
         model = YeuCauHuy
         fields = ["ma_yc_huy", "don_hang", "khach_hang", "nguyen_nhan", "ten_nguyen_nhan", "ghi_chu_khach",
                   "trang_thai", "ten_trang_thai", "thoi_diem_gui", "thoi_diem_xu_ly", "ly_do_tu_choi",
-                  "ghi_chu_noi_bo", "trang_thai_don", "trang_thai_thanh_toan", "qua_han_xu_ly"]
+                  "ghi_chu_noi_bo", "trang_thai_don", "trang_thai_thanh_toan", "qua_han_xu_ly", "tai_khoan_hoan"]
 
     def get_qua_han_xu_ly(self, yc):
         return DichVuHuyDon.la_qua_han(yc)
+
+    def get_tai_khoan_hoan(self, yc):
+        return tai_khoan_yeu_cau_da_giai_ma(yc.thong_tin_tai_khoan_hoan)
 
 
 class YeuCauHuyChoKhachSerializer(YeuCauHuySerializer):
     class Meta(YeuCauHuySerializer.Meta):
         fields = ["ma_yc_huy", "don_hang", "nguyen_nhan", "ten_nguyen_nhan", "ghi_chu_khach", "trang_thai",
-                  "ten_trang_thai", "thoi_diem_gui", "thoi_diem_xu_ly", "ly_do_tu_choi"]  # không có ghi chú nội bộ
+                  "ten_trang_thai", "thoi_diem_gui", "thoi_diem_xu_ly", "ly_do_tu_choi"]  # không có ghi chú nội bộ hay tài khoản
 
 
 class DongDoiTraSerializer(serializers.ModelSerializer):
@@ -231,6 +265,7 @@ class YeuCauDoiTraSerializer(serializers.ModelSerializer):
     ten_nguyen_nhan = serializers.CharField(source="nguyen_nhan.ten_nguyen_nhan", read_only=True)
     dong = DongDoiTraSerializer(many=True, read_only=True)
     anh_minh_chung = serializers.SerializerMethodField()
+    tai_khoan_hoan = serializers.SerializerMethodField()
 
     class Meta:
         model = YeuCauDoiTra
@@ -238,15 +273,21 @@ class YeuCauDoiTraSerializer(serializers.ModelSerializer):
                   "mo_ta", "trang_thai", "ten_trang_thai", "thoi_diem_gui", "thoi_diem_xu_ly", "ly_do_tu_choi",
                   "ghi_chu_noi_bo", "khong_thu_hoi_hang", "han_gui_hang", "thoi_diem_nhan_hang",
                   "ben_chiu_phi_van_chuyen", "ma_van_don_doi", "ma_van_don_gui_lai", "chenh_lech_gia",
-                  "thoi_diem_hoan_tat", "dong", "anh_minh_chung"]
+                  "thoi_diem_hoan_tat", "dong", "anh_minh_chung", "tai_khoan_hoan"]
 
     def get_anh_minh_chung(self, yc):
         return [a.tep.url for a in yc.anh_minh_chung.all()]
 
+    def get_tai_khoan_hoan(self, yc):
+        return tai_khoan_yeu_cau_da_giai_ma(yc.thong_tin_tai_khoan_hoan)
+
 
 class YeuCauDoiTraChoKhachSerializer(YeuCauDoiTraSerializer):
     class Meta(YeuCauDoiTraSerializer.Meta):
-        fields = [f for f in YeuCauDoiTraSerializer.Meta.fields if f != "ghi_chu_noi_bo"]
+        fields = [
+            f for f in YeuCauDoiTraSerializer.Meta.fields
+            if f not in {"ghi_chu_noi_bo", "tai_khoan_hoan"}
+        ]
 
 
 class XuLyGiaoThatBaiOutSerializer(serializers.ModelSerializer):
@@ -257,14 +298,14 @@ class XuLyGiaoThatBaiOutSerializer(serializers.ModelSerializer):
         model = XuLyGiaoThatBai
         fields = ["ma_xu_ly", "don_hang", "giao_hang", "lan_giao", "nguyen_nhan", "ten_nguyen_nhan", "ghi_chu",
                   "phan_hoi_khach", "huong_xu_ly", "ten_huong_xu_ly", "ben_chiu_phi", "ngay_giao_lai_du_kien",
-                  "ten_nguoi_nhan_moi", "sdt_nguoi_nhan_moi", "dia_chi_giao_moi", "thoi_diem", "da_nhap_kho",
+                  "ten_nguoi_nhan_moi", "sdt_nguoi_nhan_moi", "dia_chi_giao_moi", "dia_chi_kho", "thoi_diem", "da_nhap_kho",
                   "thoi_diem_nhap_kho"]
 
 
 class HoanTienSerializer(serializers.ModelSerializer):
     ten_trang_thai = serializers.CharField(source="get_trang_thai_display", read_only=True)
     ten_nguon = serializers.CharField(source="get_nguon_display", read_only=True)
-    tai_khoan_nhan = serializers.SerializerMethodField()  # luôn che bớt, không bao giờ trả bản đầy đủ
+    tai_khoan_nhan = serializers.SerializerMethodField()  # Chỉ dùng tại các endpoint nhân viên.
 
     class Meta:
         model = GiaoDichHoanTien
@@ -275,7 +316,7 @@ class HoanTienSerializer(serializers.ModelSerializer):
                   "thoi_diem_hoan"]
 
     def get_tai_khoan_nhan(self, khoan):
-        return tai_khoan_nhan_da_che(khoan)
+        return tai_khoan_yeu_cau_da_giai_ma(khoan.thong_tin_tai_khoan_nhan)
 
 
 class MocTimelineSerializer(serializers.ModelSerializer):

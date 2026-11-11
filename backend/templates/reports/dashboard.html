@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static l10n %}
 {% block title %}Báo cáo tổng quan | Quý Thu{% endblock %}
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/modules.css' %}">
-<link rel="stylesheet" href="{% static 'css/reports.css' %}?v=1">
+<link rel="stylesheet" href="{% static 'css/reports.css' %}?v=4">
 {% endblock %}
 {% block content %}
 <main class="report-page">
@@ -72,39 +72,27 @@
         <span class="report-date-caption">Đang xem {{ date_range.start_date|date:"d/m/Y" }} – {{ date_range.end_date|date:"d/m/Y" }}</span>
     </form>
 
-    <section class="report-kpis" aria-label="Chỉ số kinh doanh">
+    <section class="report-kpis" aria-label="Bốn chỉ số kinh doanh quan trọng">
         <article class="report-kpi">
             <span>{% if has_product_filter %}Doanh thu sản phẩm{% else %}Doanh thu thuần{% endif %}</span>
             <strong>{{ kpis.revenue.formatted }}</strong>
-            <small>{% if kpis.revenue.pct_change is None %}—{% else %}{{ kpis.revenue.pct_change }}%{% endif %} so kỳ trước</small>
+            <small class="report-kpi-change {% if kpis.revenue.pct_change is None %}neutral{% elif kpis.revenue.pct_change >= 0 %}up{% else %}down{% endif %}">{% if kpis.revenue.pct_change is None %}—{% else %}<i aria-hidden="true"></i>{{ kpis.revenue.pct_change|floatformat:1 }}% so kỳ trước{% endif %}</small>
         </article>
         <article class="report-kpi">
             <span>Đơn hàng trong kỳ</span>
             <strong>{{ kpis.orders.formatted }}</strong>
-            <small>{% if kpis.orders.pct_change is None %}—{% else %}{{ kpis.orders.pct_change }}%{% endif %} so kỳ trước</small>
-        </article>
-        <article class="report-kpi">
-            <span>Giá trị trung bình / đơn</span>
-            <strong>{{ kpis.avg_order_value.formatted }}</strong>
-            <small>{% if kpis.avg_order_value.pct_change is None %}—{% else %}{{ kpis.avg_order_value.pct_change }}%{% endif %} so kỳ trước</small>
+            <small class="report-kpi-change {% if kpis.orders.pct_change is None %}neutral{% elif kpis.orders.pct_change >= 0 %}up{% else %}down{% endif %}">{% if kpis.orders.pct_change is None %}—{% else %}<i aria-hidden="true"></i>{{ kpis.orders.pct_change|floatformat:1 }}% so kỳ trước{% endif %}</small>
         </article>
         <article class="report-kpi">
             <span>Đơn đang xử lý</span>
             <strong>{{ kpis.processing_orders.formatted }}</strong>
-            <small>{% if kpis.processing_orders.pct_change is None %}—{% else %}{{ kpis.processing_orders.pct_change }}%{% endif %} so kỳ trước</small>
-        </article>
-        {% if not has_product_filter %}
-        <article class="report-kpi">
-            <span>Khách hàng mới</span>
-            <strong>{{ kpis.new_customers.formatted }}</strong>
-            <small>{% if kpis.new_customers.pct_change is None %}—{% else %}{{ kpis.new_customers.pct_change }}%{% endif %} so kỳ trước</small>
+            <small class="report-kpi-change {% if kpis.processing_orders.pct_change is None %}neutral{% elif kpis.processing_orders.pct_change >= 0 %}up{% else %}down{% endif %}">{% if kpis.processing_orders.pct_change is None %}—{% else %}<i aria-hidden="true"></i>{{ kpis.processing_orders.pct_change|floatformat:1 }}% so kỳ trước{% endif %}</small>
         </article>
         <article class="report-kpi">
-            <span>Tỷ lệ chuyển đổi</span>
-            <strong>{{ kpis.conversion_rate.formatted }}</strong>
-            <small>{% if kpis.conversion_rate.pct_change is None %}—{% else %}Chênh {{ kpis.conversion_rate.pct_change }} điểm %{% endif %}</small>
+            <span>Giá trị trung bình / đơn</span>
+            <strong>{{ kpis.avg_order_value.formatted }}</strong>
+            <small class="report-kpi-change {% if kpis.avg_order_value.pct_change is None %}neutral{% elif kpis.avg_order_value.pct_change >= 0 %}up{% else %}down{% endif %}">{% if kpis.avg_order_value.pct_change is None %}—{% else %}<i aria-hidden="true"></i>{{ kpis.avg_order_value.pct_change|floatformat:1 }}% so kỳ trước{% endif %}</small>
         </article>
-        {% endif %}
     </section>
 
     <div class="report-grid">
@@ -128,20 +116,20 @@
             </div>
             {% if has_customer_revenue %}
             <div class="report-donut-wrap">
-                <div class="report-donut" style="--wholesale-share: {{ customer_ratio.percentages.0 }}%">
+                <div class="report-donut" role="img" aria-label="Cơ cấu doanh thu: khách sỉ {{ customer_ratio.percentages.0 }}%, khách lẻ {{ customer_ratio.percentages.1 }}%" style="--wholesale-share: {{ customer_ratio.percentages.0|unlocalize }}%">
                     <span class="report-donut-center">
                         <strong>{{ customer_ratio.percentages.0 }}%</strong>
                         <small>Khách sỉ</small>
                     </span>
                 </div>
-                {% else %}
-                <div class="report-chart-empty">Chưa có doanh thu để phân loại khách hàng.</div>
-                {% endif %}
                 <div class="report-legend-list">
                     <span class="report-legend-item"><span><i class="report-legend-dot"></i> Khách sỉ</span><strong>{{ customer_ratio.percentages.0 }}%</strong></span>
                     <span class="report-legend-item"><span><i class="report-legend-dot gold"></i> Khách lẻ</span><strong>{{ customer_ratio.percentages.1 }}%</strong></span>
                 </div>
             </div>
+            {% else %}
+            <div class="report-chart-empty">Chưa có doanh thu để phân loại khách hàng.</div>
+            {% endif %}
         </section>
     </div>
 
@@ -149,6 +137,12 @@
         <section class="report-panel">
             <div class="report-panel-heading">
                 <div><h2>Đơn hàng theo trạng thái</h2><p>Số đơn đặt trong kỳ đã chọn</p></div>
+            </div>
+            <div class="report-status-legend" aria-label="Chú giải màu trạng thái đơn hàng">
+                <span><i class="pending"></i>Chờ xác nhận</span>
+                <span><i class="processing"></i>Đang xử lý</span>
+                <span><i class="completed"></i>Đã giao / hoàn thành</span>
+                <span><i class="cancelled"></i>Đã hủy</span>
             </div>
             <div class="report-status-list">
                 {% for status in status_list %}
@@ -166,7 +160,7 @@
         <section class="report-panel">
             <div class="report-panel-heading">
                 <div><h2>Sản phẩm dẫn đầu</h2><p>Xếp theo doanh thu hoàn thành</p></div>
-                <a class="module-link-button secondary" href="{% url 'reports:detail' %}?tab=products&preset={{ selected_preset }}&start_date={{ date_range.start_date|date:'Y-m-d' }}&end_date={{ date_range.end_date|date:'Y-m-d' }}&customer_type={{ selected_customer_type }}&product={{ selected_product|urlencode }}&amount_min={{ amount_min_input|urlencode }}&amount_max={{ amount_max_input|urlencode }}">Chi tiết</a>
+                <a class="module-link-button secondary" href="{% url 'reports:detail' %}?tab=products&preset={{ selected_preset }}&start_date={{ date_range.start_date|date:'Y-m-d' }}&end_date={{ date_range.end_date|date:'Y-m-d' }}&customer_type={{ selected_customer_type }}&product={{ selected_product|default_if_none:''|urlencode }}&amount_min={{ amount_min_input|urlencode }}&amount_max={{ amount_max_input|urlencode }}">Chi tiết</a>
             </div>
             <div class="report-product-list">
                 {% for item in top_products %}
@@ -185,5 +179,5 @@
     </div>
 </main>
 {{ timeline|json_script:"report-timeline" }}
-<script src="{% static 'js/reports.js' %}?v=1" defer></script>
+<script src="{% static 'js/reports.js' %}?v=2" defer></script>
 {% endblock %}

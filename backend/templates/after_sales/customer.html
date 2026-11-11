@@ -14,6 +14,11 @@
                 <div><label for="cancel-order">Đơn hàng</label><select id="cancel-order" name="ma_dh" required></select></div>
                 <div><label for="cancel-reason">Lý do</label><select id="cancel-reason" name="ma_nguyen_nhan"></select></div>
                 <div><label for="cancel-note">Ghi chú thêm</label><textarea id="cancel-note" name="ghi_chu" maxlength="500"></textarea></div>
+                <fieldset class="module-form-grid"><legend>Thông tin nhận hoàn tiền (nếu cần)</legend>
+                    <div><label for="cancel-account-number">Số tài khoản</label><input id="cancel-account-number" name="so_tai_khoan" maxlength="34" autocomplete="off"></div>
+                    <div><label for="cancel-account-name">Tên người nhận tiền (không dấu)</label><input id="cancel-account-name" name="ten_nguoi_nhan_tien" maxlength="100" pattern="[A-Za-z][A-Za-z .'-]*" autocomplete="off"></div>
+                    <div><label for="cancel-account-bank">Ngân hàng</label><input id="cancel-account-bank" name="ngan_hang_nhan" maxlength="100"></div>
+                </fieldset>
                 <button class="module-button" type="submit">Gửi yêu cầu hủy</button>
             </form>
         </section>
@@ -25,6 +30,11 @@
                 <div><label for="return-reason">Lý do</label><select id="return-reason" name="ma_nguyen_nhan"></select></div>
                 <div><label for="return-note">Mô tả tình trạng</label><textarea id="return-note" name="mo_ta" maxlength="500"></textarea></div>
                 <div><label for="return-images">Ảnh minh chứng (JPG/PNG, tối đa 5 ảnh, 5 MB/ảnh)</label><input id="return-images" name="anh" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" multiple></div>
+                <fieldset id="return-refund-account" class="module-form-grid" hidden><legend>Tài khoản nhận tiền hoàn</legend>
+                    <div><label for="return-account-number">Số tài khoản</label><input id="return-account-number" name="so_tai_khoan" maxlength="34" autocomplete="off"></div>
+                    <div><label for="return-account-name">Tên người nhận tiền (không dấu)</label><input id="return-account-name" name="ten_nguoi_nhan_tien" maxlength="100" pattern="[A-Za-z][A-Za-z .'-]*" autocomplete="off"></div>
+                    <div><label for="return-account-bank">Ngân hàng</label><input id="return-account-bank" name="ngan_hang_nhan" maxlength="100"></div>
+                </fieldset>
                 <div id="return-lines" class="module-alert">Chọn đơn hàng để xem các dòng còn đủ điều kiện đổi/trả.</div>
                 <button class="module-button" type="submit">Gửi yêu cầu đổi/trả</button>
             </form>

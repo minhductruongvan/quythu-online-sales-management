@@ -30,7 +30,13 @@
         so_lan_giao_lai: "Số lần giao lại",
         loai_yeu_cau: "Loại yêu cầu",
         ten_loai_yeu_cau: "Loại yêu cầu",
+        ma_yeu_cau: "Mã yêu cầu",
         cap_nhat_cuoi: "Cập nhật lần cuối",
+        thoi_diem: "Thời điểm",
+        moc: "Mốc xử lý",
+        tac_nhan: "Người thực hiện",
+        ten_tac_nhan: "Người thực hiện",
+        ghi_chu: "Ghi chú",
         ma_thong_bao: "Mã thông báo",
         tieu_de: "Tiêu đề",
         noi_dung: "Nội dung",
@@ -40,6 +46,13 @@
         ma_hoan_tien: "Mã yêu cầu hoàn tiền",
         ma_nguyen_nhan: "Mã nguyên nhân",
         ma_van_don: "Mã vận đơn",
+        so_tai_khoan: "Số tài khoản",
+        ten_nguoi_nhan_tien: "Tên người nhận tiền",
+        ngan_hang_nhan: "Ngân hàng nhận tiền",
+        dia_chi_kho: "Địa chỉ kho hoàn về",
+        ten_nguoi_nhan_moi: "Người nhận mới",
+        sdt_nguoi_nhan_moi: "Số điện thoại người nhận mới",
+        dia_chi_giao_moi: "Địa chỉ giao mới",
         ten_nguyen_nhan: "Nguyên nhân",
         ten_loai_xu_ly: "Loại xử lý",
         thoi_diem_gui: "Thời điểm gửi",
@@ -96,6 +109,8 @@
         return `<dl class="after-sales-details">${Object.entries(data)
             .filter(([key, value]) => value !== null && value !== ""
                 && typeof value !== "object"
+                && key !== "tai_khoan_hoan"
+                && key !== "tai_khoan_nhan"
                 && !(displayFields[key] && data[displayFields[key]]))
             .map(([key, value]) => {
                 let display = value;
@@ -107,6 +122,17 @@
                 }
                 return `<div><dt>${esc(humanLabel(key))}</dt><dd>${esc(display)}</dd></div>`;
             }).join("")}</dl>`;
+    };
+    const renderRefundAccount = account => {
+        if (!account || typeof account !== "object") return "";
+        const fields = [
+            ["Tên người nhận", account.ten_nguoi_nhan_tien],
+            ["Số tài khoản", account.so_tai_khoan],
+            ["Ngân hàng", account.ngan_hang_nhan],
+            ["Thông tin tài khoản", account.thong_tin_tai_khoan],
+        ].filter(([, value]) => value);
+        return fields.length ? `<dl class="after-sales-details">${fields.map(([label, value]) =>
+            `<div><dt>${label}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl>` : "";
     };
     const renderStats = data => {
         const summary = Array.isArray(data?.the_tong_hop) ? data.the_tong_hop : [];
@@ -126,11 +152,11 @@
                     Biến động: ${item.thay_doi_phan_tram === null ? "—" : `${esc(item.thay_doi_phan_tram)}%`}</p>
             </article>`).join("")}</div>
             ${details.length ? `<div class="module-table-wrap"><table class="module-table">
-                <thead><tr><th>Nguyên nhân</th><th>Loại xử lý</th><th>Số lượng</th><th>Tỷ lệ</th><th>Giá trị đơn</th></tr></thead>
+                <thead><tr><th>Nguyên nhân</th><th>Loại xử lý</th><th>Số lượng</th><th>Tỷ lệ</th><th>Giá trị đơn</th><th>Đơn hàng áp dụng</th></tr></thead>
                 <tbody>${details.map(item => `<tr><td>${esc(item.ten_nguyen_nhan)}</td>
                     <td>${esc(item.ten_loai_xu_ly)}</td><td>${Number(item.so_luong || 0)}</td>
                     <td>${item.ty_le === null ? "—" : `${esc(item.ty_le)}%`}</td>
-                    <td>${formatMoney(item.gia_tri_don)}</td></tr>`).join("")}</tbody>
+                    <td>${formatMoney(item.gia_tri_don)}</td><td>${(item.don_hang_lien_quan || []).map(esc).join(", ") || "—"}</td></tr>`).join("")}</tbody>
             </table></div>` : `<p class="module-empty">Chưa có dữ liệu trong khoảng thời gian này.</p>`}`;
     };
     const notice = (node, text, error = false) => {
@@ -169,6 +195,7 @@
         const returnReason = root.querySelector("#return-reason");
         const returnNote = root.querySelector("#return-note");
         const returnImages = root.querySelector("#return-images");
+        const returnRefundAccount = root.querySelector("#return-refund-account");
         const history = root.querySelector("#after-sales-history");
         const notifications = root.querySelector("#after-sales-notifications");
         let eligibleLines = [];
@@ -195,7 +222,7 @@
             returnReason.innerHTML = reasonOptions(returnReasonOptions);
             returnReason.dispatchEvent(new Event("change"));
             const entries = historyResult.data?.ket_qua || [];
-            history.innerHTML = `<h3>Lịch sử yêu cầu</h3>${entries.length ? `<div class="module-table-wrap"><table class="module-table"><thead><tr><th>Đơn</th><th>Loại yêu cầu</th><th>Trạng thái</th><th>Thời điểm</th><th></th></tr></thead><tbody>${entries.map(item => `<tr><td>${esc(item.ma_dh)}</td><td>${esc(item.loai_yeu_cau)}</td><td><span class="module-pill">${esc(item.ten_trang_thai || item.trang_thai)}</span></td><td>${formatDate(item.cap_nhat_cuoi || item.thoi_diem_tao)}</td><td><button class="module-button secondary" data-timeline="${esc(item.loai_yeu_cau)}" data-id="${esc(item.ma_yeu_cau)}">Timeline</button>${item.trang_thai === "CHO_XU_LY" && ["HUY_DON", "DOI_TRA"].includes(item.loai_yeu_cau) ? ` <button class="module-button danger" data-withdraw="${esc(item.loai_yeu_cau)}" data-id="${esc(item.ma_yeu_cau)}">Thu hồi</button>` : ""}</td></tr>`).join("")}</tbody></table></div>` : '<p class="module-muted">Chưa có lịch sử hậu mãi.</p>'}`;
+            history.innerHTML = `<h3>Lịch sử yêu cầu</h3>${entries.length ? `<div class="module-table-wrap"><table class="module-table"><thead><tr><th>Đơn</th><th>Loại yêu cầu</th><th>Trạng thái</th><th>Cập nhật</th><th></th></tr></thead><tbody>${entries.map(item => `<tr><td>${esc(item.ma_dh)}</td><td>${esc(item.ten_loai_yeu_cau || humanValue(item.loai_yeu_cau))}</td><td><span class="module-pill">${esc(item.ten_trang_thai || item.trang_thai)}</span></td><td>${formatDate(item.cap_nhat_cuoi || item.thoi_diem_tao)}</td><td><button class="module-button secondary" data-timeline="${esc(item.loai_yeu_cau)}" data-id="${esc(item.ma_yeu_cau)}">Timeline</button>${item.trang_thai === "CHO_XU_LY" && ["HUY_DON", "DOI_TRA"].includes(item.loai_yeu_cau) ? ` <button class="module-button danger" data-withdraw="${esc(item.loai_yeu_cau)}" data-id="${esc(item.ma_yeu_cau)}">Thu hồi</button>` : ""}</td></tr>`).join("")}</tbody></table></div>` : '<p class="module-muted">Chưa có lịch sử hậu mãi.</p>'}`;
             const notices = notificationResult.data || [];
             notifications.innerHTML = `<h3>Thông báo</h3>${notices.length ? notices.map(item => `<article class="module-alert ${item.da_doc ? "" : "success"}"><strong>${esc(item.tieu_de)}</strong><p>${esc(item.noi_dung)}</p><small>${formatDate(item.thoi_diem_gui)}</small>${item.da_doc ? "" : `<button class="module-button secondary" data-read="${esc(item.ma_thong_bao)}">Đánh dấu đã đọc</button>`}</article>`).join("") : '<p class="module-muted">Bạn chưa có thông báo.</p>'}`;
             if (orders.length && !new URLSearchParams(location.search).get("ma_dh")) {
@@ -227,6 +254,15 @@
 
         returnOrder.addEventListener("change", loadEligibleLines);
         returnType.addEventListener("change", renderEligibleLines);
+        const updateRefundAccountVisibility = () => {
+            const show = returnType.value === "TRA";
+            returnRefundAccount.hidden = !show;
+            returnRefundAccount.querySelectorAll("input").forEach(input => {
+                input.required = show;
+            });
+        };
+        returnType.addEventListener("change", updateRefundAccountVisibility);
+        updateRefundAccountVisibility();
         returnReason.addEventListener("change", () => {
             const reason = returnReasonOptions.find(item => item.ma_nguyen_nhan === returnReason.value);
             returnNote.required = Boolean(reason?.bat_buoc_ghi_chu);
@@ -377,7 +413,7 @@
                 ? `<form class="module-inline-form" data-staff-form="delivery-stock"><label>Mã xử lý hoàn hàng<input name="ma_xu_ly" required maxlength="10"></label><button class="module-button secondary" type="submit">Xác nhận đã nhập kho</button></form>`
                 : "";
             content.innerHTML = deliveryStockForm + (rows.length ? `<div class="module-grid">${rows.map(item => {
-                const id = item.ma_yc_huy || item.ma_dh || item.ma_yc_doi_tra || item.ma_hoan_tien || item.ma_yeu_cau || item.ma_thong_bao || "";
+                const id = item.ma_yc_huy || item.ma_yc_doi_tra || item.ma_xu_ly || item.ma_hoan_tien || item.ma_thong_bao || item.ma_yeu_cau || item.ma_dh || "";
                 const title = item.ma_dh ? `Đơn ${item.ma_dh}` : id || "Bản ghi hậu mãi";
                 let actions = "";
                 if (section === "cancel" && item.trang_thai === "CHO_XU_LY") {
@@ -392,8 +428,11 @@
                     actions = `<form class="module-form-grid" data-staff-form="delivery" data-id="${esc(id)}">
                         <label>Nguyên nhân<select name="ma_nguyen_nhan" required>${reasonOptions}</select></label>
                         <label>Hướng xử lý<select name="huong_xu_ly"><option value="GIAO_LAI">Giao lại</option><option value="DOI_THONG_TIN_GIAO_LAI">Cập nhật địa chỉ rồi giao lại</option><option value="HOAN_VE_KHO">Hoàn về kho</option></select></label>
-                        <label>Ngày giao lại<input type="date" name="ngay_giao_lai" value="${retryDate}"></label>
-                        <label>Địa chỉ mới<input name="dia_chi_giao_moi" maxlength="500"></label>
+                        <label data-delivery-date>Ngày giao lại<input type="date" name="ngay_giao_lai" value="${retryDate}"></label>
+                        <label data-delivery-address>Địa chỉ giao mới<input name="dia_chi_giao_moi" maxlength="500"></label>
+                        <label data-warehouse-address hidden>Địa chỉ kho hoàn về<input name="dia_chi_kho" maxlength="500"></label>
+                        <label data-recipient-name hidden>Người nhận mới<input name="ten_nguoi_nhan_moi" maxlength="100"></label>
+                        <label data-recipient-phone hidden>Số điện thoại người nhận mới<input name="sdt_nguoi_nhan_moi" maxlength="15"></label>
                         <label>Đơn vị vận chuyển<input name="don_vi_van_chuyen" maxlength="100"></label>
                         <label>Mã vận đơn<input name="ma_van_don" maxlength="50"></label>
                         <label>Bên chịu phí<select name="ben_chiu_phi"><option value="CUA_HANG">Cửa hàng</option><option value="KHACH_HANG">Khách hàng</option></select></label>
@@ -424,7 +463,7 @@
                         <label>Số tiền hoàn<input name="so_tien" type="number" min="1" value="${esc(item.so_tien_de_xuat)}" required></label>
                         <label>Mã giao dịch hoàn<input name="ma_giao_dich_hoan" maxlength="50" required></label>
                         <label>Phương thức<select name="phuong_thuc"><option value="CHUYEN_KHOAN">Chuyển khoản</option><option value="PHUONG_THUC_GOC">Phương thức gốc</option></select></label>
-                        <label>Tài khoản nhận tiền<input name="thong_tin_tai_khoan" maxlength="255" required></label>
+                        ${item.tai_khoan_nhan ? `<div><strong>Thông tin khách cung cấp</strong>${renderRefundAccount(item.tai_khoan_nhan)}</div>` : `<label>Tài khoản nhận tiền<input name="thong_tin_tai_khoan" maxlength="255" required></label>`}
                         <label>Lý do điều chỉnh (nếu hoàn thấp hơn đề xuất)<input name="ly_do_dieu_chinh" maxlength="255"></label>
                         <button class="module-button" type="submit">Xác nhận đã hoàn</button>
                         ${button("Ghi nhận thất bại", "that-bai", id, section)}</form>`;
@@ -435,14 +474,33 @@
                     || item.ten_ket_qua_giao || item.ten_loai_xu_ly
                     || (item.trang_thai && humanValue(item.trang_thai))
                     || (item.loai_yeu_cau && humanValue(item.loai_yeu_cau)) || "Mới";
-                return `<article class="module-panel"><span class="module-eyebrow">${esc(sectionLabels[section] || "Hậu mãi")}</span><h3>${esc(title)}</h3><p><span class="module-pill">${esc(statusLabel)}</span></p>${renderFields(item)}<div class="module-inline-form">${actions}</div></article>`;
+                const hasTimeline = ["cancel", "exchange", "refund", "history"].includes(section)
+                    || (section === "delivery" && item.ma_xu_ly);
+                const timelineButton = hasTimeline
+                    ? '<button type="button" class="module-button secondary" data-load-timeline>Timeline</button>'
+                    : "";
+                return `<article class="module-panel" data-after-sales-card data-type="${esc(item.loai_yeu_cau || (section === "cancel" ? "HUY_DON" : section === "exchange" ? "DOI_TRA" : section === "refund" ? "HOAN_TIEN" : "GIAO_THAT_BAI"))}" data-id="${esc(id)}"><span class="module-eyebrow">${esc(sectionLabels[section] || "Hậu mãi")}</span><h3>${esc(title)}</h3><p><span class="module-pill">${esc(statusLabel)}</span></p>${renderFields(item)}${renderRefundAccount(item.tai_khoan_hoan || item.tai_khoan_nhan)}<div class="module-inline-form">${actions}${timelineButton}</div><div data-timeline-content></div></article>`;
             }).join("")}</div>` : '<div class="module-empty">Không có hồ sơ cần xử lý.</div>');
+            content.querySelectorAll('[data-staff-form="delivery"] select[name="huong_xu_ly"]')
+                .forEach(select => select.dispatchEvent(new Event("change", { bubbles: true })));
         };
 
         root.addEventListener("click", async event => {
             const tab = event.target.closest("[data-section]");
             const action = event.target.closest("[data-item-action]");
             const reasonAction = event.target.closest("[data-reason-action]");
+            const timelineButton = event.target.closest("[data-load-timeline]");
+            if (timelineButton) {
+                const card = timelineButton.closest("[data-after-sales-card]");
+                const timelineContent = card.querySelector("[data-timeline-content]");
+                try {
+                    const result = await api(`/api/after-sales/lich-su/${encodeURIComponent(card.dataset.type)}/${encodeURIComponent(card.dataset.id)}/`);
+                    timelineContent.innerHTML = `<ol class="after-sales-timeline">${(result.data.cac_moc || []).map(moc =>
+                        `<li><strong>${esc(moc.moc)}</strong> · ${formatDate(moc.thoi_diem)}<br><span>${esc(moc.ghi_chu || "")}</span></li>`
+                    ).join("") || "<li>Chưa có mốc timeline.</li>"}</ol>`;
+                } catch (error) { notice(status, error.message, true); }
+                return;
+            }
             if (tab) {
                 try { await load(tab.dataset.section); }
                 catch (error) { notice(status, error.message, true); }
@@ -565,6 +623,26 @@
                         } : {}),
                         ghi_chu: values[`ghichu-${code}`] || ""
                     };
+                });
+                root.addEventListener("change", event => {
+                    const select = event.target.closest('[data-staff-form="delivery"] select[name="huong_xu_ly"]');
+                    if (!select) return;
+                    const form = select.form;
+                    const address = form.querySelector("[data-delivery-address]");
+                    const warehouse = form.querySelector("[data-warehouse-address]");
+                    const date = form.querySelector("[data-delivery-date]");
+                    const recipientName = form.querySelector("[data-recipient-name]");
+                    const recipientPhone = form.querySelector("[data-recipient-phone]");
+                    const changeAddress = select.value === "DOI_THONG_TIN_GIAO_LAI";
+                    const returnToWarehouse = select.value === "HOAN_VE_KHO";
+                    address.hidden = !changeAddress;
+                    address.querySelector("input").required = changeAddress;
+                    warehouse.hidden = !returnToWarehouse;
+                    warehouse.querySelector("input").required = returnToWarehouse;
+                    recipientName.hidden = !changeAddress;
+                    recipientPhone.hidden = !changeAddress;
+                    date.hidden = returnToWarehouse;
+                    date.querySelector("input").required = !returnToWarehouse;
                 });
                 Object.keys(payload).filter(key => /^(ketqua|soluong|kho|ghichu)-/.test(key))
                     .forEach(key => delete payload[key]);

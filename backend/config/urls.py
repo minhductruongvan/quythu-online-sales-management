@@ -6,7 +6,6 @@ from django.conf.urls.static import static
 from .views import (
     customer_purchase_history_page,
     employee_customer_list_page,
-    dashboard,
     order_list,
     login_page,
     register_page,

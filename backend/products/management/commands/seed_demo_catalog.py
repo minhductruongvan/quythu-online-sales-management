@@ -24,11 +24,11 @@ class Command(BaseCommand):
 
         categories = {}
         for code, name, description in (
-            ("DM001", "Đặc sản dừa nướng", "Hương vị dừa nướng truyền thống Quý Thu."),
-            ("DM002", "Quà tặng đặc sản", "Hộp quà đặc sản miền Trung."),
-            ("DM003", "Bánh dừa nướng", "Các dòng bánh dừa nướng với nhiều hương vị và quy cách."),
-            ("DM004", "Combo quà tặng", "Bộ quà đặc sản được phối sẵn cho dịp sum họp."),
-            ("DM005", "Đặc sản miền Trung", "Hương vị đặc sản được tuyển chọn từ miền Trung."),
+            ("DM001", "Đặc sản dừa nướng", "Giữ trọn hương vị bánh dừa nướng thủ công lâu đời của vùng đất Quế Sơn, Quảng Nam – thơm lừng mùi dừa tươi nướng lửa hồng, giòn tan trong từng miếng bánh."),
+            ("DM002", "Quà tặng đặc sản", "Các mẫu hộp quà được thiết kế chỉn chu, sang trọng, gói trọn nét văn hóa miền Trung để bạn tự tin mang đi biếu tặng đối tác, khách quý hay người thân phương xa."),
+            ("DM003", "Bánh dừa nướng", "Thử trọn các hương vị bánh dừa nướng Quý Thu giòn rụm – từ vị truyền thống quen thuộc đến mè đen bùi béo, vị gừng ấm nồng hay lá dứa thanh mát."),
+            ("DM004", "Combo quà tặng", "Những giỏ quà đã được kết hợp sẵn giữa bánh ngon và trà thơm, giúp bạn chuẩn bị nhanh gọn một món quà tươm tất cho những dịp sum họp gia đình, lễ Tết."),
+            ("DM005", "Đặc sản miền Trung", "Góc nhỏ gom góp những thức quà quê mộc mạc, đậm đà của dải đất miền Trung như bánh dừa nướng, mè xửng, bánh khô... để gửi đến người thương ở khắp mọi miền."),
         ):
             categories[code], _ = DanhMucSanPham.objects.get_or_create(
                 ma_dm=code,
@@ -44,7 +44,7 @@ class Command(BaseCommand):
                 "SP001",
                 categories["DM001"],
                 "Bánh dừa nướng Quý Thu",
-                "Bánh dừa nướng thơm giòn, làm từ dừa chọn lọc và công thức truyền thống.",
+                "Nhắc đến bánh dừa nướng xứ Quảng là nhớ ngay đến cái vị mộc mạc, nguyên bản này. Không cầu kỳ, bánh chỉ làm từ cơm dừa tươi xay nhuyễn trộn với bột nếp và đường trắng, đem nướng đến khi vàng ươm, dậy mùi thơm phức. Cắn một miếng thấy giòn rụm, vị béo bùi của dừa quyện với vị ngọt thanh vừa vặn, không bị gắt cổ. Bánh này mà bày ra đĩa, pha thêm ấm trà xanh chát dịu ngồi nhâm nhi trò chuyện thì đúng chuẩn vị quê nhà.",
                 (
                     ("Truyền thống", "120g", 35000, 29000, 10),
                     ("Mè đen", "150g", 49000, 42000, 10),
@@ -54,7 +54,7 @@ class Command(BaseCommand):
                 "SP002",
                 categories["DM001"],
                 "Bánh dừa nướng vị gừng",
-                "Vị gừng ấm nhẹ kết hợp cùng dừa nướng giòn thơm.",
+                "Vẫn là miếng bánh dừa giòn tan quen thuộc nhưng được điểm thêm cốt gừng tươi và những lát gừng băm nhuyễn trên mặt bánh. Khi ăn, vị ngọt béo của dừa quyện cùng chút cay the, ấm nồng nơi đầu lưỡi rất thú vị. Những ngày trời trở gió hay se lạnh, hoặc những lúc đi xa cần chút gì đó nhấm nháp cho ấm bụng thì vị gừng này là hợp nhất.",
                 (
                     ("Gừng", "120g", 39000, 33000, 10),
                     ("Gừng", "225g", 69000, 59000, 12),
@@ -64,7 +64,7 @@ class Command(BaseCommand):
                 "SP003",
                 categories["DM002"],
                 "Hộp quà Quý Thu",
-                "Hộp quà đặc sản chỉn chu, phù hợp cho những dịp sum vầy.",
+                "Hộp quà đặc sản Quý Thu được tuyển chọn chỉn chu, kết hợp các gói bánh dừa nướng thơm giòn để gửi trao trong những dịp sum họp và lễ Tết.",
                 (
                     ("Truyền thống", "225g", 89000, 76000, 8),
                     ("Lá dứa", "150g", 52000, 45000, 10),
@@ -74,7 +74,7 @@ class Command(BaseCommand):
                 "SP004",
                 categories["DM003"],
                 "Bánh dừa nướng mè rang",
-                "Bánh dừa nướng giòn thơm, điểm mè rang bùi nhẹ.",
+                "Dành cho những ai mê bánh dừa nhưng lại ngại đồ ngọt. Ở dòng này, tỷ lệ dừa tươi chiếm đến 60%, kết hợp cùng thật nhiều hạt mè đen rang chín tới. Miếng bánh nướng lên mỏng hơn, ăn vào thấy độ giòn xốp rất vui miệng, vị ngọt được tiết chế lại để nhường chỗ cho cái bùi béo, thơm lừng của mè đen. Bánh hoàn toàn không dùng chất bảo quản hay phẩm màu, chuẩn sạch lành để ông bà, bố mẹ hay những người đang giữ dáng đều có thể yên tâm thưởng thức mỗi ngày.",
                 (
                     ("Mè rang", "120g", 39000, 33000, 10),
                     ("Mè rang", "225g", 72000, 61000, 12),
@@ -85,7 +85,7 @@ class Command(BaseCommand):
                 "SP005",
                 categories["DM003"],
                 "Bánh dừa nướng lá dứa",
-                "Hương lá dứa dịu nhẹ hòa cùng vị dừa nướng truyền thống.",
+                "Nếu bạn thích một hương vị nhẹ nhàng, thanh mát thì đừng bỏ qua vị lá dứa. Nhờ có cốt lá dứa tươi tự nhiên, miếng bánh không chỉ mang sắc xanh dịu mắt mà còn thoang thoảng mùi thơm thảo mộc rất dễ chịu. Chính hương lá dứa này đã làm dịu đi cái béo đậm của cốt dừa, để lại hậu vị ngọt dịu, thơm lâu mà ăn mãi không thấy ngấy.",
                 (
                     ("Lá dứa", "120g", 39000, 33000, 10),
                     ("Lá dứa", "225g", 72000, 61000, 12),
@@ -115,7 +115,7 @@ class Command(BaseCommand):
                 "SP008",
                 categories["DM004"],
                 "Hộp quà sum vầy",
-                "Hộp quà kết hợp nhiều hương vị bánh dừa nướng Quý Thu.",
+                "Đúng như tên gọi, hộp quà mang sắc đỏ ấm cúng với họa tiết trống đồng, mây tre in nhũ vàng đậm không khí Tết cổ truyền. Mở hộp ra là sự kết hợp trọn vẹn của câu chuyện \"có bánh, có trà\": những gói bánh dừa nướng thơm giòn nằm cạnh hộp trà ngon đậm vị. Không cần những lời chúc hoa mỹ, món quà này tự nó đã gửi gắm trọn vẹn tấm lòng và mong ước về những giây phút đoàn viên, sum họp bên gia đình.",
                 (
                     ("Thập cẩm", "3 gói", 159000, 138000, 8),
                     ("Thập cẩm", "6 gói", 299000, 260000, 8),
@@ -126,10 +126,12 @@ class Command(BaseCommand):
                 categories["DM004"],
                 "Túi quà đặc sản Quý Thu",
                 (
-                    "Túi quà gồm các gói bánh dừa nướng Quý Thu, gọn nhẹ và phù hợp "
-                    "để biếu tặng trong những dịp sum họp. Sản phẩm có lựa chọn vị "
-                    "truyền thống hoặc mè đen; vui lòng chọn phiên bản để xem số gói "
-                    "và giá tương ứng."
+                    "Một chiếc túi giấy Kraft mộc mạc, in hình tre trúc quê hương với "
+                    "quai xách dây thừng chắc chắn. Bên trong đã có sẵn đủ các vị bánh "
+                    "đặc trưng nhất của Quý Thu từ Truyền thống, Mè đen đến Vị gừng. "
+                    "Đi du lịch hay đi công tác miền Trung về, chỉ cần xách theo vài túi "
+                    "quà gọn gàng, giản dị mà tinh tế này để chia cho bạn bè, đồng nghiệp "
+                    "thì ai cũng quý."
                 ),
                 (
                     ("Truyền thống", "2 gói", 99000, 85000, 8),
@@ -140,7 +142,7 @@ class Command(BaseCommand):
                 "SP010",
                 categories["DM005"],
                 "Bánh dừa nướng đặc biệt",
-                "Phiên bản tuyển chọn với dừa thơm và độ giòn đậm vị.",
+                "Đây là dòng bánh được Quý Thu chăm chút nhất, gom đủ các nguyên liệu ngon vào trong một miếng bánh: vừa có cái giòn ngọt của dừa nướng, cái bùi của mè đen, lại thêm chút sợi gừng thơm ấm. Bánh được đặt trong chiếc hộp cứng màu đỏ đô điểm họa tiết ánh kim rất trang trọng. Nếu bạn đang tìm một món quà đặc sản chỉn chu để biếu đối tác, tặng người thân hay dâng lên bàn thờ gia tiên ngày Tết thì hộp bánh này vừa đẹp lòng người trao, vừa ấm lòng người nhận.",
                 (
                     ("Đặc biệt", "150g", 59000, 50000, 10),
                     ("Đặc biệt", "300g", 109000, 94000, 12),

@@ -363,18 +363,25 @@
         }
 
         .qt-header-bar .qt-nav-inner {
+            display: grid;
+            width: 100%;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             min-height: 0;
-            justify-content: center;
-            gap: clamp(12px, 1.8vw, 26px);
+            justify-content: stretch;
+            gap: 0;
             margin: 0;
             padding: 0;
         }
 
         .qt-header-bar .qt-nav-link {
-            padding: 10px 0;
+            padding: 10px 4px;
+            justify-content: center;
             color: #354a3c;
-            font-size: 11px;
+            font-size: 13px;
             font-weight: 650;
+            text-align: center;
+            white-space: normal;
+            line-height: 1.35;
         }
 
         .qt-header-bar .qt-nav-link::after {
@@ -447,6 +454,39 @@
 
         .qt-header-bar .qt-logout-form {
             margin: 0;
+        }
+
+        @media (max-width: 1100px) and (min-width: 769px) {
+            .qt-header-main.qt-header-bar {
+                grid-template-columns: auto minmax(0, 1fr) auto;
+                grid-template-rows: auto auto;
+                gap: 6px 16px;
+            }
+
+            .qt-header-bar .qt-nav-inner {
+                grid-column: 2;
+                grid-row: 1;
+                min-width: 0;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+
+            .qt-header-bar .qt-nav-link {
+                font-size: 12px;
+                padding-inline: 3px;
+            }
+
+            .qt-header-bar .qt-search-row {
+                grid-column: 1 / -1;
+                grid-row: 2;
+                width: min(100%, 480px);
+                justify-self: center;
+                padding-bottom: 5px;
+            }
+
+            .qt-header-bar .qt-header-right {
+                grid-column: 3;
+                grid-row: 1;
+            }
         }
 
         .qt-account-menu {
@@ -554,18 +594,6 @@
             min-height: 400px;
         }
 
-        /* Footer */
-
-        .qt-footer-logo {
-            justify-content: flex-start;
-            margin-bottom: 15px;
-        }
-
-        .qt-footer-logo img {
-            width: 125px;
-            height: 100px;
-        }
-
         /* Responsive */
 
         @media (max-width: 768px) {
@@ -591,14 +619,8 @@
             .qt-header-bar .qt-nav-inner {
                 grid-column: 1 / -1;
                 grid-row: 2;
-                justify-content: flex-start;
-                gap: 22px;
-                overflow-x: auto;
-                scrollbar-width: none;
-            }
-
-            .qt-header-bar .qt-nav-inner::-webkit-scrollbar {
-                display: none;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                overflow: visible;
             }
 
             .qt-header-bar .qt-search-row {
@@ -622,7 +644,8 @@
             }
 
             .qt-header-bar .qt-nav-link {
-                font-size: 11px;
+                padding: 10px 3px;
+                font-size: 10px;
             }
 
             .qt-announcement-right {
@@ -630,15 +653,10 @@
             }
         }
 
-        @media (max-width: 420px) {
-            .qt-header-bar .qt-nav-inner {
-                gap: 17px;
-            }
-        }
     </style>
 
     {% block extra_css %}{% endblock %}
-    <link rel="stylesheet" href="{% static 'css/typography.css' %}?v=3">
+    <link rel="stylesheet" href="{% static 'css/typography.css' %}?v=4">
 </head>
 
 <body class="qt-storefront">
@@ -663,7 +681,7 @@
 <header class="qt-header">
     <div class="qt-header-main qt-header-bar">
         <a href="{% url 'storefront-home' %}" class="qt-brand" aria-label="Quý Thu - Trang chủ">
-            <img src="{% static 'images/logo-quy-thu.png' %}" alt="Logo Quý Thu">
+            <img src="{% static 'images/logo-removebg-preview.png' %}" alt="Logo Quý Thu">
         </a>
         <nav class="qt-nav-inner" aria-label="Điều hướng chính">
             <a href="{% url 'storefront-home' %}" class="qt-nav-link {% if request.resolver_match.url_name == 'storefront-home' %}active{% endif %}">Trang chủ</a>
@@ -672,7 +690,7 @@
             <a href="{% url 'storefront-home' %}#lien-he" class="qt-nav-link">Liên hệ</a>
         </nav>
         <div class="qt-search-row">
-            <form class="qt-search" method="get" action="{% url 'storefront-home' %}">
+            <form class="qt-search" method="get" action="{% url 'storefront-home' %}#san-pham">
                 <span class="qt-search-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path></svg></span>
                 <input type="search" name="q" placeholder="Tìm kiếm sản phẩm..." aria-label="Tìm kiếm sản phẩm" value="{{ request.GET.q|default:'' }}">
                 <button type="submit" aria-label="Tìm kiếm">Tìm kiếm</button>
@@ -723,14 +741,9 @@
 
                 <div class="qt-footer-brand">
                     <a href="{% url 'storefront-home' %}" class="qt-brand qt-footer-logo">
-                        <img src="{% static 'images/logo-quy-thu.png' %}"
-                             alt="Logo Quý Thu" width="155" height="125">
+                        <img src="{% static 'images/logo-removebg-preview.png' %}"
+                             alt="Logo Quý Thu" width="160" height="100">
                     </a>
-
-                    <p>
-                        Quý Thu mang đến trải nghiệm mua sắm trực tuyến
-                        thuận tiện, rõ ràng và thân thiện với khách hàng.
-                    </p>
                 </div>
 
                 <div class="qt-footer-column">

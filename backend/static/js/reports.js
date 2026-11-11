@@ -23,17 +23,15 @@
             return;
         }
 
-        const width = 920;
-        const height = 300;
-        const margin = { top: 20, right: 48, bottom: 42, left: 58 };
+        const width = 1000;
+        const height = 320;
+        const margin = { top: 24, right: 54, bottom: 46, left: 62 };
         const plotWidth = width - margin.left - margin.right;
         const plotHeight = height - margin.top - margin.bottom;
         const revenueMax = Math.max(...revenue, 1) * 1.12;
         const ordersMax = Math.max(...orders, 1) * 1.12;
-        const stepX = labels.length > 1 ? plotWidth / (labels.length - 1) : 0;
-        const xAt = index => labels.length > 1
-            ? margin.left + stepX * index
-            : margin.left + plotWidth / 2;
+        const stepX = plotWidth / labels.length;
+        const xAt = index => margin.left + stepX * (index + 0.5);
         const points = labels.map((label, index) => ({
             x: xAt(index),
             y: margin.top + plotHeight - ((orders[index] || 0) / ordersMax) * plotHeight,
@@ -47,7 +45,7 @@
             viewBox: `0 0 ${width} ${height}`,
             role: "img",
             "aria-label": "Doanh thu dạng cột và số đơn dạng đường theo kỳ",
-            preserveAspectRatio: "none",
+            preserveAspectRatio: "xMidYMid meet",
         });
         const gridGroup = makeSvgElement("g");
         for (let index = 0; index <= 4; index += 1) {
@@ -75,7 +73,7 @@
         }
         svg.append(gridGroup);
 
-        const barWidth = Math.max(4, Math.min(24, labels.length > 1 ? stepX * 0.58 : plotWidth * 0.42));
+        const barWidth = Math.max(3, Math.min(32, stepX * 0.48));
         const bars = makeSvgElement("g", { class: "report-chart-bars" });
         points.forEach(point => {
             const bar = makeSvgElement("rect", {
@@ -83,7 +81,7 @@
                 y: point.revenueY,
                 width: barWidth,
                 height: margin.top + plotHeight - point.revenueY,
-                rx: 2,
+                rx: Math.min(4, barWidth / 2),
             });
             const title = makeSvgElement("title");
             title.textContent = `${point.label}: ${point.revenue.toLocaleString("vi-VN")} triệu đồng`;
@@ -126,93 +124,17 @@
         if (!preset || !range) return;
         const isCustom = preset.value === "custom";
         range.hidden = !isCustom;
-        if (isCustom) {
-            const extraFilters = form.querySelector(".report-extra-filters");
-            if (extraFilters) extraFilters.open = true;
-        }
         range.querySelectorAll("input").forEach(input => {
             input.required = isCustom;
         });
     };
 
-    const showFilterError = message => {
-        const page = document.querySelector(".report-page");
-        if (!page) return;
-        let error = page.querySelector("[data-report-error]");
-        if (!error) {
-            error = document.createElement("p");
-            error.className = "report-filter-error-message";
-            error.setAttribute("role", "alert");
-            error.dataset.reportError = "";
-            page.prepend(error);
-        }
-        error.textContent = message;
-    };
-
-    const replaceReportPage = html => {
-        const parsed = new DOMParser().parseFromString(html, "text/html");
-        const newPage = parsed.querySelector(".report-page");
-        const currentPage = document.querySelector(".report-page");
-        if (!newPage || !currentPage) {
-            const errorText = parsed.querySelector(".report-filter-error p")?.textContent;
-            showFilterError(errorText || "Không thể tải dữ liệu báo cáo. Vui lòng thử lại.");
-            return false;
-        }
-        currentPage.replaceWith(newPage);
-        const nextData = parsed.getElementById("report-timeline");
-        const currentData = document.getElementById("report-timeline");
-        if (nextData && currentData) currentData.textContent = nextData.textContent;
-        document.title = parsed.title;
-        setupReportPage(newPage);
-        renderRevenueChart();
-        return true;
-    };
-
-    const fetchReport = async (url, updateHistory = false) => {
-        const response = await fetch(url, {
-            headers: { "X-Requested-With": "XMLHttpRequest" },
-            credentials: "same-origin",
-        });
-        const html = await response.text();
-        if (updateHistory && response.ok) window.history.pushState({}, "", url);
-        replaceReportPage(html);
-    };
-
     function setupReportPage(page = document.querySelector(".report-page")) {
         if (!page) return;
-        page.addEventListener("click", event => {
-            const link = event.target.closest("a[href]");
-            if (!link) return;
-            if (!["/reports/chi-tiet/", "/reports/dashboard/"].includes(link.pathname)) return;
-            event.preventDefault();
-            const url = new URL(link.href);
-            if (link.classList.contains("report-tab") || link.closest(".report-pager")) {
-                const groupBy = page.querySelector('[name="group_by"]')?.value;
-                const pageSize = page.querySelector('[name="page_size"]')?.value;
-                if (groupBy) url.searchParams.set("group_by", groupBy);
-                if (pageSize) url.searchParams.set("page_size", pageSize);
-            }
-            fetchReport(url, true)
-                .catch(() => showFilterError("Không thể kết nối để cập nhật báo cáo. Vui lòng thử lại."));
-        });
         page.querySelectorAll("[data-report-form]").forEach(form => {
             toggleCustomRange(form);
             form.addEventListener("change", event => {
-                const field = event.target;
-                if (!field.matches("select, input")) return;
-                if (field.matches("[data-report-preset]")) {
-                    toggleCustomRange(form);
-                    if (field.value === "custom") return;
-                }
-                form.requestSubmit();
-            });
-            form.addEventListener("submit", event => {
-                event.preventDefault();
-                toggleCustomRange(form);
-                if ([...form.querySelectorAll("[data-report-range] input[required]")].some(input => !input.value)) return;
-                const url = new URL(form.action, window.location.origin);
-                url.search = new URLSearchParams(new FormData(form)).toString();
-                fetchReport(url, true).catch(() => showFilterError("Không thể kết nối để cập nhật báo cáo. Vui lòng thử lại."));
+                if (event.target.matches("[data-report-preset]")) toggleCustomRange(form);
             });
         });
         page.querySelectorAll("[data-order-sort]").forEach(button => {
@@ -221,6 +143,7 @@
                 if (!form) return;
                 const field = form.elements.namedItem("order_sort");
                 const direction = form.elements.namedItem("order_sort_dir");
+                if (!field || !direction) return;
                 direction.value = field.value === button.dataset.orderSort && direction.value === "asc" ? "desc" : "asc";
                 field.value = button.dataset.orderSort;
                 form.requestSubmit();
@@ -231,9 +154,5 @@
     document.addEventListener("DOMContentLoaded", () => {
         setupReportPage();
         renderRevenueChart();
-    });
-
-    window.addEventListener("popstate", () => {
-        fetchReport(window.location.href).catch(() => showFilterError("Không thể tải lại báo cáo đã chọn."));
     });
 })();

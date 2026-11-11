@@ -201,23 +201,44 @@ class KiemThuGiaoThatBai(NenHauMai, TestCase):
         self.assertEqual(xl.lan_giao, 1)
         self.assertEqual(self.don.giao_hang.get(lan_giao=1).ket_qua_giao, KetQuaGiao.THAT_BAI)
 
+    def test_dia_chi_giao_lai_duoc_luu(self):
+        self.dang_giao()
+        xl = DichVuGiaoThatBai.xu_ly(
+            self.don.ma_dh, self.nv, NN_GIAO, "DOI_THONG_TIN_GIAO_LAI",
+            ngay_giao_lai=timezone.localdate() + timedelta(days=1),
+            dia_chi_giao_moi="12 Đường Mới, Đà Nẵng",
+            ten_nguoi_nhan_moi="Nguyễn Văn A",
+            sdt_nguoi_nhan_moi="0901234567",
+        )
+        self.assertEqual(xl.dia_chi_giao_moi, "12 Đường Mới, Đà Nẵng")
+        self.assertIsNone(xl.dia_chi_kho)
+
     def test_khong_xu_ly_hai_lan_cung_lan_giao(self):
         self.dang_giao()
-        DichVuGiaoThatBai.xu_ly(self.don.ma_dh, self.nv, NN_GIAO, "HOAN_VE_KHO")
+        DichVuGiaoThatBai.xu_ly(
+            self.don.ma_dh, self.nv, NN_GIAO, "HOAN_VE_KHO", dia_chi_kho="Kho Quý Thu"
+        )
         with self.assertRaises(LoiNghiepVuHauMai):
-            DichVuGiaoThatBai.xu_ly(self.don.ma_dh, self.nv, NN_GIAO, "HOAN_VE_KHO")
+            DichVuGiaoThatBai.xu_ly(
+                self.don.ma_dh, self.nv, NN_GIAO, "HOAN_VE_KHO", dia_chi_kho="Kho Quý Thu"
+            )
 
     def test_lan_giao_thu_ba_bat_buoc_hoan_ve_kho(self):  # BR05
         self.dang_giao(lan=3)
         with self.assertRaises(LoiNghiepVuHauMai):
             DichVuGiaoThatBai.xu_ly(self.don.ma_dh, self.nv, NN_GIAO, "GIAO_LAI",
                                    ngay_giao_lai=timezone.localdate() + timedelta(days=1))
-        DichVuGiaoThatBai.xu_ly(self.don.ma_dh, self.nv, NN_GIAO, "HOAN_VE_KHO")
+        DichVuGiaoThatBai.xu_ly(
+            self.don.ma_dh, self.nv, NN_GIAO, "HOAN_VE_KHO", dia_chi_kho="Kho Quý Thu"
+        )
 
     def test_hoan_ve_kho_huy_don_roi_nhap_kho_hoan_ton_va_tien(self):  # BR04, BR08
         self.da_thanh_toan()
         gh = self.dang_giao()
-        xl = DichVuGiaoThatBai.xu_ly(self.don.ma_dh, self.nv, NN_GIAO, "HOAN_VE_KHO", khach_tu_choi=True)
+        xl = DichVuGiaoThatBai.xu_ly(
+            self.don.ma_dh, self.nv, NN_GIAO, "HOAN_VE_KHO", khach_tu_choi=True,
+            dia_chi_kho="Kho Quý Thu",
+        )
         self.don.refresh_from_db()
         gh.refresh_from_db()
         self.assertEqual(self.don.trang_thai, T.DA_HUY)
@@ -365,6 +386,24 @@ class KiemThuHoanTien(NenHauMai, TestCase):
                 khoan.ma_hoan_tien, self.nv, so_tien=khoan.so_tien_de_xuat, phuong_thuc="CHUYEN_KHOAN",
                 ma_giao_dich_hoan="MGD2", thong_tin_tai_khoan="0123456789")
 
+    def test_tai_khoan_khach_gui_duoc_ma_hoa_va_tu_dong_dung_khi_hoan(self):
+        self.da_thanh_toan()
+        yc = DichVuHuyDon.gui_yeu_cau(
+            self.don.ma_dh, self.kh, NN_HUY,
+            so_tai_khoan="0123456789",
+            ten_nguoi_nhan_tien="NGUYEN VAN A",
+            ngan_hang_nhan="Vietcombank",
+        )
+        self.assertNotIn("0123456789", yc.thong_tin_tai_khoan_hoan)
+        self.assertIn("NGUYEN VAN A", giai_ma(yc.thong_tin_tai_khoan_hoan))
+        DichVuHuyDon.xu_ly(yc.ma_yc_huy, self.nv, "DUYET")
+        khoan = GiaoDichHoanTien.objects.get(yeu_cau_huy=yc)
+        result = DichVuHoanTien.xac_nhan_da_hoan(
+            khoan.ma_hoan_tien, self.nv, "MGD_ACCOUNT",
+            phuong_thuc="CHUYEN_KHOAN",
+        )
+        self.assertEqual(giai_ma(result.thong_tin_tai_khoan_nhan), giai_ma(yc.thong_tin_tai_khoan_hoan))
+
     def test_khong_hoan_vuot_so_da_thanh_toan(self):
         khoan = self._khoan()
         with self.assertRaises(LoiNghiepVuHauMai):
@@ -435,6 +474,14 @@ class KiemThuNguyenNhan(NenHauMai, TestCase):
 # UC08, UC09 – Thống kê, lịch sử
 # ==========================================================
 class KiemThuThongKeLichSu(NenHauMai, TestCase):
+
+    def test_thong_ke_tra_ve_cac_don_theo_nguyen_nhan(self):
+        yc = DichVuHuyDon.gui_yeu_cau(self.don.ma_dh, self.kh, NN_HUY)
+        DichVuHuyDon.xu_ly(yc.ma_yc_huy, self.nv, "DUYET")
+        ngay = timezone.localdate()
+        ket_qua = DichVuThongKe.thong_ke(ngay, ngay, "HUY_DON")
+        muc = next(item for item in ket_qua["chi_tiet"] if item["ma_nguyen_nhan"] == NN_HUY)
+        self.assertEqual(muc["don_hang_lien_quan"], [self.don.ma_dh])
 
     def test_thong_ke_mac_dinh_va_ty_le_khong_chia_cho_0(self):
         kq = DichVuThongKe.thong_ke()
@@ -565,9 +612,20 @@ class KiemThuApiDoiTra(NenHauMai, TestCase):
         anh = SimpleUploadedFile("loi.jpg", b"\xff\xd8\xff\xe0fake", content_type="image/jpeg")
         r = self.api.post("/api/after-sales/doi-tra/", {
             "ma_dh": self.don.ma_dh, "hinh_thuc": "TRA", "ma_nguyen_nhan": NN_DOI_LOI, "mo_ta": "Bánh bị hỏng",
-            "dong": f'[{{"ma_ctdh": "{self.dong_dau().ma_ctdh}", "so_luong": 1}}]', "anh": anh}, format="multipart")
+            "dong": f'[{{"ma_ctdh": "{self.dong_dau().ma_ctdh}", "so_luong": 1}}]', "anh": anh,
+            "so_tai_khoan": "0123456789", "ten_nguoi_nhan_tien": "NGUYEN VAN A",
+            "ngan_hang_nhan": "Vietcombank"}, format="multipart")
         self.assertEqual(r.status_code, 201, r.data)
         self.assertEqual(AnhMinhChung.objects.count(), 1)
+        self.assertNotIn("tai_khoan_hoan", r.data["data"])
+
+    def test_tra_hang_bat_buoc_thong_tin_tai_khoan(self):
+        r = self.api.post("/api/after-sales/doi-tra/", {
+            "ma_dh": self.don.ma_dh, "hinh_thuc": "TRA", "ma_nguyen_nhan": NN_DOI_KHONG_NHU_CAU,
+            "dong": f'[{{"ma_ctdh": "{self.dong_dau().ma_ctdh}", "so_luong": 1}}]',
+        }, format="multipart")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("số tài khoản", str(r.data).lower())
 
     def test_anh_sai_dinh_dang_400(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
