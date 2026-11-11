@@ -112,7 +112,7 @@ class ProductCatalogTests(TestCase):
 		self.assertContains(catalog_response, "/media/products/primary.jpg")
 		self.assertNotContains(
 			catalog_response,
-			"/static/images/b%C3%A1nh%20d%E1%BB%ABa%20n%C6%B0%E1%BB%9Bng.png",
+			"/static/images/b%C3%A1nh%20d%E1%BB%ABa%20n%C6%B0%E1%BB%9Bng.webp",
 		)
 
 		detail_response = self.client.get(
@@ -122,7 +122,7 @@ class ProductCatalogTests(TestCase):
 		self.assertContains(detail_response, "/media/products/detail.jpg")
 		self.assertNotContains(
 			detail_response,
-			"/static/images/b%C3%A1nh%20d%E1%BB%ABa%20n%C6%B0%E1%BB%9Bng.png",
+			"/static/images/b%C3%A1nh%20d%E1%BB%ABa%20n%C6%B0%E1%BB%9Bng.webp",
 		)
 
 	def test_product_detail_uses_homepage_image_mapping_without_uploaded_images(self):
@@ -139,11 +139,11 @@ class ProductCatalogTests(TestCase):
 
 		self.assertContains(
 			response,
-			"/static/images/vi-gung.png",
+			"/static/images/vi-gung.webp",
 		)
 		self.assertContains(
 			catalog_response,
-			"/static/images/vi-gung.png",
+			"/static/images/vi-gung.webp",
 		)
 
 	def test_cacao_and_durian_images_are_shared_across_storefront_pages(self):
@@ -153,14 +153,14 @@ class ProductCatalogTests(TestCase):
 				"BT006",
 				"Bánh dừa nướng cacao",
 				"cacao",
-				"/static/images/cacao.png",
+				"/static/images/cacao.webp",
 			),
 			(
 				"SP007",
 				"BT007",
 				"Bánh dừa nướng vị sầu riêng",
 				"sầu riêng",
-				"/static/images/s%E1%BA%A7u%20ri%C3%AAng.png",
+				"/static/images/s%E1%BA%A7u%20ri%C3%AAng.webp",
 			),
 		)
 
@@ -237,7 +237,7 @@ class ProductCatalogTests(TestCase):
 
 		self.assertContains(
 			response,
-			"/static/images/b%C3%A1nh%20d%E1%BB%ABa%20n%C6%B0%E1%BB%9Bng.png",
+			"/static/images/b%C3%A1nh%20d%E1%BB%ABa%20n%C6%B0%E1%BB%9Bng.webp",
 		)
 
 	def test_mapped_product_images_are_shared_with_employee_and_manager(self):
@@ -254,7 +254,7 @@ class ProductCatalogTests(TestCase):
 			barcode="8938501000002",
 			gia_ban_le=39000,
 		)
-		expected_image = "/static/images/vi-gung.png"
+		expected_image = "/static/images/vi-gung.webp"
 		home_response = self.client.get(reverse("storefront-home"))
 		self.assertContains(home_response, expected_image)
 
@@ -359,7 +359,7 @@ class ProductCatalogTests(TestCase):
 
 		self.assertContains(
 			response,
-			"/static/images/vi-gung.png",
+			"/static/images/vi-gung.webp",
 		)
 		self.assertContains(response, "/media/products/primary.jpg")
 

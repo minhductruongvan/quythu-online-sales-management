@@ -403,7 +403,7 @@ class M1CustomerManagementTests(TestCase):
         self.assertContains(response, "Bánh dừa nướng truyền thống")
         self.assertContains(
             response,
-            "/static/images/d%E1%BB%ABa%20n%C6%B0%E1%BB%9Bng.png",
+            "/static/images/d%E1%BB%ABa%20n%C6%B0%E1%BB%9Bng.webp",
         )
         self.assertContains(response, "45.000 ₫")
         self.assertContains(response, "/media/catalog/")

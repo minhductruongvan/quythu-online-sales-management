@@ -41,7 +41,7 @@ class IntegratedActorPagesTests(TestCase):
     def test_guest_can_browse_store_and_catalog(self):
         home = self.client.get("/")
         self.assertEqual(home.status_code, 200)
-        self.assertContains(home, "images/quythu-banner.png")
+        self.assertContains(home, "images/quythu-banner.webp")
         visible_text = strip_tags(home.content.decode())
         for internal_label in ("M1", "M2", "M3", "M4", "M5", "Ma trận quyền"):
             self.assertNotIn(internal_label, visible_text)
@@ -252,12 +252,12 @@ class IntegratedActorPagesTests(TestCase):
         )
         self.assertContains(registration_page, "/api/customers/register/")
         self.assertNotContains(registration_page, 'name="loai_khach_hang"')
-        self.assertContains(registration_page, "images/quythu-auth-coconut.png")
+        self.assertContains(registration_page, "images/quythu-auth-coconut.webp")
 
         login_page = self.client.get("/tai-khoan/dang-nhap/")
         self.assertContains(login_page, 'method="post"')
         self.assertContains(login_page, "/api/customers/login/")
-        self.assertContains(login_page, "images/quythu-auth-coconut.png")
+        self.assertContains(login_page, "images/quythu-auth-coconut.webp")
 
     def test_customer_address_checkout_and_staff_filter_controls_render(self):
         self.client.force_login(self.customer_account)
