@@ -1035,3 +1035,4 @@ def manager_dashboard_page(request):
 def logout_page(request):
     logout(request)
     return redirect("login-page")
+
