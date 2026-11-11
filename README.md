@@ -2,44 +2,13 @@
 
 Hệ thống quản lý bán hàng trực tuyến Quý Thu, xây dựng bằng Django.
 
-## Chuẩn bị môi trường
+## Chạy nhanh trên Windows
 
-Yêu cầu Python 3.12 trở lên và Git. Các lệnh dưới đây dùng PowerShell trên Windows:
+Yêu cầu máy đã có Python 3.12 và kết nối internet ở lần chạy đầu. Sau khi pull/clone repository, mở thư mục dự án và nhấp đúp `run.bat`. Tập lệnh sẽ tự tạo môi trường Python, cài thư viện cần thiết, tạo cơ sở dữ liệu, nạp dữ liệu/tài khoản mẫu và mở website tại `http://127.0.0.1:8000/`. Không cần chạy lệnh cài đặt, migrate hoặc seed thủ công.
 
-```powershell
-git clone --branch feature/customer-storefront-workflows https://github.com/minhductruongvan/quythu-online-sales-management.git
-cd quythu-online-sales-management
-py -3.12 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-```
+Để chạy từ PyCharm, mở thư mục dự án trong PyCharm rồi chạy `.\run.bat` trong Terminal của PyCharm (hoặc nhấp đúp `run.bat` từ File Explorer). Sau lần chạy đầu, cấu hình **Quy Thu - runserver** cũng dùng được để chạy server trực tiếp. Giữ cửa sổ terminal đang chạy server mở trong khi sử dụng website; nhấn `Ctrl+C` để dừng.
 
-Nếu PowerShell chặn kích hoạt môi trường ảo, có thể gọi trực tiếp `.\.venv\Scripts\python.exe` thay cho `python`.
-
-## Mở và chạy bằng PyCharm
-
-1. Mở thư mục gốc `quythu-develop` trong PyCharm.
-2. Tạo Python 3.12 virtualenv tại thư mục gốc với tên `.venv` (hoặc chọn interpreter `.venv\Scripts\python.exe` đã có), sau đó cài `requirements.txt`.
-3. Mở Terminal của PyCharm tại thư mục `backend` và chạy các lệnh migrate/seed bên dưới một lần.
-4. Chọn cấu hình **Quy Thu - runserver** trên thanh Run rồi nhấn Run/Debug. Cấu hình dùng `backend\manage.py`, thư mục làm việc `backend` và địa chỉ `http://127.0.0.1:8000/`.
-
-Nếu chưa thấy cấu hình dùng chung, chọn **File → Open** và mở đúng thư mục gốc chứa `.run`; có thể tạo cấu hình Python tương đương bằng Script path `backend\manage.py`, Parameters `runserver 127.0.0.1:8000`, Working directory `backend` và interpreter `.venv`.
-
-## Chạy hệ thống
-
-Từ thư mục dự án:
-
-```powershell
-cd backend
-python manage.py migrate
-python manage.py seed_m1_demo_accounts
-python manage.py seed_demo_catalog
-python manage.py seed_demo_sales
-python manage.py runserver
-```
-
-Mở `http://127.0.0.1:8000/`. Cơ sở dữ liệu SQLite cục bộ được tạo tại `backend/db.sqlite3`; các lệnh seed chỉ thêm dữ liệu mẫu trong môi trường phát triển.
+> Python là nền tảng cần thiết để chạy Django. Nếu Python 3.12 chưa có trên máy, cần cài Python một lần; thư viện dự án được tập lệnh tự cài vào `.venv` và không ảnh hưởng Python toàn hệ thống. Kết nối internet cần thiết khi tải thư viện ở lần chạy đầu.
 
 ## Chạy kiểm thử
 
@@ -51,11 +20,7 @@ python manage.py test
 
 ## Tài khoản dùng thử
 
-Khi chạy môi trường phát triển (`DEBUG=True`), các tài khoản mẫu đăng nhập tại `http://127.0.0.1:8000/tai-khoan/dang-nhap/` với mật khẩu mặc định `Quythu123!`. Nếu đặt `M1_DEMO_PASSWORD` trong `.env`, dùng giá trị đó. Lệnh này đặt lại mật khẩu của ba tài khoản mẫu mỗi lần chạy; chỉ dùng trong môi trường phát triển.
-
-```powershell
-python manage.py seed_m1_demo_accounts
-```
+Các tài khoản mẫu được tự động chuẩn bị khi chạy `run.bat`. Đăng nhập tại `http://127.0.0.1:8000/tai-khoan/dang-nhap/` với mật khẩu mặc định `Quythu123!`. Nếu đặt `M1_DEMO_PASSWORD` trong `.env`, dùng giá trị đó. Tập lệnh làm mới mật khẩu ba tài khoản mẫu mỗi lần khởi động; chỉ dùng trong môi trường phát triển.
 
 Tài khoản: `khachhang@gmail.com` (khách hàng), `nhanvien@gmail.com` (nhân viên) và `quanly@gmail.com` (quản lý).
 
