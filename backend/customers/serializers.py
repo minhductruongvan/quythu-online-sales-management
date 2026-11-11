@@ -12,6 +12,7 @@ from .models import (
     LichSuKhachHang,
 )
 from .services import DichVuLichSuHoSo
+from orders.models import TinhThanh
 
 
 def validate_phone_number(value):
@@ -26,12 +27,6 @@ def validate_phone_number(value):
 class DangKyKhachHangSerializer(serializers.Serializer):
     email = serializers.EmailField()
     so_dien_thoai = serializers.CharField(max_length=15)
-    loai_khach_hang = serializers.SlugRelatedField(
-        slug_field="ma_loai_kh",
-        queryset=LoaiKhachHang.objects.filter(
-            ma_loai_kh__in=["LKH001", "LKH002"]
-        ),
-    )
     mat_khau = serializers.CharField(
         write_only=True,
         min_length=8,
@@ -67,7 +62,7 @@ class DangKyKhachHangSerializer(serializers.Serializer):
 
     @transaction.atomic
     def create(self, validated_data):
-        loai_khach_hang = validated_data.pop("loai_khach_hang")
+        loai_khach_hang = LoaiKhachHang.objects.get(ma_loai_kh="LKH001")
 
         tai_khoan = TaiKhoan(
             ma_tk=self._tao_ma_tai_khoan(),
@@ -503,3 +498,10 @@ class DiaChiKHSerializer(serializers.ModelSerializer):
 
     def validate_so_dien_thoai(self, value):
         return validate_phone_number(value)
+
+    def validate_tinh_thanh(self, value):
+        if not TinhThanh.objects.filter(ten_tinh=value, dang_hoat_dong=True).exists():
+            raise serializers.ValidationError(
+                "Vui lòng chọn tỉnh/thành phố đang được phục vụ giao hàng."
+            )
+        return value

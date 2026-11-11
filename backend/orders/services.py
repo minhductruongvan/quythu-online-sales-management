@@ -807,6 +807,10 @@ class DichVuXuLyDon:
             raise LoiNghiepVuDonHang(f"Có dòng hàng không thuộc đơn {don.ma_dh}.")
         if cac_ma_dong - set(ket_qua):  # E1
             raise LoiNghiepVuDonHang("Còn dòng hàng chưa được đánh dấu, vui lòng hoàn tất kiểm tra.")
+        so_luong_theo_dong = dict(don.chi_tiet.values_list("ma_ctdh", "so_luong"))
+        if any(so_thieu > so_luong_theo_dong[ma_ctdh] for ma_ctdh, so_thieu in ket_qua.items()):
+            raise LoiNghiepVuDonHang("Số lượng thiếu không được lớn hơn số lượng đã đặt.")
+        DichVuXuLyDon.kiem_tra_khong_cho_huy(don)
 
         so_dong_thieu = sum(1 for so_thieu in ket_qua.values() if so_thieu > 0)
         ket_luan = "đủ hàng" if so_dong_thieu == 0 else f"thiếu hàng ở {so_dong_thieu} dòng"
@@ -1031,7 +1035,10 @@ class DichVuThanhToan:
         """Đối soát chuyển khoản hoặc đính chính bản ghi trước đó (M3-UC11)."""
         if don.phuong_thuc_thanh_toan_id != PhuongThucThanhToan.MA_CHUYEN_KHOAN:
             raise LoiNghiepVuDonHang("Đơn hàng này không thanh toán bằng chuyển khoản.")
+        DichVuXuLyDon.kiem_tra_khong_cho_huy(don)
         da_thanh_toan = don.trang_thai_thanh_toan == TrangThaiThanhToan.DA_THANH_TOAN
+        if da_thanh_toan and don.trang_thai in TRANG_THAI_CUOI:
+            raise LoiNghiepVuDonHang("Không thể đính chính thanh toán khi đơn đã khép lại.")
         if don.trang_thai == T.DA_HUY and not da_thanh_toan:
             raise LoiNghiepVuDonHang("Không thể ghi nhận thanh toán cho đơn đã hủy.")
 
@@ -1206,6 +1213,10 @@ class DichVuGiaoHang:
     @staticmethod
     def san_sang_giao(don, nhan_vien, ghi_chu=""):
         DichVuXuLyDon.kiem_tra_trang_thai(don, {T.DANG_CHUAN_BI}, "chuyển sẵn sàng giao")  # E4
+        if don.chi_tiet.exclude(ket_qua_kiem_tra=KetQuaKiemTra.DU).exists():
+            raise LoiNghiepVuDonHang(
+                "Cần kiểm tra và xác nhận đủ hàng trước khi chuyển sẵn sàng giao."
+            )
         try:
             DichVuTrangThai.chuyen_trang_thai(don, T.SAN_SANG_GIAO, TacNhan.NHAN_VIEN,
                                               nhan_vien=nhan_vien, ghi_chu=ghi_chu)
@@ -1486,9 +1497,11 @@ class DichVuTraCuuDon:
 
     @staticmethod
     def han_cua_so_doi_tra(don):
-        """BR21: cửa sổ đang mở thì trả thời điểm hết hạn (giao diện hiện [Đã nhận hàng]
-        và [Yêu cầu đổi/trả]); cửa sổ chưa mở hoặc đã đóng thì trả None."""
-        if don.trang_thai == T.GIAO_THANH_CONG and don.thoi_diem_xac_nhan_nhan_hang is None:
+        """BR21: giữ thời hạn đổi/trả tính từ lúc giao thành công, kể cả khách đã xác nhận."""
+        if (
+            don.trang_thai in (T.GIAO_THANH_CONG, T.HOAN_THANH)
+            and don.thoi_diem_giao_thanh_cong is not None
+        ):
             return don.thoi_diem_giao_thanh_cong + CUA_SO_DOI_TRA
         return None
 

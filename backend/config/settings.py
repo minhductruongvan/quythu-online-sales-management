@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -24,12 +25,31 @@ load_dotenv(BASE_DIR.parent / ".env")
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-+pg-vmgbjg&fbc=e@=*p&(3k^x&($f=e)4rk7xvol3%j*^(3co"
+_development_secret_key = (
+    "django-insecure-+pg-vmgbjg&fbc=e@=*p&(3k^x&($f=e)4rk7xvol3%j*^(3co"
+)
+_debug_value = os.environ.get("DJANGO_DEBUG", "true").strip().lower()
+if _debug_value not in {"true", "false"}:
+    raise ImproperlyConfigured("DJANGO_DEBUG must be set to 'true' or 'false'.")
+DEBUG = _debug_value == "true"
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "").strip()
+if not SECRET_KEY:
+    if not DEBUG:
+        raise ImproperlyConfigured(
+            "DJANGO_SECRET_KEY must be configured when DJANGO_DEBUG is false."
+        )
+    SECRET_KEY = _development_secret_key
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",")
+    if host.strip()
+]
+if not DEBUG and not ALLOWED_HOSTS:
+    raise ImproperlyConfigured(
+        "DJANGO_ALLOWED_HOSTS must be configured when DJANGO_DEBUG is false."
+    )
 
 
 # Application definition

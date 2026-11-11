@@ -36,7 +36,7 @@
                 <div class="checkout-address-wide"><label for="checkout-street">Địa chỉ chi tiết *</label><input id="checkout-street" name="dia_chi_chi_tiet" maxlength="255" placeholder="Số nhà, tên đường" required autocomplete="street-address"></div>
                 <div><label for="checkout-ward">Phường / Xã</label><input id="checkout-ward" name="phuong_xa" maxlength="100"></div>
                 <div><label for="checkout-district">Quận / Huyện</label><input id="checkout-district" name="quan_huyen" maxlength="100"></div>
-                <div class="checkout-address-wide"><label for="checkout-province">Tỉnh / Thành phố *</label><input id="checkout-province" name="tinh_thanh" maxlength="100" list="checkout-province-options" required autocomplete="address-level1"><datalist id="checkout-province-options">{% for province in shipping_provinces %}<option value="{{ province.ten_tinh }}">{% endfor %}</datalist></div>
+                <div class="checkout-address-wide"><label for="checkout-province">Tỉnh / Thành phố *</label><select id="checkout-province" name="tinh_thanh" required autocomplete="address-level1"><option value="">Chọn tỉnh / thành phố</option>{% for province in shipping_provinces %}<option value="{{ province.ten_tinh }}">{{ province.ten_tinh }}</option>{% endfor %}</select></div>
             </div>
             <label class="checkout-default-address"><input type="checkbox" name="mac_dinh" value="true"> Đặt làm địa chỉ mặc định</label>
             <div class="checkout-dialog-actions">

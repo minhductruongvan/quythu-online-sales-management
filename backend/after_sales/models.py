@@ -125,6 +125,7 @@ class YeuCauHuy(models.Model):
         NguyenNhan, on_delete=models.PROTECT, related_name="yeu_cau_huy", verbose_name="Nguyên nhân"
     )
     ghi_chu_khach = models.CharField(max_length=500, null=True, blank=True, verbose_name="Ghi chú của khách")
+    thong_tin_tai_khoan_hoan = models.TextField(null=True, blank=True, verbose_name="Tài khoản hoàn tiền (mã hóa)")
     trang_thai = models.CharField(
         max_length=20, choices=TrangThaiYeuCauHuy.choices, default=TrangThaiYeuCauHuy.CHO_XU_LY,
         verbose_name="Trạng thái",
@@ -202,6 +203,7 @@ class XuLyGiaoThatBai(models.Model):
     ten_nguoi_nhan_moi = models.CharField(max_length=100, null=True, blank=True)
     sdt_nguoi_nhan_moi = models.CharField(max_length=15, null=True, blank=True)
     dia_chi_giao_moi = models.CharField(max_length=500, null=True, blank=True)
+    dia_chi_kho = models.CharField(max_length=500, null=True, blank=True, verbose_name="Địa chỉ kho hoàn về")
     nhan_vien = models.ForeignKey(
         "customers.NhanVien", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="xu_ly_giao_that_bai", verbose_name="Nhân viên xử lý",
@@ -264,6 +266,7 @@ class YeuCauDoiTra(models.Model):
         NguyenNhan, on_delete=models.PROTECT, related_name="yeu_cau_doi_tra", verbose_name="Nguyên nhân"
     )
     mo_ta = models.CharField(max_length=500, null=True, blank=True, verbose_name="Mô tả chi tiết")
+    thong_tin_tai_khoan_hoan = models.TextField(null=True, blank=True, verbose_name="Tài khoản hoàn tiền (mã hóa)")
     trang_thai = models.CharField(
         max_length=25, choices=TrangThaiDoiTra.choices, default=TrangThaiDoiTra.CHO_XU_LY,
         verbose_name="Trạng thái",

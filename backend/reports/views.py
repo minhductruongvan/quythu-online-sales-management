@@ -51,14 +51,10 @@ def _read_report_date_range(request):
 def _read_report_filters(request):
     product_id = request.GET.get("product", "").strip()
     category_id = request.GET.get("category", "").strip()
-    if product_id and not SanPham.objects.filter(
-        ma_sp=product_id, trang_thai="ACTIVE"
-    ).exists():
-        return None, "Sản phẩm đã chọn không còn khả dụng. Hãy chọn lại sản phẩm."
-    if category_id and not DanhMucSanPham.objects.filter(
-        ma_dm=category_id, trang_thai="ACTIVE"
-    ).exists():
-        return None, "Danh mục đã chọn không còn khả dụng. Hãy chọn lại danh mục."
+    if product_id and not SanPham.objects.filter(ma_sp=product_id).exists():
+        return None, "Không tìm thấy sản phẩm trong bộ lọc báo cáo."
+    if category_id and not DanhMucSanPham.objects.filter(ma_dm=category_id).exists():
+        return None, "Không tìm thấy danh mục trong bộ lọc báo cáo."
 
     amounts = {}
     for field in ("amount_min", "amount_max"):
@@ -121,9 +117,7 @@ def dashboard_view(request):
     # Lấy dữ liệu
     kpis = services.get_dashboard_kpis(date_range, customer_type, **filters)
     timeline = services.get_revenue_timeline(date_range, customer_type, group_by="day", **filters)
-    customer_ratio = services.get_customer_type_ratio(
-        date_range, customer_type=customer_type, **filters
-    )
+    customer_ratio = services.get_customer_type_ratio(date_range, **filters)
     status_list = services.get_order_status_distribution(date_range, customer_type, **filters)
     top_products = services.get_top_selling_products(
         date_range, top_n=7, sort_by="revenue", customer_type=customer_type, **filters
@@ -203,6 +197,9 @@ def detail_report_view(request):
         search_kw=search_kw,
         **filters,
     )
+    customer_ratio = services.get_customer_type_ratio(
+        date_range, pttt_id=pttt_id, **filters
+    )
     order_details = services.get_order_details(
         date_range=date_range,
         customer_type=customer_type,
@@ -276,6 +273,8 @@ def detail_report_view(request):
         "payment_methods": payment_methods,
         # Tab data
         "rev_timeline": rev_timeline,
+        "customer_ratio": customer_ratio,
+        "has_customer_revenue": any(customer_ratio["values"]),
         "order_details": order_details,
         "top_products": top_products,
         "recent_products": recent_products,
@@ -300,9 +299,7 @@ def api_dashboard_data(request):
 
     kpis = services.get_dashboard_kpis(date_range, customer_type, **filters)
     timeline = services.get_revenue_timeline(date_range, customer_type, group_by="day", **filters)
-    customer_ratio = services.get_customer_type_ratio(
-        date_range, customer_type=customer_type, **filters
-    )
+    customer_ratio = services.get_customer_type_ratio(date_range, **filters)
     status_list = services.get_order_status_distribution(date_range, customer_type, **filters)
     top_products = services.get_top_selling_products(
         date_range, top_n=7, sort_by="revenue", customer_type=customer_type, **filters

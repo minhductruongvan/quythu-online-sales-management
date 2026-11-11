@@ -1,10 +1,10 @@
 {% extends "layouts/base_customer.html" %}
+{% load static money %}
 
 {% block title %}Quý Thu | Đặc sản dừa nướng{% endblock %}
 
 {% block extra_css %}
-{% load static %}
-<link rel="stylesheet" href="{% static 'css/home.css' %}?v=3">
+<link rel="stylesheet" href="{% static 'css/home.css' %}?v=15">
 {% endblock %}
 
 {% block content %}
@@ -36,16 +36,12 @@
             </article>
         </section>
 
-        <section class="home-section" id="danh-muc" aria-labelledby="categories-title">
-            <div class="home-section-heading">
+        {% if not search_query %}
+        <section class="home-section home-section-centered" id="danh-muc" aria-labelledby="categories-title">
+            <div class="home-section-heading home-section-heading-centered">
                 <div>
-                    <span class="home-eyebrow home-eyebrow-gold">KHÁM PHÁ QUÝ THU</span>
                     <h2 id="categories-title">Danh mục sản phẩm</h2>
-                    <p>Những danh mục đang được Quý Thu kinh doanh.</p>
                 </div>
-                <a class="home-text-link" href="{% url 'products:danh_sach' %}">
-                    Xem tất cả <span aria-hidden="true">→</span>
-                </a>
             </div>
 
             {% if categories %}
@@ -53,9 +49,10 @@
                 {% for category in categories %}
                 <a class="home-category-card"
                    href="{% url 'products:danh_sach' %}?category={{ category.ma_dm|urlencode }}">
-                    <span class="home-category-number">0{{ forloop.counter|stringformat:"s" }}</span>
                     <span class="home-category-art">
-                        {% if category.home_products.0.home_images %}
+                        {% if category.home_category_image %}
+                        <img src="{% static category.home_category_image %}" alt="{{ category.ten_dm }}" loading="lazy">
+                        {% elif category.home_products.0.home_images %}
                         <img src="{{ category.home_products.0.home_images.0.duong_dan }}" alt="" loading="lazy">
                         {% else %}
                         <span class="home-category-leaf"></span>
@@ -64,10 +61,7 @@
                     </span>
                     <span class="home-category-copy">
                         <strong>{{ category.ten_dm }}</strong>
-                        {% if category.mo_ta %}<small>{{ category.mo_ta|truncatechars:56 }}</small>
-                        {% else %}<small>{{ category.active_product_count }} sản phẩm đang bán</small>{% endif %}
                     </span>
-                    <span class="home-category-arrow" aria-hidden="true">↗</span>
                 </a>
                 {% endfor %}
             </div>
@@ -80,28 +74,26 @@
                 </div>
             </div>
             {% endif %}
+            <div class="home-section-footer">
+                <a class="home-text-link" href="{% url 'products:danh_sach' %}">
+                    Xem tất cả <span aria-hidden="true">→</span>
+                </a>
+            </div>
         </section>
+        {% endif %}
 
-        <section class="home-section home-products-section" id="san-pham" aria-labelledby="products-title">
-            <div class="home-section-heading">
+        <section class="home-section home-section-centered home-products-section" id="san-pham" aria-labelledby="products-title">
+            <div class="home-section-heading home-section-heading-centered">
                 <div>
+                    {% if search_query %}
                     <span class="home-eyebrow home-eyebrow-gold">
-                        {% if search_query %}KẾT QUẢ TÌM KIẾM{% else %}GỢI Ý TỪ QUÝ THU{% endif %}
+                        KẾT QUẢ TÌM KIẾM
                     </span>
+                    {% endif %}
                     <h2 id="products-title">
                         {% if search_query %}Sản phẩm phù hợp{% else %}Sản phẩm nổi bật{% endif %}
                     </h2>
-                    <p>
-                        {% if search_query %}
-                            Kết quả cho “{{ search_query }}”.
-                        {% else %}
-                            Sản phẩm đang kinh doanh, cùng thông tin giá và quy cách hiện có.
-                        {% endif %}
-                    </p>
                 </div>
-                <a class="home-text-link" href="{% url 'products:danh_sach' %}">
-                    Tất cả sản phẩm <span aria-hidden="true">→</span>
-                </a>
             </div>
 
             {% if products %}
@@ -111,28 +103,25 @@
                     <a class="home-product-image" href="{% url 'products:chi_tiet' product.ma_sp %}" aria-label="Xem {{ product.ten_sp }}">
                         {% if product.home_images %}
                         <img src="{{ product.home_images.0.duong_dan }}" alt="{{ product.ten_sp }}" loading="lazy">
+                        {% elif product.home_product_image %}
+                        <img src="{% static product.home_product_image %}" alt="{{ product.ten_sp }}" loading="lazy">
                         {% else %}
                         <span class="home-image-fallback" aria-hidden="true">
                             <span class="home-fallback-leaf"></span>
-                            <img src="{% static 'images/logo-quy-thu.png' %}" alt="Logo Quý Thu" loading="lazy">
+                            <img src="{% static 'images/logo-removebg-preview.png' %}" alt="Logo Quý Thu" loading="lazy">
                             <small>{{ product.danh_muc.ten_dm }}</small>
                         </span>
                         {% endif %}
                         <span class="home-product-category">{{ product.danh_muc.ten_dm }}</span>
-                        <span class="home-product-open" aria-hidden="true">↗</span>
                     </a>
                     <div class="home-product-info">
                         <span class="home-product-code">{{ product.ma_sp }}</span>
-                        <h3><a href="{% url 'products:chi_tiet' product.ma_sp %}">{{ product.ten_sp }}</a></h3>
-                        <div class="home-product-meta">
-                            <span>{{ product.active_variant_count }} quy cách / hương vị</span>
+                        <div class="home-product-title-row">
+                            <h3><a href="{% url 'products:chi_tiet' product.ma_sp %}">{{ product.ten_sp }}</a></h3>
                             <span class="home-product-price">
-                                {% if product.home_price %}{{ product.home_price|floatformat:0 }} ₫{% else %}Liên hệ{% endif %}
+                                {% if product.home_price %}{{ product.home_price|vnd }} ₫{% else %}Liên hệ{% endif %}
                             </span>
                         </div>
-                        <a class="home-product-link" href="{% url 'products:chi_tiet' product.ma_sp %}">
-                            Xem chi tiết <span aria-hidden="true">→</span>
-                        </a>
                     </div>
                 </article>
                 {% endfor %}
@@ -144,7 +133,7 @@
                     <strong>{% if search_query %}Chưa tìm thấy sản phẩm phù hợp{% else %}Sản phẩm đang được cập nhật{% endif %}</strong>
                     <p>
                         {% if search_query %}
-                            Thử tên sản phẩm, mã sản phẩm hoặc một từ khóa khác.
+                            Thử một phần tên sản phẩm khác.
                         {% else %}
                             Hiện chưa có sản phẩm đang bán trong danh mục. Quý Thu sẽ cập nhật khi có dữ liệu.
                         {% endif %}
@@ -155,14 +144,15 @@
                 </div>
             </div>
             {% endif %}
+            <div class="home-section-footer">
+                <a class="home-text-link" href="{% url 'products:danh_sach' %}">
+                    Tất cả sản phẩm <span aria-hidden="true">→</span>
+                </a>
+            </div>
         </section>
 
-        <section class="home-account-promo" id="gioi-thieu" aria-labelledby="account-promo-title">
-            <div class="home-promo-art" aria-hidden="true">
-                <span class="home-promo-orbit"></span>
-                <span class="home-promo-box"><img src="{% static 'images/logo-quy-thu.png' %}" alt="" loading="lazy"></span>
-                <span class="home-promo-leaf"></span>
-            </div>
+        <section class="home-account-promo" id="gioi-thieu" aria-labelledby="account-promo-title"
+                 style="--home-promo-image: url('{% static 'images/footer-contact-banner.png' %}')">
             <div class="home-promo-copy">
                 <span class="home-eyebrow">TRẢI NGHIỆM MUA SẮM</span>
                 <h2 id="account-promo-title">Mua sắm dễ dàng,<br><em>thông tin luôn trong tầm tay.</em></h2>
@@ -172,7 +162,6 @@
                     <span aria-hidden="true">→</span>
                 </a>
             </div>
-            <span class="home-promo-stamp" aria-hidden="true">QUÝ THU<br><small>TẬN TÂM TỪNG ĐƠN HÀNG</small></span>
         </section>
     </div>
 </div>

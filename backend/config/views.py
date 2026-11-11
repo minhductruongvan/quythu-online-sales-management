@@ -29,17 +29,15 @@ from customers.services import (
     LoiNghiepVuTaiKhoan,
     LoiQuyenTaiKhoan,
 )
-from orders.models import DonHang, TrangThaiDonHang
+from orders.models import DonHang, TinhThanh, TrangThaiDonHang
 from products.models import (
     BienTheSanPham,
     DanhMucSanPham,
     HinhAnhSanPham,
     SanPham,
 )
-
-def dashboard(request):
-    return render(request, "dashboard/index.html")
-
+from products.image_assets import PRODUCT_IMAGE_ASSETS
+from products.search import search_products_by_name
 
 @role_required(
     TaiKhoan.VaiTro.EMPLOYEE,
@@ -47,7 +45,8 @@ def dashboard(request):
 )
 def order_list(request):
     return render(request, "orders/danh_sach.html", {
-        "orders": []
+        "orders": [],
+        "loai_khach_hang": LoaiKhachHang.objects.order_by("ma_loai_kh"),
     })
 
 # Giao diện đăng nhập M1
@@ -73,6 +72,9 @@ def customer_address_page(request):
         "storefront/accounts/addresses.html",
         {
             "addresses": addresses,
+            "shipping_provinces": TinhThanh.objects.filter(
+                dang_hoat_dong=True
+            ).order_by("ten_tinh"),
         }
     )
 
@@ -913,6 +915,16 @@ def storefront_home_page(request):
             )
         )
     )
+    category_image_assets = {
+        "DM001": "images/Gemini_Generated_Image_8i30aj8i30aj8i30.png",
+        "DM002": "images/Gemini_Generated_Image_t6tsw2t6tsw2t6ts.png",
+        "DM003": "images/Gemini_Generated_Image_50vuk50vuk50vuk5 (1).png",
+        "DM004": "images/Gemini_Generated_Image_41zg8h41zg8h41zg.png",
+        "DM005": "images/Gemini_Generated_Image_o4kamfo4kamfo4ka.png",
+    }
+    for category in categories:
+        category.home_category_image = category_image_assets.get(category.ma_dm)
+
     products = (
         SanPham.objects.filter(
             trang_thai="ACTIVE",
@@ -945,30 +957,18 @@ def storefront_home_page(request):
     )
 
     if search_query:
-        products = products.filter(
-            Q(ten_sp__icontains=search_query)
-            | Q(ma_sp__icontains=search_query)
-            | Q(danh_muc__ten_dm__icontains=search_query)
-            | Q(
-                bienthesanpham__barcode__icontains=search_query,
-                bienthesanpham__trang_thai="ACTIVE",
-            )
-            | Q(
-                bienthesanpham__huong_vi__icontains=search_query,
-                bienthesanpham__trang_thai="ACTIVE",
-            )
-            | Q(
-                bienthesanpham__quy_cach__icontains=search_query,
-                bienthesanpham__trang_thai="ACTIVE",
-            )
-        ).distinct()
+        products = search_products_by_name(products, search_query)
+
+    danh_sach_san_pham = list(products[:8])
+    for product in danh_sach_san_pham:
+        product.home_product_image = PRODUCT_IMAGE_ASSETS.get(product.ma_sp)
 
     return render(
         request,
         "storefront/home.html",
         {
             "categories": categories,
-            "products": products[:8],
+            "products": danh_sach_san_pham,
             "search_query": search_query,
         },
     )

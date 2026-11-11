@@ -1815,7 +1815,8 @@ button:disabled {
     color: var(--danger);
 }
 
-.address-form-group input {
+.address-form-group input,
+.address-form-group select {
     width: 100%;
     height: var(--input-height);
     padding: 0 11px;
@@ -1828,7 +1829,8 @@ button:disabled {
     transition: var(--transition-fast);
 }
 
-.address-form-group input:focus {
+.address-form-group input:focus,
+.address-form-group select:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(33, 135, 101, 0.10);
 }
@@ -2283,86 +2285,6 @@ button:disabled {
 
 .auth-register-form .auth-terms {
     margin: 10px 0 15px;
-}
-
-.auth-customer-type {
-    min-width: 0;
-    padding: 0;
-    border: 0;
-}
-
-.auth-customer-type legend {
-    display: block;
-    float: none;
-    width: auto;
-    margin-bottom: 8px;
-    color: var(--text-primary);
-    font-size: var(--font-sm);
-    font-weight: 700;
-}
-
-.auth-customer-type legend span {
-    color: var(--danger);
-}
-
-.auth-customer-type-options {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-}
-
-.auth-customer-type-option {
-    position: relative;
-    display: block;
-    margin: 0;
-    cursor: pointer;
-}
-
-.auth-customer-type-option > input {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    opacity: 0;
-}
-
-.auth-customer-type-card {
-    display: flex;
-    min-height: 77px;
-    flex-direction: column;
-    gap: 4px;
-    padding: 11px 12px;
-    border: 1px solid #e2e7df;
-    border-radius: 11px;
-    background: #fffefa;
-    transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
-}
-
-.auth-customer-type-card strong {
-    color: #173b30;
-    font-size: 13px;
-}
-
-.auth-customer-type-card small,
-.auth-customer-type-note {
-    color: var(--text-muted);
-    font-size: 10px;
-    line-height: 1.5;
-}
-
-.auth-customer-type-option > input:checked + .auth-customer-type-card {
-    border-color: #315d49;
-    background: #f2f6ef;
-    box-shadow: 0 0 0 3px rgba(49, 93, 73, .1);
-}
-
-.auth-customer-type-option > input:focus-visible + .auth-customer-type-card {
-    outline: 3px solid rgba(49, 93, 73, .2);
-    outline-offset: 2px;
-}
-
-.auth-customer-type-note {
-    display: block;
-    margin-top: 6px;
 }
 
 .auth-mobile-banner {

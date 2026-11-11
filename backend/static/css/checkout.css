@@ -20,7 +20,8 @@
 }
 
 .checkout-address-toolbar select,
-.checkout-address-fields input {
+.checkout-address-fields input,
+.checkout-address-fields select {
     width: 100%;
     min-height: 42px;
     padding: 9px 11px;

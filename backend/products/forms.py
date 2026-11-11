@@ -1,6 +1,6 @@
 # File: backend/products/forms.py
 from django import forms
-from .models import SanPham, BienTheSanPham
+from .models import SanPham, BienTheSanPham, DanhMucSanPham
 
 
 # ==============================================================================
@@ -36,6 +36,12 @@ class SanPhamForm(forms.ModelForm):
             'ten_sp': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nhập tên sản phẩm...'}),
             'mo_ta': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Nhập mô tả chi tiết...'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            self.fields['ma_sp'].disabled = True
+            self.fields['ma_sp'].widget.attrs['readonly'] = True
 
 
 # ==============================================================================
@@ -115,6 +121,12 @@ class BienTheForm(forms.ModelForm):
             'gia_ban_si': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Ví dụ: 45000', 'min': '0'}),
             'so_luong_toi_thieu_si': forms.NumberInput(attrs={'class': 'form-control', 'value': 10, 'min': '1'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            self.fields['ma_bien_the'].disabled = True
+            self.fields['ma_bien_the'].widget.attrs['readonly'] = True
 
     # Hàm tự động kiểm tra logic nghiệp vụ theo Business Rules M2-BR07
     def clean(self):
@@ -254,40 +266,6 @@ class CapNhatGiaForm(forms.Form):
 
         return cleaned_data
 
-from .models import HinhAnhSanPham
-
-
-# ==============================================================================
-# FORM DÀNH CHO USE CASE 6: QUẢN LÝ HÌNH ẢNH SẢN PHẨM (M2-UC06)
-# ==============================================================================
-class HinhAnhForm(forms.ModelForm):
-    class Meta:
-        model = HinhAnhSanPham
-        fields = ['duong_dan', 'anh_chinh']
-        labels = {
-            'duong_dan': 'Đường dẫn hình ảnh (URL)',
-            'anh_chinh': 'Đặt làm ảnh đại diện chính của sản phẩm',
-        }
-        widgets = {
-            'duong_dan': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Dán link ảnh (https://...) hoặc đường dẫn ảnh vào đây...'
-            }),
-            'anh_chinh': forms.CheckboxInput(attrs={
-                'class': 'form-check-input'
-            }),
-        }
-
-    # Kiểm tra đường dẫn ảnh có hợp lệ không
-    def clean_duong_dan(self):
-        duong_dan = self.cleaned_data.get('duong_dan', '').strip()
-        if not duong_dan:
-            raise forms.ValidationError("Đường dẫn ảnh không được để trống!")
-        return duong_dan
-
-from .models import DanhMucSanPham
-
-
 # ==============================================================================
 # FORM DÀNH CHO USE CASE 9: QUẢN LÝ DANH MỤC SẢN PHẨM (M2-UC09)
 # ==============================================================================
@@ -318,6 +296,12 @@ class DanhMucForm(forms.ModelForm):
             'ten_dm': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ví dụ: Quà biếu đặc sản...'}),
             'mo_ta': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Mô tả nhóm danh mục...'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            self.fields['ma_dm'].disabled = True
+            self.fields['ma_dm'].widget.attrs['readonly'] = True
 
     # Kiểm tra tên danh mục không được để trống
     def clean_ten_dm(self):

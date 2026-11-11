@@ -264,6 +264,29 @@ def tai_khoan_nhan_da_che(khoan):
     return che_bot(giai_ma(khoan.thong_tin_tai_khoan_nhan))
 
 
+def _ma_hoa_tai_khoan(so_tai_khoan="", ten_nguoi_nhan_tien="", ngan_hang_nhan=""):
+    if not (so_tai_khoan and ten_nguoi_nhan_tien and ngan_hang_nhan):
+        return None
+    thong_tin = {
+        "so_tai_khoan": so_tai_khoan.strip(),
+        "ten_nguoi_nhan_tien": ten_nguoi_nhan_tien.strip(),
+        "ngan_hang_nhan": ngan_hang_nhan.strip(),
+    }
+    return ma_hoa(json.dumps(thong_tin, ensure_ascii=True))
+
+
+def tai_khoan_yeu_cau_da_giai_ma(thong_tin_ma_hoa):
+    if not thong_tin_ma_hoa:
+        return None
+    van_ban = giai_ma(thong_tin_ma_hoa)
+    if not van_ban:
+        return None
+    try:
+        return json.loads(van_ban)
+    except json.JSONDecodeError:
+        return {"thong_tin_tai_khoan": van_ban}
+
+
 # ==========================================================
 # 5. KHO (M4-BR04, M4-BR17)
 #    M1–M3 chưa có bảng tồn kho, nên M4 ghi sổ BienDongKho. Khi nhóm có bảng tồn kho thật,
@@ -494,6 +517,10 @@ class DichVuHoanTien:
             ma_hoan_tien=sinh_ma(GiaoDichHoanTien), don_hang=don, nguon=nguon, yeu_cau_huy=yeu_cau_huy,
             yeu_cau_doi_tra=yeu_cau_doi_tra, xu_ly_giao_that_bai=xu_ly, so_tien_da_thanh_toan=da_tt,
             so_tien_de_xuat=so_tien,
+            thong_tin_tai_khoan_nhan=(
+                yeu_cau_huy.thong_tin_tai_khoan_hoan if yeu_cau_huy else
+                yeu_cau_doi_tra.thong_tin_tai_khoan_hoan if yeu_cau_doi_tra else None
+            ),
         )
         ma_yc = (yeu_cau_huy.ma_yc_huy if yeu_cau_huy else yeu_cau_doi_tra.ma_yc_doi_tra if yeu_cau_doi_tra
                  else xu_ly.ma_xu_ly if xu_ly else khoan.ma_hoan_tien)
@@ -573,7 +600,10 @@ class DichVuHoanTien:
             raise LoiNghiepVuHauMai("Phương thức hoàn không hợp lệ.")
         if la_cod and phuong_thuc != PhuongThucHoan.CHUYEN_KHOAN:
             raise LoiNghiepVuHauMai("Đơn thanh toán khi nhận hàng phải hoàn bằng chuyển khoản.")
-        if phuong_thuc == PhuongThucHoan.CHUYEN_KHOAN and not (thong_tin_tai_khoan or "").strip():
+        thong_tin_tai_khoan_luu = (thong_tin_tai_khoan or "").strip() or (
+            giai_ma(khoan.thong_tin_tai_khoan_nhan) if khoan.thong_tin_tai_khoan_nhan else ""
+        )
+        if phuong_thuc == PhuongThucHoan.CHUYEN_KHOAN and not thong_tin_tai_khoan_luu:
             raise LoiNghiepVuHauMai("Vui lòng nhập thông tin tài khoản nhận tiền.")
 
         # ----- Mã giao dịch (M4-BR09) -----
@@ -595,7 +625,10 @@ class DichVuHoanTien:
                     trang_thai=TrangThaiHoanTien.DA_HOAN, so_tien_hoan=so_tien,
                     ly_do_dieu_chinh=(ly_do_dieu_chinh or None) if so_tien < khoan.so_tien_de_xuat else khoan.ly_do_dieu_chinh,
                     phuong_thuc_hoan=phuong_thuc,
-                    thong_tin_tai_khoan_nhan=ma_hoa(thong_tin_tai_khoan.strip()) if thong_tin_tai_khoan else None,
+                    thong_tin_tai_khoan_nhan=(
+                        ma_hoa(thong_tin_tai_khoan.strip()) if thong_tin_tai_khoan
+                        else khoan.thong_tin_tai_khoan_nhan
+                    ),
                     ma_giao_dich_hoan=ma_giao_dich_hoan, thoi_diem_hoan=bay_gio, nhan_vien_xu_ly=nhan_vien,
                     ly_do_that_bai=None,
                 )
@@ -651,6 +684,7 @@ class DichVuHoanTien:
                     yeu_cau_huy=goc.yeu_cau_huy, yeu_cau_doi_tra=goc.yeu_cau_doi_tra,
                     xu_ly_giao_that_bai=goc.xu_ly_giao_that_bai, giao_dich_goc=goc, la_dieu_chinh=True,
                     so_tien_da_thanh_toan=tong_da_thanh_toan(goc.don_hang), so_tien_de_xuat=so_tien,
+                    thong_tin_tai_khoan_nhan=goc.thong_tin_tai_khoan_nhan,
                     ly_do_dieu_chinh=ly_do.strip(),
                 )
                 ghi_moc(goc.don_hang, LoaiYeuCau.HOAN_TIEN, khoan.ma_hoan_tien, "Tạo giao dịch điều chỉnh",
@@ -676,7 +710,8 @@ class DichVuHuyDon:
 
     # ----- UC01 -----
     @staticmethod
-    def gui_yeu_cau(ma_dh, khach_hang, ma_nguyen_nhan, ghi_chu=""):
+    def gui_yeu_cau(ma_dh, khach_hang, ma_nguyen_nhan, ghi_chu="",
+                    so_tai_khoan="", ten_nguoi_nhan_tien="", ngan_hang_nhan=""):
         don = lay_don_cua_khach(ma_dh, khach_hang)
         if don.trang_thai not in TRANG_THAI_DUOC_HUY:  # E1, BR01
             raise LoiNghiepVuHauMai(_cau_loi_khong_duoc_huy(don))
@@ -691,6 +726,9 @@ class DichVuHuyDon:
                 yc = YeuCauHuy.objects.create(
                     ma_yc_huy=sinh_ma(YeuCauHuy), don_hang=don, nguyen_nhan=nn,
                     ghi_chu_khach=(ghi_chu or "").strip() or None, hau_mai_truoc=don.trang_thai_hau_mai,
+                    thong_tin_tai_khoan_hoan=_ma_hoa_tai_khoan(
+                        so_tai_khoan, ten_nguoi_nhan_tien, ngan_hang_nhan
+                    ),
                 )
                 dat_hau_mai(don, HM_CHO_HUY)  # M3 hiển thị "Chờ hủy" và chặn xác nhận/bàn giao (M3-BR19)
                 ghi_moc(don, LoaiYeuCau.HUY_DON, yc.ma_yc_huy, "Khách gửi yêu cầu hủy đơn", yc.trang_thai,
@@ -856,7 +894,8 @@ class DichVuGiaoThatBai:
     @staticmethod
     def xu_ly(ma_dh, nhan_vien, ma_nguyen_nhan, huong_xu_ly, ghi_chu="", phan_hoi_khach="",
               ben_chiu_phi=BenChiuPhi.CUA_HANG, ngay_giao_lai=None, ten_nguoi_nhan_moi="",
-              sdt_nguoi_nhan_moi="", dia_chi_giao_moi="", hinh_thuc_giao=None, don_vi_van_chuyen="",
+              sdt_nguoi_nhan_moi="", dia_chi_giao_moi="", dia_chi_kho="",
+              hinh_thuc_giao=None, don_vi_van_chuyen="",
               sdt_shipper="", ma_van_don="", khach_tu_choi=False):
         don = lay_don(ma_dh)
         if don.trang_thai != T.DANG_GIAO:
@@ -887,6 +926,8 @@ class DichVuGiaoThatBai:
                 raise LoiNghiepVuHauMai("Ngày giao lại không hợp lệ.")  # E4
         if huong_xu_ly == HuongXuLyGiao.DOI_THONG_TIN_GIAO_LAI and not (dia_chi_giao_moi or "").strip():
             raise LoiNghiepVuHauMai("Vui lòng nhập địa chỉ giao hàng mới.")  # E3
+        if huong_xu_ly == HuongXuLyGiao.HOAN_VE_KHO and not (dia_chi_kho or "").strip():
+            raise LoiNghiepVuHauMai("Vui lòng nhập địa chỉ kho nhận hàng.")
 
         ket_qua_lan = KetQuaGiao.KHACH_TU_CHOI if khach_tu_choi else KetQuaGiao.THAT_BAI
         ly_do = f"{nn.ten_nguyen_nhan}. {ghi_chu or ''}".strip()[:255]
@@ -911,7 +952,8 @@ class DichVuGiaoThatBai:
                     phan_hoi_khach=phan_hoi_khach or None, huong_xu_ly=huong_xu_ly, ben_chiu_phi=ben_chiu_phi,
                     ngay_giao_lai_du_kien=ngay_giao_lai if giao_lai else None,
                     ten_nguoi_nhan_moi=ten_nguoi_nhan_moi or None, sdt_nguoi_nhan_moi=sdt_nguoi_nhan_moi or None,
-                    dia_chi_giao_moi=dia_chi_giao_moi or None, nhan_vien=nhan_vien, thoi_diem=bay_gio,
+                    dia_chi_giao_moi=dia_chi_giao_moi or None, dia_chi_kho=dia_chi_kho or None,
+                    nhan_vien=nhan_vien, thoi_diem=bay_gio,
                 )
                 huong_ten = dict(HuongXuLyGiao.choices)[huong_xu_ly]
                 ghi_moc(don, LoaiYeuCau.GIAO_THAT_BAI, xl.ma_xu_ly, f"Giao không thành công lần {xl.lan_giao}",
@@ -1023,7 +1065,8 @@ class DichVuDoiTra:
         return anh
 
     @staticmethod
-    def gui_yeu_cau(ma_dh, khach_hang, hinh_thuc, ma_nguyen_nhan, mo_ta, dong, anh=None):
+    def gui_yeu_cau(ma_dh, khach_hang, hinh_thuc, ma_nguyen_nhan, mo_ta, dong, anh=None,
+                    so_tai_khoan="", ten_nguoi_nhan_tien="", ngan_hang_nhan=""):
         """dong: danh sách dict {"ma_ctdh", "so_luong", "ma_bien_the_doi" (chỉ khi đổi)}."""
         don = lay_don_cua_khach(ma_dh, khach_hang)
         DichVuDoiTra.kiem_tra_thoi_han(don)
@@ -1066,6 +1109,9 @@ class DichVuDoiTra:
                 yc = YeuCauDoiTra.objects.create(
                     ma_yc_doi_tra=sinh_ma(YeuCauDoiTra), don_hang=don, hinh_thuc=hinh_thuc, nguyen_nhan=nn,
                     mo_ta=(mo_ta or "").strip() or None, hau_mai_truoc=don.trang_thai_hau_mai,
+                    thong_tin_tai_khoan_hoan=_ma_hoa_tai_khoan(
+                        so_tai_khoan, ten_nguoi_nhan_tien, ngan_hang_nhan
+                    ),
                     ben_chiu_phi_van_chuyen=BenChiuPhi.CUA_HANG if nn.loi_do_cua_hang else BenChiuPhi.KHACH_HANG,
                 )
                 for ct, so_luong, bien_the_doi in cac_dong:
@@ -1375,7 +1421,7 @@ class DichVuThongKe:
 
     @staticmethod
     def _dem_theo_nguyen_nhan(loai, tu_ngay, den_ngay):
-        """Trả về {ma_nguyen_nhan: (số lượng, tổng giá trị đơn)} cho yêu cầu đã xử lý xong trong kỳ."""
+        """Trả về mã nguyên nhân kèm số lượng, giá trị và các mã đơn liên quan."""
         if loai == LoaiXuLy.HUY_DON:
             ds = YeuCauHuy.objects.filter(
                 trang_thai__in=[TrangThaiYeuCauHuy.DA_DUYET, TrangThaiYeuCauHuy.TU_CHOI],
@@ -1388,7 +1434,16 @@ class DichVuThongKe:
                                 TrangThaiDoiTra.DA_NHAN_HANG, TrangThaiDoiTra.HOAN_TAT, TrangThaiDoiTra.TU_CHOI],
                 thoi_diem_xu_ly__date__gte=tu_ngay, thoi_diem_xu_ly__date__lte=den_ngay)
         dong = ds.values("nguyen_nhan_id").annotate(so=Count("pk"), gia_tri=Sum("don_hang__tong_thanh_toan"))
-        return {d["nguyen_nhan_id"]: (d["so"], d["gia_tri"] or Decimal(0)) for d in dong}
+        don_hang_theo_nguyen_nhan = {}
+        for ma, ma_dh in ds.values_list("nguyen_nhan_id", "don_hang__ma_dh").distinct():
+            don_hang_theo_nguyen_nhan.setdefault(ma, set()).add(ma_dh)
+        return {
+            d["nguyen_nhan_id"]: (
+                d["so"], d["gia_tri"] or Decimal(0),
+                sorted(don_hang_theo_nguyen_nhan.get(d["nguyen_nhan_id"], set())),
+            )
+            for d in dong
+        }
 
     @staticmethod
     def thong_ke(tu_ngay=None, den_ngay=None, loai_xu_ly=None):
@@ -1417,13 +1472,14 @@ class DichVuThongKe:
                 "ky_truoc": tong_truoc,
                 "thay_doi_phan_tram": None if tong_truoc == 0 else round((tong - tong_truoc) / tong_truoc * 100, 1),
             })
-            for ma, (so, gia_tri) in sorted(ky_nay.items(), key=lambda x: -x[1][0]):
+            for ma, (so, gia_tri, cac_don_hang) in sorted(ky_nay.items(), key=lambda x: -x[1][0]):
                 nn = ten_nn.get(ma)
                 chi_tiet.append({
                     "ma_nguyen_nhan": ma, "ten_nguyen_nhan": nn.ten_nguyen_nhan if nn else ma,
                     "loai_xu_ly": loai, "ten_loai_xu_ly": dict(LoaiXuLy.choices)[loai], "so_luong": so,
                     "ty_le": None if tong == 0 else round(so / tong * 100, 1),  # mẫu số 0 -> hiển thị "—"
                     "gia_tri_don": gia_tri, "dang_ap_dung": bool(nn and nn.dang_ap_dung),
+                    "don_hang_lien_quan": cac_don_hang,
                 })
         khong_co = not chi_tiet
         return {

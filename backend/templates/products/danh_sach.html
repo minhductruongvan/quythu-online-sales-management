@@ -1,7 +1,7 @@
 {% extends "layouts/base_customer.html" %}
-{% load static %}
+{% load static money %}
 {% block title %}Danh mục sản phẩm | Quý Thu{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}?v=4">{% endblock %}
 {% block content %}
 <main class="module-page product-catalog">
     <nav class="product-breadcrumb" aria-label="Đường dẫn">
@@ -21,7 +21,7 @@
         <label class="catalog-search">
             <span class="visually-hidden">Tìm kiếm sản phẩm</span>
             <span class="catalog-search-icon" aria-hidden="true">⌕</span>
-            <input type="search" name="q" value="{{ tu_khoa }}" placeholder="Tìm tên sản phẩm, mã hoặc mã vạch">
+            <input type="search" name="q" value="{{ tu_khoa }}" placeholder="Tìm theo tên sản phẩm">
             <button type="submit" class="module-button">Tìm kiếm</button>
         </label>
 
@@ -81,17 +81,21 @@
                     {% for product in danh_sach_sp %}
                     <article class="catalog-card">
                         <a class="catalog-product-placeholder" href="{% url 'products:chi_tiet' product.ma_sp %}" aria-label="Xem {{ product.ten_sp }}">
-                            <span class="catalog-placeholder-mark" aria-hidden="true">Q</span>
-                            <span>Hình ảnh sản phẩm</span>
+                            {% if product.catalog_image_url %}
+                            <img src="{{ product.catalog_image_url }}" alt="{{ product.ten_sp }}" loading="lazy">
+                            {% elif product.catalog_image_asset %}
+                            <img src="{% static product.catalog_image_asset %}" alt="{{ product.ten_sp }}" loading="lazy">
+                            {% else %}
+                            <img src="{{ product.lay_anh_dai_dien }}" alt="{{ product.ten_sp }}" loading="lazy">
+                            {% endif %}
                         </a>
                         <div class="catalog-card-body">
                             <span class="catalog-category">{{ product.danh_muc.ten_dm }}</span>
-                            <h3><a href="{% url 'products:chi_tiet' product.ma_sp %}">{{ product.ten_sp }}</a></h3>
-                            <p>{{ product.mo_ta|default:"Đặc sản Quý Thu được làm từ nguyên liệu chọn lọc."|truncatechars:105 }}</p>
-                            <div class="catalog-card-footer">
-                                <span><small>Giá từ</small><strong>{{ product.lay_gia_thap_nhat|floatformat:0 }} ₫</strong></span>
-                                <a href="{% url 'products:chi_tiet' product.ma_sp %}" class="catalog-detail-link">Chi tiết <span aria-hidden="true">→</span></a>
+                            <div class="catalog-card-title-row">
+                                <h3><a href="{% url 'products:chi_tiet' product.ma_sp %}">{{ product.ten_sp }}</a></h3>
+                                <span class="catalog-card-price"><small>Giá từ</small><strong>{{ product.lay_gia_thap_nhat|vnd }} ₫</strong></span>
                             </div>
+                            <p>{{ product.mo_ta|default:"Đặc sản Quý Thu được làm từ nguyên liệu chọn lọc."|truncatechars:105 }}</p>
                         </div>
                     </article>
                     {% endfor %}

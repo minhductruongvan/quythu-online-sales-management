@@ -1,0 +1,10 @@
+{% if messages %}
+<div class="site-messages" aria-live="polite" aria-atomic="false">
+	{% for message in messages %}
+	<div class="module-alert {% if message.tags == 'error' %}error{% elif message.tags == 'success' %}success{% else %}info{% endif %}" role="alert">
+		{{ message }}
+		<button type="button" class="site-message-dismiss" aria-label="Đóng thông báo" onclick="this.parentElement.remove()">×</button>
+	</div>
+	{% endfor %}
+</div>
+{% endif %}

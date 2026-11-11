@@ -7,8 +7,8 @@
     {% csrf_token %}
     <header class="module-heading"><div><span class="module-eyebrow">MUA SẮM QUÝ THU</span><h1>Giỏ hàng của bạn</h1><p>Chọn các sản phẩm muốn đặt; giá và thành tiền được tính theo chính sách hiện hành.</p></div><a class="module-link-button secondary" href="{% url 'products:danh_sach' %}">← Tiếp tục mua sắm</a></header>
     <div id="cart-message" role="status"></div>
-    <section class="module-card module-table-wrap"><table class="module-table"><thead><tr><th>Chọn</th><th>Sản phẩm</th><th>Đơn giá</th><th>Số lượng</th><th>Thành tiền</th><th></th></tr></thead><tbody id="cart-rows"><tr><td colspan="6" class="module-empty">Đang tải giỏ hàng…</td></tr></tbody></table></section>
-    <section class="module-panel module-summary" style="margin-top:18px"><div><span class="module-muted">Tạm tính các dòng đã chọn</span><div class="module-total" id="cart-total">—</div></div><button id="checkout-button" class="module-button" type="button" disabled>Tiến hành thanh toán →</button></section>
+    <section class="module-card module-table-wrap"><table class="module-table"><thead><tr><th><label><input id="cart-select-all" type="checkbox" aria-label="Chọn tất cả sản phẩm"> Chọn</label></th><th>Sản phẩm</th><th>Đơn giá</th><th>Số lượng</th><th>Thành tiền</th><th></th></tr></thead><tbody id="cart-rows"><tr><td colspan="6" class="module-empty">Đang tải giỏ hàng…</td></tr></tbody></table></section>
+    <section class="module-panel module-summary" style="margin-top:18px"><div><span class="module-muted">Đã chọn <strong id="cart-selected-count">0</strong> dòng · Tạm tính</span><div class="module-total" id="cart-total">—</div></div><button id="checkout-button" class="module-button" type="button" disabled>Tiến hành thanh toán →</button></section>
 </main>
 {% endblock %}
 {% block extra_js %}<script src="{% static 'js/storefront.js' %}" defer></script>{% endblock %}

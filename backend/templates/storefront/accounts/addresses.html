@@ -218,12 +218,12 @@
 
                 <div class="address-form-group full">
                     <label for="province">Tỉnh / Thành phố <span>*</span></label>
-                    <input
-                        type="text"
-                        id="province"
-                        placeholder="Nhập tỉnh / thành phố"
-                        required
-                    >
+                    <select id="province" required>
+                        <option value="">Chọn tỉnh / thành phố</option>
+                        {% for province in shipping_provinces %}
+                        <option value="{{ province.ten_tinh }}">{{ province.ten_tinh }}</option>
+                        {% endfor %}
+                    </select>
                     <small class="address-error" id="provinceError"></small>
                 </div>
 
