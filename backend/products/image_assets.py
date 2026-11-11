@@ -1,12 +1,20 @@
 PRODUCT_IMAGE_ASSETS = {
-    "SP001": "images/Gemini_Generated_Image_l2w5xgl2w5xgl2w5.png",
-    "SP002": "images/Gemini_Generated_Image_s5w1mls5w1mls5w1.png",
-    "SP003": "images/Gemini_Generated_Image_t6tsw2t6tsw2t6ts.png",
-    "SP004": "images/Gemini_Generated_Image_d8whe9d8whe9d8wh.png",
-    "SP005": "images/Gemini_Generated_Image_kibivmkibivmkibi.png",
+    "SP001": "images/bánh dừa nướng.png",
+    "SP002": "images/vi-gung.png",
+    "SP003": "images/hop-qua.png",
+    "SP004": "images/meden.png",
+    "SP005": "images/ladua.png",
     "SP006": "images/cacao.png",
     "SP007": "images/sầu riêng.png",
-    "SP008": "images/Gemini_Generated_Image_zewgmxzewgmxzewg.png",
-    "SP009": "images/Gemini_Generated_Image_lqsalulqsalulqsa.png",
-    "SP010": "images/Gemini_Generated_Image_t289x3t289x3t289.png",
+    "SP008": "images/combo.png",
+    "SP009": "images/tui-qua-dac-san.png",
+    "SP010": "images/dac-biet.png",
+}
+
+CATEGORY_IMAGE_ASSETS = {
+    "DM001": "images/dừa nướng.png",
+    "DM002": "images/qua-tang.png",
+    "DM003": "images/banhduanuong.png",
+    "DM004": "images/combo.png",
+    "DM005": "images/dac-san.png",
 }

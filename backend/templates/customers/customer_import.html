@@ -1,11 +1,11 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Nhập khách hàng | Quý Thu{% endblock %}
 
 {% block extra_css %}
 <style>
     .import-card { max-width:1200px; margin:0 auto; border:1px solid #e8edf3; border-radius:16px; background:#fff; box-shadow:0 10px 32px rgba(30,45,70,.06); }
-    .import-sample { background:#f6f8fc; border-radius:10px; padding:16px; overflow-x:auto; }
 </style>
 {% endblock %}
 
@@ -14,22 +14,16 @@
     <div class="mb-4">
         <a href="{% url 'employee-customer-list' %}" class="text-decoration-none">← Danh sách khách hàng</a>
         <h1 class="h3 fw-bold mt-2">Nhập danh sách khách hàng</h1>
-        <p class="text-muted mb-0">Tệp CSV UTF-8. Dòng lỗi hoặc trùng lặp sẽ được báo riêng và không tạo hồ sơ.</p>
+        <p class="text-muted mb-0">Tải tệp lên để kiểm tra trước. Chỉ có thể nhập khi toàn bộ dữ liệu hợp lệ.</p>
     </div>
     <section class="import-card p-4 p-md-5">
         <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
             <label for="customerCsv" class="form-label fw-semibold">Chọn tệp CSV (tối đa 2 MB)</label>
             <input id="customerCsv" class="form-control" type="file" name="file" accept=".csv,text/csv" required>
-            <button type="submit" class="btn btn-primary mt-3">Kiểm tra và nhập</button>
+            <button type="submit" class="btn btn-primary mt-3">Kiểm tra dữ liệu</button>
+            <a class="btn btn-outline-secondary mt-3" href="{% static 'files/khach-hang-nhap-thu.csv' %}" download>Tải tệp CSV kiểm tra</a>
         </form>
-
-        <div class="mt-4">
-            <h2 class="h6 fw-bold">Cột dữ liệu</h2>
-            <p class="text-muted small">Bắt buộc: <code>ho_ten</code>. Có thể thêm <code>email</code>, <code>so_dien_thoai</code>, <code>loai_khach_hang</code>, <code>trang_thai</code>.</p>
-            <div class="import-sample"><code>ho_ten,email,so_dien_thoai,loai_khach_hang,trang_thai<br>Nguyen Van A,a@example.com,0901234567,Khách lẻ,ACTIVE</code></div>
-            <p class="small text-muted mt-2 mb-0">Loại khách: <code>Khách lẻ</code>/<code>Khách sỉ</code>. Trạng thái: <code>ACTIVE</code>/<code>INACTIVE</code>. Hồ sơ nhập khẩu không tự tạo tài khoản đăng nhập.</p>
-        </div>
 
         {% if imported_count %}
         <div class="alert alert-success mt-4 mb-0">Đã nhập {{ imported_count }} hồ sơ.</div>
@@ -41,6 +35,35 @@
                 {% for error in import_errors %}<li>{{ error }}</li>{% endfor %}
             </ul>
         </div>
+        {% endif %}
+
+        {% if preview_ready %}
+        <div class="alert alert-success mt-4">
+            Kiểm tra hoàn tất: {{ preview_rows|length }} hồ sơ hợp lệ. Chưa có dữ liệu nào được nhập.
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle">
+                <thead><tr><th>Dòng</th><th>Họ tên</th><th>Email</th><th>Số điện thoại</th><th>Loại khách</th><th>Trạng thái</th></tr></thead>
+                <tbody>
+                    {% for row in preview_rows %}
+                    <tr>
+                        <td>{{ row.line }}</td>
+                        <td>{{ row.ho_ten }}</td>
+                        <td>{{ row.email|default:"—" }}</td>
+                        <td>{{ row.so_dien_thoai|default:"—" }}</td>
+                        <td>{{ row.loai_khach_hang }}</td>
+                        <td>{{ row.trang_thai }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <form method="post" class="mt-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="confirm">
+            <input type="hidden" name="stage_id" value="{{ preview_stage_id }}">
+            <button type="submit" class="btn btn-success">Xác nhận nhập {{ preview_rows|length }} hồ sơ</button>
+        </form>
         {% endif %}
     </section>
 </div>

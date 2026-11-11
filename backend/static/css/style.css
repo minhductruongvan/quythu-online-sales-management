@@ -2169,6 +2169,9 @@ button:disabled {
 .auth-brand-content {
     position: relative;
     z-index: 1;
+    display: flex;
+    min-height: 616px;
+    flex-direction: column;
 }
 
 .auth-logo-link {
@@ -2184,14 +2187,17 @@ button:disabled {
 }
 
 .auth-brand-text {
+    position: absolute;
+    top: 50%;
     max-width: 430px;
-    margin: auto 0 14px;
+    margin: 0;
     padding: 23px 24px 12px;
     border: 1px solid rgba(250, 239, 211, .24);
     border-radius: 18px;
     background: rgba(15, 47, 36, .72);
     box-shadow: 0 16px 42px rgba(10, 31, 25, .16);
     backdrop-filter: blur(7px);
+    transform: translateY(-50%);
 }
 
 .auth-brand .auth-eyebrow {
@@ -2211,6 +2217,7 @@ button:disabled {
 }
 
 .auth-brand-footer {
+    margin-top: auto;
     color: rgba(255, 255, 255, .82);
 }
 

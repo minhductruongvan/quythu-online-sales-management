@@ -63,6 +63,10 @@
             <a href="{% url 'customer-address-page' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'customer-address-page' %}is-active{% endif %}">Sổ địa chỉ</a>
         </details>
         {% elif request.user.vai_tro == "MANAGER" %}
+        <div class="nav-section-title">CHĂM SÓC SAU MUA</div>
+        <a href="{% url 'manager-after-sales' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'manager-after-sales' %}is-active{% endif %}">
+            <span class="nav-icon">↩</span><span>Hậu mãi</span>
+        </a>
         <div class="nav-section-title">ĐIỀU HÀNH CỬA HÀNG</div>
             <a href="{% url 'manager-dashboard' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'manager-dashboard' %}is-active{% endif %}">
                 <span class="nav-icon">⌂</span><span>Tổng quan</span>
@@ -87,15 +91,16 @@
                 <a href="{% url 'products:them' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'them' %}is-active{% endif %}">Thêm sản phẩm</a>
                 <a href="{% url 'products:quan_ly_danh_muc' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'quan_ly_danh_muc' %}is-active{% endif %}">Danh mục</a>
             </details>
-            <a href="{% url 'manager-after-sales' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'manager-after-sales' %}is-active{% endif %}">
-                <span class="nav-icon">↩</span><span>Hậu mãi</span>
-            </a>
             <details class="nav-group" {% if request.resolver_match.namespace == 'reports' %}open{% endif %}>
                 <summary><span class="nav-icon">▥</span><span>Báo cáo</span></summary>
                 <a href="{% url 'reports:dashboard' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'dashboard' and request.resolver_match.namespace == 'reports' %}is-active{% endif %}">Tổng quan</a>
                 <a href="{% url 'reports:detail' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'detail' %}is-active{% endif %}">Báo cáo chi tiết</a>
             </details>
         {% elif request.user.vai_tro == "EMPLOYEE" %}
+        <div class="nav-section-title">CHĂM SÓC SAU MUA</div>
+        <a href="{% url 'staff-after-sales' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'staff-after-sales' %}is-active{% endif %}">
+            <span class="nav-icon">↩</span><span>Hậu mãi</span>
+        </a>
         <div class="nav-section-title">TỔNG QUAN</div>
         <a href="{% url 'employee-dashboard' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'employee-dashboard' %}is-active{% endif %}">
             <span class="nav-icon">⌂</span><span>Tổng quan</span>
@@ -119,9 +124,6 @@
             <a href="{% url 'products:them' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'them' %}is-active{% endif %}">Thêm sản phẩm</a>
             <a href="{% url 'products:quan_ly_danh_muc' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'quan_ly_danh_muc' %}is-active{% endif %}">Danh mục</a>
         </details>
-        <a href="{% url 'staff-after-sales' %}" class="nav-link-custom">
-            <span class="nav-icon">↩</span><span>Hậu mãi</span>
-        </a>
         <details class="nav-group" {% if request.resolver_match.namespace == 'reports' %}open{% endif %}>
             <summary><span class="nav-icon">▥</span><span>Báo cáo</span></summary>
             <a href="{% url 'reports:dashboard' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'dashboard' and request.resolver_match.namespace == 'reports' %}is-active{% endif %}">Tổng quan</a>

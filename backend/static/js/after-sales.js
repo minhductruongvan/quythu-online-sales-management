@@ -660,14 +660,14 @@
         window.addEventListener("popstate", () => {
             if (!root.isConnected) return;
             const params = new URLSearchParams(window.location.search);
-            const section = endpoints[params.get("tab")] ? params.get("tab") : "cancel";
+            const section = endpoints[params.get("tab")] ? params.get("tab") : "notifications";
             const query = section === "stats"
                 ? new URLSearchParams([...params].filter(([key]) => ["tu_ngay", "den_ngay"].includes(key))).toString()
                 : "";
             load(section, query).catch(error => notice(status, error.message, true));
         });
         const params = new URLSearchParams(window.location.search);
-        const initialSection = endpoints[params.get("tab")] ? params.get("tab") : "cancel";
+        const initialSection = endpoints[params.get("tab")] ? params.get("tab") : "notifications";
         const initialQuery = initialSection === "stats"
             ? new URLSearchParams([...params].filter(([key]) => ["tu_ngay", "den_ngay"].includes(key))).toString()
             : "";

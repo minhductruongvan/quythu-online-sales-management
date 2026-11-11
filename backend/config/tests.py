@@ -223,16 +223,14 @@ class M1CustomerManagementTests(TestCase):
         self.assertEqual(profile_response.status_code, 200)
         self.assertNotContains(profile_response, "Gọi lại khách hàng.")
 
-    def test_csv_import_skips_duplicate_rows_and_export_honors_filters(self):
+    def test_csv_import_requires_validation_and_confirmation(self):
         self.client.force_login(self.employee)
-        contents = (
-            "ho_ten,email,so_dien_thoai,loai_khach_hang,trang_thai\n"
-            "Khách mới,new@example.com,0903333333,Khách lẻ,ACTIVE\n"
-            "Khách trùng,customer@m1.test,0904444444,Khách sỉ,ACTIVE\n"
-        )
         upload = SimpleUploadedFile(
             "customers.csv",
-            contents.encode("utf-8"),
+            (
+                "ho_ten,email,so_dien_thoai,loai_khach_hang,trang_thai\n"
+                "Khách mới,new@example.com,0903333333,Khách lẻ,ACTIVE\n"
+            ).encode("utf-8"),
             content_type="text/csv",
         )
         response = self.client.post(
@@ -240,17 +238,26 @@ class M1CustomerManagementTests(TestCase):
             {"file": upload},
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.context["imported_count"],
-            1,
+        self.assertTrue(response.context["preview_ready"])
+        self.assertEqual(response.context["imported_count"], 0)
+        self.assertContains(response, "Chưa có dữ liệu nào được nhập")
+        self.assertContains(response, "Xác nhận nhập 1 hồ sơ")
+        self.assertFalse(KhachHang.objects.filter(email="new@example.com").exists())
+
+        response = self.client.post(
+            reverse("employee-customer-import"),
+            {
+                "action": "confirm",
+                "stage_id": response.context["preview_stage_id"],
+            },
         )
-        self.assertContains(response, "Dòng 3")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["imported_count"], 1)
         self.assertTrue(
             KhachHang.objects.filter(email="new@example.com").exists()
         )
-        self.assertFalse(
-            KhachHang.objects.filter(ho_ten="Khách trùng").exists()
-        )
+        imported_customer = KhachHang.objects.get(email="new@example.com")
+        self.assertIsNone(imported_customer.tai_khoan_id)
 
         export = self.client.get(
             reverse("employee-customer-export"),
@@ -262,6 +269,65 @@ class M1CustomerManagementTests(TestCase):
             "customer@m1.test",
             export.content.decode("utf-8-sig"),
         )
+
+    def test_csv_import_rejects_all_rows_when_any_row_is_invalid(self):
+        self.client.force_login(self.employee)
+        upload = SimpleUploadedFile(
+            "customers.csv",
+            (
+                "ho_ten,email,so_dien_thoai,loai_khach_hang,trang_thai\n"
+                "Khách mới,new@example.com,0903333333,Khách lẻ,ACTIVE\n"
+                "Khách trùng,customer@m1.test,0904444444,Khách sỉ,ACTIVE\n"
+            ).encode("utf-8"),
+            content_type="text/csv",
+        )
+        response = self.client.post(
+            reverse("employee-customer-import"),
+            {"file": upload},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["preview_ready"])
+        self.assertEqual(response.context["imported_count"], 0)
+        self.assertContains(response, "Dòng 3")
+        self.assertFalse(
+            KhachHang.objects.filter(email="new@example.com").exists()
+        )
+
+    def test_customer_import_page_hides_column_guide_and_offers_test_csv(self):
+        self.client.force_login(self.employee)
+        response = self.client.get(reverse("employee-customer-import"))
+        self.assertNotContains(response, "Cột dữ liệu")
+        self.assertContains(response, "khach-hang-nhap-thu.csv")
+
+    def test_staff_and_manager_customer_and_after_sales_layouts_render(self):
+        detail_url = reverse(
+            "employee-customer-detail",
+            kwargs={"ma_kh": self.customer.ma_kh},
+        )
+        self.client.force_login(self.employee)
+        employee_detail = self.client.get(detail_url)
+        self.assertEqual(employee_detail.status_code, 200)
+        self.assertContains(employee_detail, "customer-detail-layout")
+        employee_after_sales = self.client.get(reverse("staff-after-sales"))
+        employee_html = employee_after_sales.content.decode()
+        self.assertEqual(employee_after_sales.status_code, 200)
+        self.assertLess(
+            employee_html.index("Hậu mãi"),
+            employee_html.index("Danh sách khách hàng"),
+        )
+        self.assertLess(
+            employee_html.index('data-section="notifications"'),
+            employee_html.index('data-section="cancel"'),
+        )
+
+        self.client.force_login(self.manager)
+        manager_detail = self.client.get(detail_url)
+        self.assertEqual(manager_detail.status_code, 200)
+        self.assertContains(manager_detail, "Tài khoản đăng nhập")
+        manager_after_sales = self.client.get(reverse("manager-after-sales"))
+        manager_html = manager_after_sales.content.decode()
+        self.assertEqual(manager_after_sales.status_code, 200)
+        self.assertLess(manager_html.index("Hậu mãi"), manager_html.index("Khách hàng"))
 
     def test_manager_can_manage_staff_roles_but_employee_cannot(self):
         url = reverse("manager-role-permissions")
@@ -337,7 +403,7 @@ class M1CustomerManagementTests(TestCase):
         self.assertContains(response, "Bánh dừa nướng truyền thống")
         self.assertContains(
             response,
-            "/static/images/Gemini_Generated_Image_8i30aj8i30aj8i30.png",
+            "/static/images/d%E1%BB%ABa%20n%C6%B0%E1%BB%9Bng.png",
         )
         self.assertContains(response, "45.000 ₫")
         self.assertContains(response, "/media/catalog/")

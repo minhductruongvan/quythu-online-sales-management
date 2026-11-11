@@ -12,6 +12,11 @@
     .m1-timeline { border-left:2px solid #e2e8f0; margin-left:.45rem; padding-left:1.2rem; }
     .m1-timeline-item { position:relative; padding-bottom:1.25rem; }
     .m1-timeline-item::before { content:""; position:absolute; width:10px; height:10px; border-radius:50%; background:#4f6bed; left:-1.58rem; top:.35rem; }
+    .customer-detail-layout { columns:2; column-gap:1rem; column-fill:balance; }
+    .customer-detail-layout > .m1-card { display:inline-block; width:100%; break-inside:avoid; }
+    @media (max-width: 991.98px) {
+        .customer-detail-layout { columns:1; }
+    }
 </style>
 {% endblock %}
 
@@ -31,8 +36,7 @@
         </div>
     </div>
 
-    <div class="row g-3">
-        <div class="col-xl-6">
+    <div class="customer-detail-layout">
             <section class="m1-card p-3 mb-3">
                 <h2 class="h5 m1-section-title mb-4">Thông tin hồ sơ</h2>
                 <form method="post">
@@ -128,9 +132,7 @@
                 <p class="text-muted mb-0">Khách hàng chưa lưu địa chỉ giao hàng.</p>
                 {% endfor %}
             </section>
-        </div>
 
-        <div class="col-xl-6">
             {% if is_manager %}
             <section class="m1-card p-3 mb-3">
                 <h2 class="h5 m1-section-title mb-2">Tài khoản đăng nhập</h2>
@@ -197,7 +199,6 @@
                     {% endfor %}
                 </div>
             </section>
-        </div>
     </div>
 </div>
 {% endblock %}

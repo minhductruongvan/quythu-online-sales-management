@@ -1,6 +1,7 @@
 import csv
 import io
 import re
+import uuid
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
@@ -36,7 +37,7 @@ from products.models import (
     HinhAnhSanPham,
     SanPham,
 )
-from products.image_assets import PRODUCT_IMAGE_ASSETS
+from products.image_assets import CATEGORY_IMAGE_ASSETS, PRODUCT_IMAGE_ASSETS
 from products.search import search_products_by_name
 
 @role_required(
@@ -667,6 +668,129 @@ def employee_customer_export_page(request):
     return response
 
 
+def _validate_customer_import_csv(text):
+    reader = csv.DictReader(io.StringIO(text))
+    headers = [
+        (header or "").strip().lower()
+        for header in (reader.fieldnames or [])
+    ]
+    if "ho_ten" not in headers:
+        return [], ["Thiếu cột bắt buộc ho_ten trong tệp CSV."]
+    if len(headers) != len(set(headers)):
+        return [], ["Tên cột trong tệp CSV không được trùng lặp."]
+
+    reader.fieldnames = headers
+    accepted_rows = []
+    import_errors = []
+    seen_emails = set()
+    seen_phones = set()
+    status_aliases = {
+        "ACTIVE": KhachHang.TrangThai.ACTIVE,
+        "HOẠT ĐỘNG": KhachHang.TrangThai.ACTIVE,
+        "INACTIVE": KhachHang.TrangThai.INACTIVE,
+        "NGỪNG HOẠT ĐỘNG": KhachHang.TrangThai.INACTIVE,
+    }
+
+    for row_number, raw_row in enumerate(reader, start=2):
+        if not any(value for value in raw_row.values() if isinstance(value, str)):
+            continue
+        row_errors = []
+        if None in raw_row:
+            row_errors.append("Số cột dữ liệu không khớp tiêu đề.")
+        row = {
+            (key or "").strip().lower(): (value or "").strip()
+            for key, value in raw_row.items()
+            if key is not None and isinstance(value, str)
+        }
+        name = row.get("ho_ten", "")
+        email = row.get("email", "").lower()
+        phone = row.get("so_dien_thoai", "")
+        raw_type = row.get("loai_khach_hang", "Khách lẻ")
+        raw_status = row.get("trang_thai", "ACTIVE").upper()
+
+        if not name or len(name) > 100:
+            row_errors.append("Họ tên bắt buộc, tối đa 100 ký tự.")
+        if email:
+            try:
+                EmailValidator()(email)
+            except ValidationError:
+                row_errors.append("Email không hợp lệ.")
+            if (
+                TaiKhoan.objects.filter(email__iexact=email).exists()
+                or KhachHang.objects.filter(email__iexact=email).exists()
+                or email in seen_emails
+            ):
+                row_errors.append("Email bị trùng.")
+            seen_emails.add(email)
+        if phone:
+            if (
+                len(phone) > 15
+                or not re.fullmatch(r"\+?[0-9\s().-]{8,15}", phone)
+            ):
+                row_errors.append("Số điện thoại không hợp lệ.")
+            if (
+                TaiKhoan.objects.filter(so_dien_thoai=phone).exists()
+                or KhachHang.objects.filter(so_dien_thoai=phone).exists()
+                or phone in seen_phones
+            ):
+                row_errors.append("Số điện thoại bị trùng.")
+            seen_phones.add(phone)
+
+        normalized_type = raw_type.casefold()
+        if normalized_type in {"retail", "khách lẻ"}:
+            type_name = "Khách lẻ"
+        elif normalized_type in {"wholesale", "khách sỉ"}:
+            type_name = "Khách sỉ"
+        else:
+            type_name = ""
+            row_errors.append("Loại khách hàng phải là Khách lẻ hoặc Khách sỉ.")
+        status_value = status_aliases.get(raw_status)
+        if status_value is None:
+            row_errors.append("Trạng thái phải là ACTIVE hoặc INACTIVE.")
+
+        if row_errors:
+            import_errors.append(
+                f"Dòng {row_number}: {' '.join(row_errors)}"
+            )
+        else:
+            accepted_rows.append(
+                {
+                    "line": row_number,
+                    "ho_ten": name,
+                    "email": email,
+                    "so_dien_thoai": phone,
+                    "loai_khach_hang": type_name,
+                    "trang_thai": status_value,
+                }
+            )
+
+    if not accepted_rows and not import_errors:
+        import_errors.append("Tệp CSV không có dữ liệu khách hàng.")
+    return accepted_rows, import_errors
+
+
+def _customer_import_conflicts(rows):
+    conflicts = []
+    for row in rows:
+        if row["email"] and (
+            TaiKhoan.objects.filter(email__iexact=row["email"]).exists()
+            or KhachHang.objects.filter(email__iexact=row["email"]).exists()
+        ):
+            conflicts.append(f"Dòng {row['line']}: Email đã được sử dụng.")
+        if row["so_dien_thoai"] and (
+            TaiKhoan.objects.filter(
+                so_dien_thoai=row["so_dien_thoai"]
+            ).exists()
+            or KhachHang.objects.filter(
+                so_dien_thoai=row["so_dien_thoai"]
+            ).exists()
+        ):
+            conflicts.append(
+                f"Dòng {row['line']}: Số điện thoại đã được sử dụng."
+            )
+    return conflicts
+
+
 @role_required(
     TaiKhoan.VaiTro.EMPLOYEE,
     TaiKhoan.VaiTro.MANAGER,
@@ -674,114 +798,39 @@ def employee_customer_export_page(request):
 def employee_customer_import_page(request):
     import_errors = []
     imported_count = 0
+    preview_rows = []
+    preview_ready = False
     if request.method == "POST":
-        upload = request.FILES.get("file")
-        if upload is None:
-            import_errors.append("Vui lòng chọn tệp CSV để nhập.")
-        elif upload.size > 2_000_000:
-            import_errors.append("Tệp CSV không được vượt quá 2 MB.")
-        else:
-            try:
-                text = upload.read().decode("utf-8-sig")
-                reader = csv.DictReader(io.StringIO(text))
-                headers = {
-                    header.strip().lower()
-                    for header in (reader.fieldnames or [])
-                    if header
-                }
-                required = {"ho_ten"}
-                if not required.issubset(headers):
-                    import_errors.append(
-                        "Thiếu cột bắt buộc ho_ten trong tệp CSV."
-                    )
-                else:
-                    accepted_rows = []
-                    seen_emails = set()
-                    seen_phones = set()
-                    for row_number, raw_row in enumerate(reader, start=2):
-                        row = {
-                            (key or "").strip().lower(): (value or "").strip()
-                            for key, value in raw_row.items()
-                        }
-                        row_errors = []
-                        name = row.get("ho_ten", "")
-                        email = row.get("email", "").lower()
-                        phone = row.get("so_dien_thoai", "")
-                        raw_type = row.get("loai_khach_hang", "Khách lẻ")
-                        raw_status = row.get("trang_thai", "ACTIVE").upper()
-                        if not name or len(name) > 100:
-                            row_errors.append("Họ tên bắt buộc, tối đa 100 ký tự.")
-                        if email:
-                            try:
-                                EmailValidator()(email)
-                            except ValidationError:
-                                row_errors.append("Email không hợp lệ.")
-                            if (
-                                TaiKhoan.objects.filter(email__iexact=email).exists()
-                                or KhachHang.objects.filter(email__iexact=email).exists()
-                                or email in seen_emails
-                            ):
-                                row_errors.append("Email bị trùng.")
-                        if phone:
-                            if (
-                                len(phone) > 15
-                                or not re.fullmatch(r"\+?[0-9\s().-]{8,15}", phone)
-                            ):
-                                row_errors.append("Số điện thoại không hợp lệ.")
-                            if (
-                                TaiKhoan.objects.filter(so_dien_thoai=phone).exists()
-                                or KhachHang.objects.filter(so_dien_thoai=phone).exists()
-                                or phone in seen_phones
-                            ):
-                                row_errors.append("Số điện thoại bị trùng.")
-                        normalized_type = raw_type.casefold()
-                        if normalized_type in {"retail", "khách lẻ"}:
-                            type_name = "Khách lẻ"
-                        elif normalized_type in {"wholesale", "khách sỉ"}:
-                            type_name = "Khách sỉ"
-                        else:
-                            type_name = ""
-                            row_errors.append(
-                                "Loại khách hàng phải là Khách lẻ hoặc Khách sỉ."
-                            )
-                        status_aliases = {
-                            "ACTIVE": KhachHang.TrangThai.ACTIVE,
-                            "HOẠT ĐỘNG": KhachHang.TrangThai.ACTIVE,
-                            "INACTIVE": KhachHang.TrangThai.INACTIVE,
-                            "NGỪNG HOẠT ĐỘNG": KhachHang.TrangThai.INACTIVE,
-                        }
-                        status_value = status_aliases.get(raw_status)
-                        if status_value is None:
-                            row_errors.append(
-                                "Trạng thái phải là ACTIVE hoặc INACTIVE."
-                            )
-                        if row_errors:
-                            import_errors.append(
-                                f"Dòng {row_number}: {' '.join(row_errors)}"
-                            )
-                        else:
-                            if email:
-                                seen_emails.add(email)
-                            if phone:
-                                seen_phones.add(phone)
-                            accepted_rows.append(
-                                (name, email, phone, type_name, status_value)
-                            )
-
-                    for name, email, phone, type_name, status_value in accepted_rows:
-                        customer_type = LoaiKhachHang.objects.get(
-                            ten_loai_kh=type_name
-                        )
-                        try:
-                            with transaction.atomic():
+        if request.POST.get("action") == "confirm":
+            pending = request.session.pop("customer_import_stage", None)
+            if (
+                not isinstance(pending, dict)
+                or pending.get("user_id") != request.user.pk
+                or pending.get("id") != request.POST.get("stage_id")
+                or not isinstance(pending.get("rows"), list)
+                or not pending["rows"]
+            ):
+                import_errors.append(
+                    "Phiên kiểm tra đã hết hạn. Vui lòng tải tệp lên và kiểm tra lại."
+                )
+            else:
+                preview_rows = pending["rows"]
+                import_errors.extend(_customer_import_conflicts(preview_rows))
+                if not import_errors:
+                    try:
+                        with transaction.atomic():
+                            for row in preview_rows:
+                                customer_type = LoaiKhachHang.objects.get(
+                                    ten_loai_kh=row["loai_khach_hang"]
+                                )
                                 customer = KhachHang.objects.create(
                                     ma_kh=_next_customer_code(),
                                     tai_khoan=None,
                                     loai_khach_hang=customer_type,
-                                    ho_ten=name,
-                                    email=email or None,
-                                    so_dien_thoai=phone or None,
-                                    trang_thai=status_value,
+                                    ho_ten=row["ho_ten"],
+                                    email=row["email"] or None,
+                                    so_dien_thoai=row["so_dien_thoai"] or None,
+                                    trang_thai=row["trang_thai"],
                                 )
                                 LichSuKhachHang.objects.create(
                                     ma_lich_su=DichVuLichSuHoSo.tao_ma_lich_su(),
@@ -791,21 +840,42 @@ def employee_customer_import_page(request):
                                         LichSuKhachHang.LoaiThayDoi.IMPORT
                                     ),
                                     noi_dung_moi=(
-                                        f"Nhập từ CSV; trạng thái: {status_value}"
+                                        "Nhập từ CSV; trạng thái: "
+                                        f"{row['trang_thai']}"
                                     ),
                                 )
-                        except IntegrityError:
-                            import_errors.append(
-                                f"{name}: dữ liệu bị trùng với bản ghi vừa nhập."
-                            )
-                        else:
-                            imported_count += 1
-            except UnicodeDecodeError:
-                import_errors.append(
-                    "Không đọc được tệp. Hãy lưu CSV theo mã hóa UTF-8."
-                )
-            except csv.Error as error:
-                import_errors.append(f"Tệp CSV không hợp lệ: {error}")
+                    except IntegrityError:
+                        import_errors.append(
+                            "Dữ liệu đã thay đổi sau khi kiểm tra. "
+                            "Chưa có hồ sơ nào được nhập; vui lòng kiểm tra lại tệp."
+                        )
+                    else:
+                        imported_count = len(preview_rows)
+        else:
+            request.session.pop("customer_import_stage", None)
+            upload = request.FILES.get("file")
+            if upload is None:
+                import_errors.append("Vui lòng chọn tệp CSV để kiểm tra.")
+            elif upload.size > 2_000_000:
+                import_errors.append("Tệp CSV không được vượt quá 2 MB.")
+            else:
+                try:
+                    text = upload.read().decode("utf-8-sig")
+                    preview_rows, import_errors = _validate_customer_import_csv(text)
+                except UnicodeDecodeError:
+                    import_errors.append(
+                        "Không đọc được tệp. Hãy lưu CSV theo mã hóa UTF-8."
+                    )
+                except csv.Error as error:
+                    import_errors.append(f"Tệp CSV không hợp lệ: {error}")
+                if preview_rows and not import_errors:
+                    stage_id = uuid.uuid4().hex
+                    request.session["customer_import_stage"] = {
+                        "id": stage_id,
+                        "user_id": request.user.pk,
+                        "rows": preview_rows,
+                    }
+                    preview_ready = True
         if imported_count:
             messages.success(
                 request,
@@ -817,6 +887,13 @@ def employee_customer_import_page(request):
         {
             "import_errors": import_errors,
             "imported_count": imported_count,
+            "preview_rows": preview_rows if preview_ready or import_errors else [],
+            "preview_ready": preview_ready,
+            "preview_stage_id": (
+                request.session.get("customer_import_stage", {}).get("id", "")
+                if preview_ready
+                else ""
+            ),
         },
     )
 
@@ -915,15 +992,8 @@ def storefront_home_page(request):
             )
         )
     )
-    category_image_assets = {
-        "DM001": "images/Gemini_Generated_Image_8i30aj8i30aj8i30.png",
-        "DM002": "images/Gemini_Generated_Image_t6tsw2t6tsw2t6ts.png",
-        "DM003": "images/Gemini_Generated_Image_50vuk50vuk50vuk5 (1).png",
-        "DM004": "images/Gemini_Generated_Image_41zg8h41zg8h41zg.png",
-        "DM005": "images/Gemini_Generated_Image_o4kamfo4kamfo4ka.png",
-    }
     for category in categories:
-        category.home_category_image = category_image_assets.get(category.ma_dm)
+        category.home_category_image = CATEGORY_IMAGE_ASSETS.get(category.ma_dm)
 
     products = (
         SanPham.objects.filter(

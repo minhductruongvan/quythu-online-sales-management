@@ -1,5 +1,6 @@
 from tempfile import TemporaryDirectory
 from decimal import Decimal
+from pathlib import Path
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
@@ -62,6 +63,17 @@ class ProductCatalogTests(TestCase):
 			tai_khoan=self.manager,
 			ho_ten="Quản lý kiểm thử",
 		)
+		self.employee = TaiKhoan.objects.create_user(
+			email="employee@products.test",
+			ma_tk="TK002",
+			password="test-password",
+			vai_tro=TaiKhoan.VaiTro.EMPLOYEE,
+		)
+		NhanVien.objects.create(
+			ma_nv="NV002",
+			tai_khoan=self.employee,
+			ho_ten="Nhân viên kiểm thử",
+		)
 
 	def test_lowest_active_variant_price_uses_database_aggregate(self):
 		BienTheSanPham.objects.create(
@@ -100,7 +112,7 @@ class ProductCatalogTests(TestCase):
 		self.assertContains(catalog_response, "/media/products/primary.jpg")
 		self.assertNotContains(
 			catalog_response,
-			"/static/images/Gemini_Generated_Image_l2w5xgl2w5xgl2w5.png",
+			"/static/images/b%C3%A1nh%20d%E1%BB%ABa%20n%C6%B0%E1%BB%9Bng.png",
 		)
 
 		detail_response = self.client.get(
@@ -110,7 +122,7 @@ class ProductCatalogTests(TestCase):
 		self.assertContains(detail_response, "/media/products/detail.jpg")
 		self.assertNotContains(
 			detail_response,
-			"/static/images/Gemini_Generated_Image_l2w5xgl2w5xgl2w5.png",
+			"/static/images/b%C3%A1nh%20d%E1%BB%ABa%20n%C6%B0%E1%BB%9Bng.png",
 		)
 
 	def test_product_detail_uses_homepage_image_mapping_without_uploaded_images(self):
@@ -127,11 +139,11 @@ class ProductCatalogTests(TestCase):
 
 		self.assertContains(
 			response,
-			"/static/images/Gemini_Generated_Image_s5w1mls5w1mls5w1.png",
+			"/static/images/vi-gung.png",
 		)
 		self.assertContains(
 			catalog_response,
-			"/static/images/Gemini_Generated_Image_s5w1mls5w1mls5w1.png",
+			"/static/images/vi-gung.png",
 		)
 
 	def test_cacao_and_durian_images_are_shared_across_storefront_pages(self):
@@ -225,8 +237,40 @@ class ProductCatalogTests(TestCase):
 
 		self.assertContains(
 			response,
-			"/static/images/Gemini_Generated_Image_l2w5xgl2w5xgl2w5.png",
+			"/static/images/b%C3%A1nh%20d%E1%BB%ABa%20n%C6%B0%E1%BB%9Bng.png",
 		)
+
+	def test_mapped_product_images_are_shared_with_employee_and_manager(self):
+		product = SanPham.objects.create(
+			ma_sp="SP002",
+			danh_muc=self.category,
+			ten_sp="Bánh dừa nướng vị gừng",
+		)
+		BienTheSanPham.objects.create(
+			ma_bien_the="BT002",
+			san_pham=product,
+			huong_vi="Gừng",
+			quy_cach="120g",
+			barcode="8938501000002",
+			gia_ban_le=39000,
+		)
+		expected_image = "/static/images/vi-gung.png"
+		home_response = self.client.get(reverse("storefront-home"))
+		self.assertContains(home_response, expected_image)
+
+		for account in (self.employee, self.manager):
+			with self.subTest(role=account.vai_tro):
+				self.client.force_login(account)
+				listing_response = self.client.get(reverse("products:quan_ly"))
+				self.assertContains(listing_response, expected_image)
+
+	def test_product_and_category_image_mappings_reference_existing_assets(self):
+		from .image_assets import CATEGORY_IMAGE_ASSETS, PRODUCT_IMAGE_ASSETS
+
+		static_image_dir = Path(__file__).resolve().parent.parent / "static" / "images"
+		for asset in (*PRODUCT_IMAGE_ASSETS.values(), *CATEGORY_IMAGE_ASSETS.values()):
+			with self.subTest(asset=asset):
+				self.assertTrue((static_image_dir / Path(asset).name).is_file())
 
 	def test_edit_forms_keep_existing_primary_keys(self):
 		product_form = SanPhamForm(
@@ -315,7 +359,7 @@ class ProductCatalogTests(TestCase):
 
 		self.assertContains(
 			response,
-			"/static/images/Gemini_Generated_Image_s5w1mls5w1mls5w1.png",
+			"/static/images/vi-gung.png",
 		)
 		self.assertContains(response, "/media/products/primary.jpg")
 

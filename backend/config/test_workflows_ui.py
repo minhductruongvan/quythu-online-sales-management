@@ -252,10 +252,12 @@ class IntegratedActorPagesTests(TestCase):
         )
         self.assertContains(registration_page, "/api/customers/register/")
         self.assertNotContains(registration_page, 'name="loai_khach_hang"')
+        self.assertContains(registration_page, "images/quythu-auth-coconut.png")
 
         login_page = self.client.get("/tai-khoan/dang-nhap/")
         self.assertContains(login_page, 'method="post"')
         self.assertContains(login_page, "/api/customers/login/")
+        self.assertContains(login_page, "images/quythu-auth-coconut.png")
 
     def test_customer_address_checkout_and_staff_filter_controls_render(self):
         self.client.force_login(self.customer_account)
