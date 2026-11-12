@@ -1,13 +1,17 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}Xử lý đơn {{ ma_dh }} | Quý Thu{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}"><link rel="stylesheet" href="{% static 'css/staff-order.css' %}">{% endblock %}
 {% block content %}
-<main class="module-page" id="staff-order-detail" data-order="{{ ma_dh }}" data-api="/api/orders/staff/{{ ma_dh }}/">
+<main class="module-page" id="staff-order-detail" data-order="{{ ma_dh }}" data-api="/api/orders/staff/{{ ma_dh }}/" data-after-sales="{% url 'staff-after-sales' %}">
     {% csrf_token %}
     <header class="module-heading"><div><span class="module-eyebrow">VẬN HÀNH ĐƠN HÀNG</span><h1>Xử lý đơn {{ ma_dh }}</h1><p>Thực hiện thao tác phù hợp với trạng thái hiện tại; mọi thay đổi được lưu vào lịch sử đơn.</p></div><a class="module-link-button secondary" href="{% url 'order-list' %}">← Danh sách đơn</a></header>
     <div id="staff-order-detail-message" role="status"></div>
-    <div id="staff-order-detail-content" class="module-grid"><section class="module-panel module-empty">Đang tải chi tiết…</section></div>
+    {# WF08: trái = thông tin để đọc, phải = thao tác (dính khi cuộn) #}
+    <div class="so-layout">
+        <div class="so-main" id="staff-order-main"><section class="module-panel module-empty">Đang tải chi tiết…</section></div>
+        <aside class="so-actions" id="staff-order-actions" aria-label="Thao tác xử lý đơn"></aside>
+    </div>
 </main>
 {% endblock %}
 {% block extra_js %}<script src="{% static 'js/storefront.js' %}" defer></script>{% endblock %}

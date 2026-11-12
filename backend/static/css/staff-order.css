@@ -1,0 +1,514 @@
+/* ==========================================================
+   Trang chi tiết một đơn hàng: WF08 (nhân viên, /don-hang/<ma_dh>/)
+   và WF06 (khách, /don-cua-toi/<ma_dh>/). Tiền tố "so-" = single order.
+   Dùng chung biến màu của .module-page trong modules.css.
+   ========================================================== */
+
+/* Bố cục 2 cột: trái đọc, phải làm */
+.so-layout *,
+.so-layout *::before,
+.so-layout *::after {
+    box-sizing: border-box;
+}
+
+.so-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 20px;
+    align-items: start;
+}
+
+.so-layout--customer {
+    grid-template-columns: minmax(0, 1fr) 380px;
+}
+
+.so-main,
+.so-actions,
+.so-side {
+    display: grid;
+    gap: 18px;
+    min-width: 0;
+}
+
+.so-actions {
+    position: sticky;
+    top: 20px;
+}
+
+@media (max-width: 1100px) {
+    .so-layout,
+    .so-layout--customer {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .so-actions,
+    .so-side {
+        position: static;
+    }
+}
+
+/* Thẻ thông tin */
+.so-card h2 {
+    color: var(--pine-dark);
+    font-size: 1.12rem;
+    font-weight: 800;
+    margin: 0 0 16px;
+}
+
+.so-head-top {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: space-between;
+}
+
+.so-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.so-card h2.so-title {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 1.6rem;
+    gap: 12px;
+    margin: 10px 0 4px;
+}
+
+.so-badge {
+    background: #b8382f;
+    border-radius: 999px;
+    color: #fff;
+    font-size: .7rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    padding: 4px 10px;
+    text-transform: uppercase;
+}
+
+.so-banner {
+    background: #fff8e8;
+    border: 1px solid #efdfa9;
+    border-radius: 14px;
+    color: #765a19;
+    display: flex;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 14px 16px;
+}
+
+.so-banner p {
+    margin: 4px 0 0;
+}
+
+/* Thanh tiến độ 7 bước */
+.so-progress {
+    display: grid;
+    grid-template-columns: repeat(var(--steps, 7), minmax(0, 1fr));
+    list-style: none;
+    margin: 22px 0 0;
+    padding: 0;
+}
+
+.so-progress li {
+    align-items: center;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    font-size: .78rem;
+    gap: 6px;
+    position: relative;
+    text-align: center;
+}
+
+.so-progress li::before {
+    background: #dfe6e1;
+    content: "";
+    height: 2px;
+    left: -50%;
+    position: absolute;
+    top: 10px;
+    width: 100%;
+}
+
+.so-progress li:first-child::before {
+    display: none;
+}
+
+.so-progress li.is-done::before,
+.so-progress li.is-current::before {
+    background: var(--pine);
+}
+
+.so-dot {
+    background: #fff;
+    border: 2px solid #cfd8d2;
+    border-radius: 50%;
+    height: 22px;
+    position: relative;
+    width: 22px;
+    z-index: 1;
+}
+
+.so-progress li.is-done .so-dot {
+    background: var(--pine);
+    border-color: var(--pine);
+}
+
+.so-progress li.is-current .so-dot {
+    background: var(--gold);
+    border-color: var(--gold);
+    box-shadow: 0 0 0 5px rgba(189, 152, 82, .2);
+}
+
+.so-progress li.is-current {
+    color: var(--ink);
+    font-weight: 800;
+}
+
+.so-progress small {
+    color: #a0661a;
+    font-size: .68rem;
+    font-weight: 700;
+}
+
+/* Danh sách nhãn – giá trị */
+.so-info {
+    display: grid;
+    gap: 10px 18px;
+    grid-template-columns: 160px minmax(0, 1fr);
+    margin: 0;
+}
+
+.so-info dt {
+    color: var(--muted);
+    font-size: .88rem;
+    font-weight: 500;
+}
+
+.so-info dd {
+    font-weight: 700;
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.so-hr {
+    border: 0;
+    border-top: 1px solid var(--line);
+    margin: 14px 0;
+}
+
+/* Bảng dòng hàng: bỏ min-width 720px của .module-table để không bị cắt cột */
+.so-main .module-table {
+    min-width: 0;
+}
+
+/* Chữ bảng nhỏ hơn bảng chung; bỏ overflow-wrap:anywhere của .module-table
+   (nguyên nhân số tiền bị cắt giữa chừng kiểu "49.00 / 0 ₫") */
+.so-table {
+    font-size: .9rem;
+}
+
+.so-table th,
+.so-table td {
+    overflow-wrap: normal;
+    padding: 12px 10px;
+}
+
+.so-table td:nth-child(2),
+.so-table td:nth-child(3) {
+    white-space: nowrap;
+}
+
+.so-table .num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.so-sub {
+    color: #52615a;
+}
+
+.so-check {
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.so-check.ok { color: #27623b; }
+.so-check.bad { color: #9b342e; }
+.so-check.wait { color: #b7740f; }
+
+.so-totals {
+    display: grid;
+    gap: 10px 0;
+    grid-template-columns: 1fr auto;
+    margin: 14px 0 0 auto;
+    width: min(100%, 360px);
+}
+
+.so-totals dt {
+    font-weight: 500;
+}
+
+.so-totals dd {
+    font-weight: 800;
+    margin: 0;
+    padding-left: 24px;
+    text-align: right;
+}
+
+.so-totals .grand {
+    border-top: 1px solid var(--line);
+    color: var(--pine-dark);
+    font-size: 1.2rem;
+    font-weight: 800;
+    padding-top: 12px;
+}
+
+/* Lịch sử dạng dòng thời gian */
+.so-timeline {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0 24px;
+    position: relative;
+}
+
+.so-timeline::before {
+    background: var(--line);
+    bottom: 8px;
+    content: "";
+    left: 5px;
+    position: absolute;
+    top: 8px;
+    width: 2px;
+}
+
+.so-timeline li {
+    padding-bottom: 16px;
+    position: relative;
+}
+
+.so-timeline li:last-child {
+    padding-bottom: 0;
+}
+
+.so-timeline li::before {
+    background: var(--pine);
+    border-radius: 50%;
+    content: "";
+    height: 12px;
+    left: -24px;
+    position: absolute;
+    top: 6px;
+    width: 12px;
+}
+
+.so-timeline li.is-note::before {
+    background: #fff;
+    border: 2px solid #b8c4bd;
+}
+
+.so-timeline small {
+    color: var(--muted);
+    display: block;
+    margin-top: 3px;
+}
+
+/* Khối thao tác (cột phải) */
+.so-action h3 {
+    color: var(--pine-dark);
+    font-size: 1.05rem;
+    font-weight: 800;
+    margin: 0 0 6px;
+}
+
+.so-action h3 small {
+    color: var(--muted);
+    font-size: .78rem;
+    font-weight: 700;
+}
+
+.so-hint {
+    color: var(--muted);
+    font-size: .86rem;
+    margin: 0 0 14px;
+}
+
+.so-action fieldset {
+    border: 0;
+    display: grid;
+    gap: 14px;
+    margin: 0;
+    min-width: 0;
+    padding: 0;
+}
+
+.so-action.is-locked {
+    background: #f7f8f6;
+    opacity: .65;
+}
+
+.module-button.so-submit {
+    justify-content: center;
+    width: 100%;
+}
+
+.so-field label {
+    margin-bottom: 6px;
+}
+
+.so-field small {
+    color: var(--muted);
+    display: block;
+    font-size: .76rem;
+    margin-top: 6px;
+}
+
+.so-line {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    display: grid;
+    gap: 10px;
+    padding: 12px 14px;
+}
+
+.so-radios {
+    display: flex;
+    gap: 18px;
+}
+
+.module-page .so-radios label {
+    align-items: center;
+    display: inline-flex;
+    gap: 6px;
+    margin: 0;
+}
+
+.so-line input[type="number"]:disabled {
+    background: #f4f6f4;
+}
+
+.so-correction summary {
+    color: var(--pine);
+    cursor: pointer;
+    font-weight: 800;
+}
+
+.so-correction[open] summary {
+    margin-bottom: 14px;
+}
+
+/* ---------- Riêng WF06 (khách) ---------- */
+.so-box {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    margin-top: 22px;
+    padding: 16px 18px;
+}
+
+.so-box p {
+    margin: 0;
+}
+
+.so-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.so-qr-wrap {
+    align-items: start;
+    display: grid;
+    gap: 20px;
+    grid-template-columns: 190px minmax(0, 1fr);
+}
+
+.so-qr {
+    align-items: center;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    display: flex;
+    justify-content: center;
+    min-height: 190px;
+    padding: 16px;
+}
+
+.so-qr img {
+    display: block;
+    height: auto;
+    max-width: 100%;
+}
+
+.so-qr span {
+    color: var(--muted);
+    display: none;
+    font-size: .8rem;
+    text-align: center;
+}
+
+.so-qr.is-offline img {
+    display: none;
+}
+
+.so-qr.is-offline span {
+    display: block;
+}
+
+.so-amount {
+    color: var(--pine-dark);
+    font-size: 1.2rem;
+    font-weight: 800;
+}
+
+.so-info code {
+    color: var(--ink);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.so-qr-wrap + .so-hint {
+    margin-top: 12px;
+}
+
+.so-demo {
+    background: #fffaf0;
+    border: 1px dashed #d8b46a;
+    border-radius: 14px;
+    padding: 16px 18px;
+}
+
+.so-demo p {
+    margin: 0;
+}
+
+.so-demo small {
+    color: var(--muted);
+}
+
+.so-side .so-hint {
+    font-size: .95rem;
+    line-height: 1.6;
+}
+
+@media (max-width: 680px) {
+    .so-qr-wrap {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .so-info {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2px;
+    }
+
+    .so-info dd {
+        margin-bottom: 8px;
+    }
+
+    .so-progress {
+        font-size: .7rem;
+    }
+}

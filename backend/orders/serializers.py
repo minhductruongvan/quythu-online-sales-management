@@ -16,6 +16,9 @@
 
 from rest_framework import serializers
 
+from django.templatetags.static import static
+
+from products.image_assets import PRODUCT_IMAGE_ASSETS
 from products.models import BienTheSanPham
 
 from .models import HinhThucGiao, LoaiGia, TrangThaiDonHang, TrangThaiThanhToan
@@ -92,6 +95,7 @@ class DongGioHangSerializer(serializers.Serializer):
     ten_sp = serializers.CharField(source="bien_the.san_pham.ten_sp")
     huong_vi = serializers.CharField(source="bien_the.huong_vi")
     quy_cach = serializers.CharField(source="bien_the.quy_cach")
+    anh = serializers.SerializerMethodField()  # ảnh đại diện sản phẩm cho giỏ hàng, trang thanh toán
     so_luong = serializers.IntegerField()
     con_ban = serializers.BooleanField()  # False -> giao diện đánh dấu, không cho chọn (UC02-E3)
     da_chon = serializers.BooleanField()
@@ -102,6 +106,15 @@ class DongGioHangSerializer(serializers.Serializer):
 
     def get_ten_loai_gia(self, dong):
         return LoaiGia(dong["loai_gia"]).label
+
+    def get_anh(self, dong):
+        # Cùng thứ tự với trang danh mục của M2 (products/views.py):
+        # 1) ảnh nhân viên đã tải lên CSDL  2) ảnh mẫu có sẵn trong static theo mã SP  3) ảnh tạm
+        san_pham = dong["bien_the"].san_pham
+        anh_mau = PRODUCT_IMAGE_ASSETS.get(san_pham.ma_sp)
+        if anh_mau and not san_pham.hinhanhsanpham_set.exists():
+            return static(anh_mau)
+        return san_pham.lay_anh_dai_dien()
 
 
 class GioHangSerializer(serializers.Serializer):
@@ -208,6 +221,7 @@ class DonHangSerializer(serializers.Serializer):
     ten_trang_thai_hien_thi = serializers.SerializerMethodField()
     trang_thai_hau_mai = serializers.CharField(allow_null=True, required=False)
     ten_trang_thai_hau_mai = serializers.SerializerMethodField()
+    han_thanh_toan = serializers.SerializerMethodField()  # danh sách đơn của khách hiện hạn dưới trạng thái
     trang_thai_thanh_toan = serializers.CharField()
     ten_trang_thai_thanh_toan = serializers.CharField(source="get_trang_thai_thanh_toan_display")
     ma_pttt = serializers.CharField(source="phuong_thuc_thanh_toan_id")
@@ -229,6 +243,12 @@ class DonHangSerializer(serializers.Serializer):
 
     def get_ten_trang_thai_hau_mai(self, don):
         return ten_hau_mai(don)
+
+    def get_han_thanh_toan(self, don):
+        # Hạn khách phải chuyển khoản (BR17), null nếu đơn không chờ chuyển khoản.
+        # Dùng lại hàm của trang chi tiết để danh sách và chi tiết luôn khớp nhau.
+        thong_tin = DichVuTraCuuDon.thong_tin_chuyen_khoan(don)
+        return thong_tin["han_thanh_toan"] if thong_tin else None
 
 
 # ==========================================================
@@ -574,4 +594,4 @@ class GiaoThanhCongSerializer(GhiChuSerializer):
     thoi_diem_giao = serializers.DateTimeField(
         required=False, allow_null=True, default=None,
         error_messages={"invalid": LOI_THOI_DIEM},
-    )
+    )
