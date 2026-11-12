@@ -7,7 +7,7 @@
     {% csrf_token %}
     <header class="module-heading"><div><span class="module-eyebrow">HOÀN TẤT ĐẶT HÀNG</span><h1>Thanh toán</h1><p>Kiểm tra địa chỉ, sản phẩm và phương thức thanh toán trước khi đặt.</p></div><a class="module-link-button secondary" href="{% url 'cart-page' %}">← Giỏ hàng</a></header>
     <div id="checkout-message" role="status"></div>
-    <div class="module-grid checkout-layout">
+    <div class="module-grid checkout-layout" id="checkout-layout">
         <section class="module-panel">
             <h2>Địa chỉ giao hàng</h2>
             <div class="checkout-address-toolbar">
@@ -17,7 +17,6 @@
             <div id="checkout-no-address" class="module-alert" hidden>
                 Bạn chưa có địa chỉ giao hàng. Thêm địa chỉ ngay tại đây để tiếp tục đặt hàng.
             </div>
-            <div id="checkout-address-summary" class="module-alert"></div>
             <h2>Phương thức thanh toán</h2><div id="checkout-payments" class="module-form-grid"></div>
             <h2>Đơn hàng</h2><div id="checkout-items"></div>
         </section>
