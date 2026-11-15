@@ -1366,3 +1366,96 @@
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+/* ==========================================================
+   Module 3 – giỏ hàng, thanh toán, danh sách đơn
+   ========================================================== */
+
+/* Ô sản phẩm có ảnh (giỏ hàng, trang thanh toán) */
+.cart-product {
+    align-items: center;
+    display: flex;
+    gap: 12px;
+}
+
+.cart-product img {
+    border-radius: 10px;
+    flex: 0 0 56px;
+    height: 56px;
+    object-fit: cover;
+    width: 56px;
+}
+
+/* Cột số lượng trong giỏ: căn giữa cả tiêu đề và ô nhập */
+.module-table .cart-qty {
+    text-align: center;
+}
+
+.cart-qty .module-inline-form {
+    flex-wrap: nowrap;
+    justify-content: center;
+}
+
+.cart-qty .module-inline-form input {
+    text-align: center;
+    width: 70px;
+}
+
+/* Bảng sản phẩm ở trang thanh toán nằm trong cột hẹp: bỏ min-width 720px */
+.module-table.checkout-lines {
+    min-width: 0;
+}
+
+.module-table .num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* Màn hình đặt hàng thành công */
+.order-success {
+    margin: 0 auto;
+    max-width: 640px;
+    padding: 40px 32px;
+    text-align: center;
+}
+
+.order-success-icon {
+    align-items: center;
+    background: var(--pine);
+    border-radius: 50%;
+    color: #fff;
+    display: inline-flex;
+    font-size: 1.8rem;
+    height: 64px;
+    justify-content: center;
+    margin-bottom: 14px;
+    width: 64px;
+}
+
+.order-success-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 22px;
+}
+
+/* Danh sách đơn: bộ lọc 1 hàng, nút thẳng đáy các ô nhập */
+.module-form-grid.order-filter {
+    align-items: end;
+    grid-template-columns: minmax(200px, 2fr) repeat(4, minmax(130px, 1fr)) auto;
+}
+
+@media (max-width: 1200px) {
+    .module-form-grid.order-filter {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* Danh sách đơn: mã, ngày, tiền, link không xuống dòng */
+.order-table th,
+.order-table .nowrap {
+    overflow-wrap: normal;
+    white-space: nowrap;
+}
+

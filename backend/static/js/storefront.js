@@ -4,7 +4,24 @@
     const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
     })[char]);
-    const date = value => value ? new Date(value).toLocaleString("vi-VN") : "—";
+    // "15:59 08/11/2026" – một hàm định dạng ngày cho mọi trang M3
+    const shortDate = value => value
+        ? new Date(value).toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" })
+        : "—";
+    // Tên sản phẩm đã chứa hương vị (vd "Bánh dừa nướng vị sầu riêng") thì chỉ ghi quy cách, tránh lặp chữ
+    const variantLabel = line => String(line.ten_sp).toLowerCase().includes(String(line.huong_vi).toLowerCase())
+        ? line.quy_cach : `${line.huong_vi} · ${line.quy_cach}`;
+    // Ô sản phẩm có ảnh, dùng chung cho giỏ hàng và trang thanh toán
+    const productCell = line => `<div class="cart-product"><img src="${esc(line.anh)}" alt="" width="56" height="56" loading="lazy"><div><strong>${esc(line.ten_sp)}</strong><br><span>${esc(variantLabel(line))}</span></div></div>`;
+    // Pill trạng thái: chờ khách/chờ hàng = vàng, đã hủy = đỏ
+    const statusPill = order => {
+        const waiting = ["CHO_THANH_TOAN", "CHO_BO_SUNG"].includes(order.trang_thai) && order.trang_thai_thanh_toan !== "DA_THANH_TOAN";
+        const tone = order.trang_thai === "DA_HUY" ? "danger" : waiting ? "warning" : "";
+        return `<span class="module-pill ${tone}">${esc(order.ten_trang_thai_hien_thi || order.ten_trang_thai)}</span>`;
+    };
+    const afterSalesPill = order => order.ten_trang_thai_hau_mai
+        ? `<span class="module-pill ${order.trang_thai_hau_mai === "CHO_HUY" ? "danger" : "warning"}">${esc(order.ten_trang_thai_hau_mai)}</span>`
+        : "—";
     const message = (node, text, error = false) => {
         node.className = `module-alert${error ? " error" : " success"}`;
         node.textContent = text;
@@ -13,9 +30,10 @@
     async function request(url, method = "GET", data = null) {
         const headers = { Accept: "application/json" };
         const options = { method, credentials: "same-origin", headers };
+        // Django chặn mọi request ghi dữ liệu (POST/PATCH/DELETE) thiếu CSRF token, kể cả khi không gửi body
+        if (method !== "GET") headers["X-CSRFToken"] = csrf();
         if (data !== null) {
             headers["Content-Type"] = "application/json";
-            headers["X-CSRFToken"] = csrf();
             options.body = JSON.stringify(data);
         }
         const response = await fetch(url, options);
@@ -43,20 +61,6 @@
         return query.toString();
     };
 
-    const renderRecordGroup = (title, records, fields) => {
-        const rows = Array.isArray(records) ? records : records ? [records] : [];
-        if (!rows.length) return "";
-        return `<section class="module-panel order-record-group"><h3>${esc(title)}</h3>
-            ${rows.map(record => `<dl class="order-record">
-                ${fields.map(([label, key, formatter]) => {
-                    const value = record[key];
-                    return value === null || value === undefined || value === ""
-                        ? ""
-                        : `<div><dt>${esc(label)}</dt><dd>${esc(formatter ? formatter(value) : value)}</dd></div>`;
-                }).join("")}
-            </dl>`).join("")}</section>`;
-    };
-
     async function setupCart(root) {
         const rows = root.querySelector("#cart-rows");
         const status = root.querySelector("#cart-message");
@@ -78,9 +82,9 @@
             rows.innerHTML = cart.cac_dong.length ? cart.cac_dong.map(line => `
                 <tr>
                     <td><input type="checkbox" data-select="${esc(line.ma_ctgh)}" ${line.da_chon || selected.has(line.ma_ctgh) ? "checked" : ""} ${line.con_ban ? "" : "disabled"} aria-label="Chọn ${esc(line.ten_sp)}"></td>
-                    <td><strong>${esc(line.ten_sp)}</strong><br><span>${esc(line.huong_vi)} · ${esc(line.quy_cach)}</span>${line.con_ban ? "" : '<br><span class="module-pill danger">Ngừng kinh doanh</span>'}</td>
+                    <td>${productCell(line)}${line.con_ban ? "" : '<span class="module-pill danger">Ngừng kinh doanh</span>'}</td>
                     <td>${money(line.don_gia)}<br><small>${esc(line.ten_loai_gia)}</small></td>
-                    <td><form class="module-inline-form" data-update="${esc(line.ma_ctgh)}"><button class="module-button secondary" type="button" data-step="-1" aria-label="Giảm số lượng">−</button><input type="number" min="1" name="so_luong" value="${line.so_luong}" aria-label="Số lượng"><button class="module-button secondary" type="button" data-step="1" aria-label="Tăng số lượng">+</button><button class="module-button secondary" type="submit">Cập nhật</button></form></td>
+                    <td class="cart-qty"><form class="module-inline-form" data-update="${esc(line.ma_ctgh)}"><button class="module-button secondary" type="button" data-step="-1" aria-label="Giảm số lượng">−</button><input type="number" min="1" name="so_luong" value="${line.so_luong}" data-current="${line.so_luong}" aria-label="Số lượng"><button class="module-button secondary" type="button" data-step="1" aria-label="Tăng số lượng">+</button></form></td>
                     <td><strong>${money(line.thanh_tien)}</strong></td>
                     <td><button class="module-button danger" type="button" data-delete="${esc(line.ma_ctgh)}">Xóa</button></td>
                 </tr>`).join("") : '<tr><td colspan="6" class="module-empty">Giỏ hàng đang trống. Khám phá các sản phẩm Quý Thu để bắt đầu.</td></tr>';
@@ -93,6 +97,11 @@
         };
 
         root.addEventListener("change", async event => {
+            // Gõ số lượng rồi Enter hoặc bấm ra ngoài ô → gửi cập nhật luôn (không cần nút [Cập nhật])
+            if (event.target.name === "so_luong") {
+                event.target.form.requestSubmit();
+                return;
+            }
             if (event.target === selectAll) {
                 selected.clear();
                 if (selectAll.checked) {
@@ -110,6 +119,9 @@
             const form = event.target.closest("[data-update]");
             if (!form) return;
             event.preventDefault();
+            const input = form.querySelector('[name="so_luong"]');
+            if (input.value === input.dataset.current) return;  // không đổi → không gửi (Enter + rời ô chỉ gửi 1 lần)
+            input.dataset.current = input.value;
             try {
                 const url = `${root.dataset.api}${encodeURIComponent(form.dataset.update)}/?${queryFor([...selected])}`;
                 const result = await request(url, "PATCH", { so_luong: Number(new FormData(form).get("so_luong")) });
@@ -248,7 +260,7 @@
             addressList = Array.isArray(addressResult.data) ? addressResult.data : addressResult.data?.ket_qua || [];
             const preferred = preferredAddress || addressSelect.value || addressList.find(item => item.mac_dinh)?.ma_dia_chi || addressList[0]?.ma_dia_chi;
             addressSelect.innerHTML = addressList.map(item =>
-                `<option value="${esc(item.ma_dia_chi)}" ${String(item.ma_dia_chi) === String(preferred) ? "selected" : ""}>${esc(item.ten_nguoi_nhan)} · ${esc(addressText(item))}</option>`
+                `<option value="${esc(item.ma_dia_chi)}" ${String(item.ma_dia_chi) === String(preferred) ? "selected" : ""}>${esc(item.ten_nguoi_nhan)} · ${esc(item.so_dien_thoai)} · ${esc(addressText(item))}</option>`
             ).join("");
             addressSelect.disabled = !addressList.length;
             root.querySelector("#checkout-no-address").hidden = addressList.length > 0;
@@ -257,18 +269,14 @@
             if (addressList.length) {
                 const query = queryFor(selected, { ma_dia_chi: addressSelect.value });
                 orderData = (await request(`${root.dataset.api}?${query}`)).data;
-                const chosenAddress = addressList.find(item => String(item.ma_dia_chi) === String(addressSelect.value)) || orderData.dia_chi;
-                root.querySelector("#checkout-address-summary").textContent =
-                    `${chosenAddress.ten_nguoi_nhan} · ${chosenAddress.so_dien_thoai} · ${addressText(chosenAddress)}`;
             } else {
                 orderData = (await request(`${root.dataset.cartApi}?${queryFor(selected)}`)).data;
-                root.querySelector("#checkout-address-summary").textContent = "";
             }
 
             const lines = orderData.cac_dong || [];
-            root.querySelector("#checkout-items").innerHTML = lines.map(line =>
-                `<div class="module-summary" style="padding:10px 0;border-bottom:1px solid var(--line)"><span>${esc(line.ten_sp)} · ${esc(line.huong_vi)} · ${esc(line.quy_cach)} × ${line.so_luong}</span><strong>${money(line.thanh_tien)}</strong></div>`
-            ).join("");
+            root.querySelector("#checkout-items").innerHTML = `<div class="module-table-wrap"><table class="module-table checkout-lines"><thead><tr><th>Sản phẩm</th><th>Đơn giá</th><th class="num">SL</th><th class="num">Thành tiền</th></tr></thead><tbody>
+                ${lines.map(line => `<tr><td>${productCell(line)}</td><td>${money(line.don_gia)}<br><small>${esc(line.ten_loai_gia)}</small></td><td class="num">${line.so_luong}</td><td class="num"><strong>${money(line.thanh_tien)}</strong></td></tr>`).join("")}
+                </tbody></table></div>`;
             root.querySelector("#checkout-subtotal").textContent = money(orderData.tong_tien_hang ?? orderData.tam_tinh);
             root.querySelector("#checkout-shipping").textContent = addressList.length ? money(orderData.phi_van_chuyen) : "Thêm địa chỉ để tính";
             root.querySelector("#checkout-total").textContent = addressList.length ? money(orderData.tong_thanh_toan) : "—";
@@ -302,7 +310,21 @@
                     ma_dia_chi: addressSelect.value,
                     ma_pttt: payment
                 });
-                location.assign(`/don-cua-toi/${encodeURIComponent(result.data.ma_dh)}/`);
+                // Màn hình đặt hàng thành công thay cho bố cục thanh toán (không chuyển thẳng sang chi tiết đơn)
+                const code = result.data.ma_dh;
+                const next = payment === "PT001"
+                    ? "Cửa hàng sẽ kiểm tra hàng và xác nhận đơn. Sau khi xác nhận, bạn có 24 giờ để chuyển khoản theo mã QR ở trang chi tiết đơn."
+                    : "Cửa hàng sẽ kiểm tra hàng và xác nhận đơn. Bạn thanh toán khi nhận hàng.";
+                status.className = "";
+                status.textContent = "";
+                root.querySelector("#checkout-layout").outerHTML = `<section class="module-panel order-success">
+                    <span class="order-success-icon" aria-hidden="true">✓</span>
+                    <h2>Đặt hàng thành công</h2>
+                    <p>Mã đơn của bạn: <strong>${esc(code)}</strong></p>
+                    <p class="module-muted">${next}</p>
+                    <div class="order-success-actions"><a class="module-link-button" href="/don-cua-toi/${encodeURIComponent(code)}/">Xem chi tiết đơn</a><a class="module-link-button secondary" href="/">Về trang chủ</a></div>
+                </section>`;
+                window.scrollTo({ top: 0, behavior: "smooth" });
             } catch (error) {
                 message(status, error.message, true);
                 button.disabled = false;
@@ -354,11 +376,11 @@
                 const query = filter.value ? `?trang_thai=${encodeURIComponent(filter.value)}` : "";
                 const result = await request(`${root.dataset.api}${query}`);
                 rows.innerHTML = result.data.length ? result.data.map(order => `
-                    <tr><td><strong>${esc(order.ma_dh)}</strong></td><td>${date(order.ngay_dat)}</td>
+                    <tr><td class="nowrap"><strong>${esc(order.ma_dh)}</strong></td><td class="nowrap">${shortDate(order.ngay_dat)}</td>
                     <td>${order.chi_tiet.map(line => `${esc(line.ten_sp)} × ${line.so_luong}`).join("<br>")}</td>
-                    <td>${money(order.tong_thanh_toan)}<br><small>${esc(order.ten_trang_thai_thanh_toan)}</small></td>
-                    <td><span class="module-pill">${esc(order.ten_trang_thai_hien_thi || order.ten_trang_thai)}</span></td>
-                    <td>${esc(order.ten_trang_thai_hau_mai || "—")}</td><td><a href="/don-cua-toi/${encodeURIComponent(order.ma_dh)}/">Chi tiết →</a></td></tr>`
+                    <td class="nowrap">${money(order.tong_thanh_toan)}<br><small>${order.ma_pttt === "PT002" ? "COD" : "Chuyển khoản"} · ${esc(order.ten_trang_thai_thanh_toan)}</small></td>
+                    <td>${statusPill(order)}${order.han_thanh_toan ? `<br><small>Hạn ${shortDate(order.han_thanh_toan)}</small>` : ""}</td>
+                    <td>${afterSalesPill(order)}</td><td class="nowrap"><a href="/don-cua-toi/${encodeURIComponent(order.ma_dh)}/">${order.han_thanh_toan ? "Thanh toán" : "Chi tiết"} →</a></td></tr>`
                 ).join("") : '<tr><td colspan="7" class="module-empty">Chưa có đơn hàng phù hợp.</td></tr>';
             } catch (error) { message(status, error.message, true); }
         };
@@ -366,98 +388,179 @@
         await load();
     }
 
-    function renderLines(lines, showSupply = false) {
-        return `<div class="module-table-wrap"><table class="module-table"><thead><tr><th>Sản phẩm</th><th>Đơn giá</th><th>Số lượng</th><th>Thành tiền</th>${showSupply ? "<th>Tình trạng cung ứng</th>" : ""}</tr></thead><tbody>${lines.map(line =>
-            `<tr><td><strong>${esc(line.ten_sp)}</strong><br>${esc(line.huong_vi)} · ${esc(line.quy_cach)}</td><td>${money(line.don_gia)}<br><small>${esc(line.ten_loai_gia)}</small></td><td>${line.so_luong}</td><td>${money(line.thanh_tien)}</td>${showSupply ? `<td><span class="module-pill">${esc(line.ten_ket_qua_kiem_tra || "Chưa kiểm tra")}</span>${line.so_luong_thieu ? `<br><small>Thiếu ${line.so_luong_thieu}</small>` : ""}</td>` : ""}</tr>`
-        ).join("")}</tbody></table></div>`;
-    }
+    // ==========================================================
+    // WF06 – CHI TIẾT ĐƠN CỦA KHÁCH (M3-UC05, UC06; cổng giả lập UC11)
+    // Trái: đầu đơn + tiến độ (kèm việc khách cần làm: nhận hàng / chờ bổ sung),
+    //       thanh toán chuyển khoản (QR), sản phẩm, giao hàng.
+    // Phải: lịch sử trạng thái, hỗ trợ (hủy đơn / hậu mãi).
+    // Dùng chung các hàm progressBar, infoList, historyCard, shortDate với WF08 (khai báo bên dưới).
+    // ==========================================================
+    const CUSTOMER_CANCELLABLE = ["CHO_XAC_NHAN", "DA_XAC_NHAN", "CHO_THANH_TOAN", "DANG_CHUAN_BI", "CHO_BO_SUNG"];
+    const BANK_NAMES = { VCB: "Vietcombank (VCB)" };
 
-    function renderOrderProgress(status) {
-        const steps = [
-            { statuses: ["CHO_XAC_NHAN"], label: "Đặt hàng" },
-            { statuses: ["DA_XAC_NHAN", "CHO_THANH_TOAN"], label: "Xác nhận đơn" },
-            { statuses: ["DANG_CHUAN_BI", "CHO_BO_SUNG"], label: "Chuẩn bị hàng" },
-            { statuses: ["SAN_SANG_GIAO", "DANG_GIAO"], label: "Đang giao" },
-            { statuses: ["GIAO_THANH_CONG"], label: "Đã giao" },
-            { statuses: ["HOAN_THANH"], label: "Hoàn thành" },
+    // Đơn COD không có bước "Thanh toán" trước chuẩn bị (COD thu tiền khi giao)
+    function customerSteps(order) {
+        const transfer = order.ma_pttt === "PT001";
+        return [
+            { label: "Đặt hàng", statuses: ["CHO_XAC_NHAN"] },
+            { label: "Xác nhận", statuses: transfer ? ["DA_XAC_NHAN"] : ["DA_XAC_NHAN", "CHO_THANH_TOAN"] },
+            ...(transfer ? [{ label: "Thanh toán", statuses: ["CHO_THANH_TOAN"] }] : []),
+            { label: "Chuẩn bị hàng", statuses: ["DANG_CHUAN_BI", "CHO_BO_SUNG", "SAN_SANG_GIAO"] },
+            { label: "Đang giao", statuses: ["DANG_GIAO"] },
+            { label: "Đã nhận hàng", statuses: ["GIAO_THANH_CONG", "HOAN_THANH"] },
         ];
-        if (status === "DA_HUY") return '<p class="module-alert error">Đơn hàng đã bị hủy.</p>';
-        const current = steps.findIndex(step => step.statuses.includes(status));
-        return { steps, current };
     }
 
-    function renderStatusHistory(items) {
-        const groups = [];
-        (items || []).forEach(item => {
-            const previous = groups[groups.length - 1];
-            if (previous && previous.trang_thai === item.trang_thai
-                && item.trang_thai_cu === item.trang_thai) {
-                previous.events.push(item);
-            } else {
-                groups.push({ trang_thai: item.trang_thai, ten_trang_thai: item.ten_trang_thai, events: [item] });
-            }
-        });
-        return groups.map(group => `<li><strong>${esc(group.ten_trang_thai)}</strong>
-            ${group.events.map(item => `<div>· ${date(item.thoi_diem)} · ${esc(item.ten_nhan_vien || item.ten_tac_nhan)}${item.ghi_chu ? ` · ${esc(item.ghi_chu)}` : ""}</div>`).join("")}</li>`).join("")
-            || "<li>Chưa có lịch sử.</li>";
+    function customerHead(order) {
+        const method = order.ma_pttt === "PT002" ? "COD" : "Chuyển khoản";
+        const waitingTransfer = Boolean(order.thong_tin_chuyen_khoan);
+        const when = order.thoi_diem_giao_thanh_cong
+            ? `Giao lúc ${shortDate(order.thoi_diem_giao_thanh_cong)}` : `Đặt lúc ${shortDate(order.ngay_dat)}`;
+
+        // Khối nhận hàng (UC06, BR21): chỉ khi đơn đã giao và còn trong thời hạn
+        const withinWindow = Boolean(order.han_cua_so_doi_tra) && new Date(order.han_cua_so_doi_tra) >= new Date();
+        const canConfirm = withinWindow && !order.thoi_diem_xac_nhan_nhan_hang;
+        const canReturn = canConfirm && ["GIAO_THANH_CONG", "HOAN_THANH"].includes(order.trang_thai);
+        const returnUrl = `${afterSalesCustomerUrl}?ma_dh=${encodeURIComponent(order.ma_dh)}`;
+        let receipt = "";
+        if (canConfirm) {
+            receipt = `<div class="so-box"><p><strong>Bạn đã nhận đủ hàng?</strong> Nhấn [Đã nhận hàng] để hoàn tất. Nếu không xác nhận, hệ thống tự xác nhận vào <strong>${shortDate(order.han_cua_so_doi_tra)}</strong>; đến thời điểm này bạn vẫn có thể gửi yêu cầu đổi/trả.</p>
+                <div class="so-buttons"><button class="module-button" type="button" data-received>Đã nhận hàng</button>${canReturn ? `<a class="module-link-button secondary" href="${returnUrl}">Yêu cầu đổi/trả →</a>` : ""}</div></div>`;
+        } else if (order.thoi_diem_xac_nhan_nhan_hang) {
+            receipt = `<div class="so-box"><p>Bạn đã xác nhận nhận hàng lúc <strong>${shortDate(order.thoi_diem_xac_nhan_nhan_hang)}</strong>. Cảm ơn bạn đã mua hàng tại Quý Thu.</p></div>`;
+        }
+
+        return `<section class="module-panel so-card">
+            <div class="so-head-top">
+                <span class="module-eyebrow">${esc(order.ma_dh)} · ${when}</span>
+                <div class="so-pills"><span class="module-pill ${waitingTransfer ? "warning" : ""}">${method} · ${esc(order.ten_trang_thai_thanh_toan)}</span>${order.ten_trang_thai_hau_mai ? `<span class="module-pill warning">Hậu mãi: ${esc(order.ten_trang_thai_hau_mai)}</span>` : ""}</div>
+            </div>
+            <h2 class="so-title">${esc(order.ten_trang_thai_hien_thi || order.ten_trang_thai)}</h2>
+            ${order.trang_thai === "CHO_BO_SUNG" ? `<div class="so-banner"><span aria-hidden="true">⏳</span><div><strong>Cửa hàng đang bổ sung hàng cho đơn của bạn</strong><p>Dự kiến có hàng: <strong>${shortDate(order.thoi_diem_hen_cung_cap)}</strong>. Đơn sẽ tiếp tục xử lý ngay khi đủ hàng. Không muốn chờ? <a href="${returnUrl}">Yêu cầu hủy đơn →</a></p></div></div>` : ""}
+            ${progressBar(customerSteps(order), order)}
+            ${receipt}
+        </section>`;
     }
+
+    // BR17: QR chứa số tiền + nội dung (mã đơn). Ảnh QR lấy từ VietQR theo thông tin tài khoản của cửa hàng.
+    function customerPayment(order) {
+        const qr = order.thong_tin_chuyen_khoan;
+        if (!qr) return "";
+        // thong_tin_tai_khoan dạng "VCB 0041000888999 - Banh Dua Quy Thu"
+        const match = /^(\S+)\s+(\d+)\s*-\s*(.+)$/.exec(qr.tai_khoan || "");
+        const [bank, account, holder] = match ? [match[1], match[2], match[3].trim()] : ["", "", ""];
+        const qrUrl = match
+            ? `https://img.vietqr.io/image/${encodeURIComponent(bank)}-${account}-qr_only.png?amount=${qr.so_tien}&addInfo=${encodeURIComponent(qr.noi_dung)}&accountName=${encodeURIComponent(holder)}`
+            : "";
+        const hoursLeft = (new Date(qr.han_thanh_toan) - Date.now()) / 36e5;
+        const left = hoursLeft <= 0 ? "đã quá hạn" : hoursLeft >= 1 ? `còn ${Math.floor(hoursLeft)} giờ` : `còn ${Math.ceil(hoursLeft * 60)} phút`;
+        const rows = match
+            ? [["Ngân hàng", esc(BANK_NAMES[bank] || bank)], ["Số tài khoản", esc(account)], ["Chủ tài khoản", esc(holder)]]
+            : [["Ngân hàng / tài khoản", esc(qr.tai_khoan)]];
+        return `<section class="module-panel so-card"><h2>Thanh toán chuyển khoản</h2>
+            ${order.trang_thai_thanh_toan === "THAT_BAI" ? '<p class="module-alert error">Giao dịch gần nhất không thành công. Bạn có thể chuyển khoản lại trước hạn thanh toán.</p>' : ""}
+            <div class="so-qr-wrap">
+                ${qrUrl ? `<div class="so-qr"><img src="${qrUrl}" alt="Mã QR chuyển khoản ${money(qr.so_tien)} cho đơn ${esc(order.ma_dh)}" width="150" height="150"><span>Không tải được mã QR (cần Internet). Hãy chuyển khoản theo thông tin bên cạnh.</span></div>` : ""}
+                ${infoList([
+                    ...rows,
+                    ["Số tiền", `<span class="so-amount">${money(qr.so_tien)}</span>`],
+                    ["Nội dung CK", `<code>${esc(qr.noi_dung)}</code>`],
+                    ["Hạn thanh toán", `${shortDate(qr.han_thanh_toan)} <span class="module-pill warning">${left}</span>`],
+                ])}
+            </div>
+            <p class="so-hint">Quét mã bằng ứng dụng ngân hàng; số tiền và nội dung đã điền sẵn. Quá hạn đơn sẽ tự hủy.</p>
+            <div class="so-demo"><p><strong>Cổng thanh toán giả lập</strong> <small>(chỉ dùng khi demo, thay cho ngân hàng thật)</small></p>
+                <div class="so-buttons"><button class="module-button" type="button" data-payment="THANH_CONG">Thanh toán thành công</button><button class="module-button secondary" type="button" data-payment="THAT_BAI">Giao dịch thất bại</button></div>
+            </div>
+        </section>`;
+    }
+
+    function customerProducts(order) {
+        return `<section class="module-panel so-card"><h2>Sản phẩm</h2>
+            <div class="module-table-wrap"><table class="module-table so-table"><thead><tr><th>Sản phẩm</th><th>Loại giá</th><th>Đơn giá</th><th class="num">SL</th><th class="num">Thành tiền</th></tr></thead><tbody>
+            ${(order.chi_tiet || []).map(line => `<tr>
+                <td><strong>${esc(line.ten_sp)}</strong><br><span class="so-sub">${esc(variantLabel(line))}</span></td>
+                <td>${esc(line.ten_loai_gia)}</td>
+                <td>${money(line.don_gia)}</td>
+                <td class="num">${line.so_luong}</td>
+                <td class="num"><strong>${money(line.thanh_tien)}</strong></td></tr>`).join("")}
+            </tbody></table></div>
+            <dl class="so-totals"><dt>Tiền hàng</dt><dd>${money(order.tong_tien_hang)}</dd><dt>Phí giao hàng (${esc(order.ten_tinh)})</dt><dd>${money(order.phi_van_chuyen)}</dd><dt class="grand">Tổng thanh toán</dt><dd class="grand">${money(order.tong_thanh_toan)}</dd></dl>
+        </section>`;
+    }
+
+    function customerDelivery(order) {
+        return `<section class="module-panel so-card"><h2>Giao hàng</h2>${infoList([
+            ["Người nhận", `${esc(order.ho_ten_nguoi_nhan)} · ${esc(order.sdt_nguoi_nhan)}`],
+            ["Địa chỉ", `${esc(order.dia_chi_giao_hang)}, ${esc(order.ten_tinh)}`],
+            ["Thanh toán", `${esc(order.ten_pttt)} · ${esc(order.ten_trang_thai_thanh_toan)}`],
+            order.thoi_diem_giao_thanh_cong && ["Giao thành công", shortDate(order.thoi_diem_giao_thanh_cong)],
+        ])}</section>`;
+    }
+
+    // Khối hỗ trợ chỉ hiện khi có việc khác để làm: còn hủy được, hoặc đang có yêu cầu hậu mãi.
+    // Đơn đã giao thì nút [Yêu cầu đổi/trả] đã nằm ở khối nhận hàng, không lặp lại ở đây.
+    function customerSupport(order) {
+        const url = `${afterSalesCustomerUrl}?ma_dh=${encodeURIComponent(order.ma_dh)}`;
+        let text;
+        let link;
+        if (order.ten_trang_thai_hau_mai) {
+            text = `Yêu cầu của bạn đang được xử lý: <strong>${esc(order.ten_trang_thai_hau_mai)}</strong>.`;
+            link = "Theo dõi hậu mãi";
+        } else if (CUSTOMER_CANCELLABLE.includes(order.trang_thai)) {
+            text = "Đơn chưa bàn giao vận chuyển nên bạn có thể gửi yêu cầu hủy.";
+            link = "Yêu cầu hủy đơn";
+        } else {
+            return "";
+        }
+        return `<section class="module-panel so-card"><h2>Cần hỗ trợ?</h2><p class="so-hint">${text}</p><a class="module-link-button secondary" href="${url}">${link} →</a></section>`;
+    }
+
+    let afterSalesCustomerUrl = "/tai-khoan/hau-mai/";
 
     async function setupCustomerOrderDetail(root) {
         const messageNode = root.querySelector("#order-detail-message");
-        const content = root.querySelector("#order-detail-content");
+        const main = root.querySelector("#order-detail-main");
+        const side = root.querySelector("#order-detail-side");
         const orderApi = root.dataset.api;
+        afterSalesCustomerUrl = root.dataset.afterSales || afterSalesCustomerUrl;
+
         const load = async () => {
-            const result = await request(orderApi);
-            const order = result.data;
-            const qr = order.thong_tin_chuyen_khoan;
-            const withinReturnWindow = Boolean(order.han_cua_so_doi_tra)
-                && new Date(order.han_cua_so_doi_tra) >= new Date();
-            const canConfirm = withinReturnWindow && !order.thoi_diem_xac_nhan_nhan_hang;
-            const canRequestReturn = withinReturnWindow
-                && !order.thoi_diem_xac_nhan_nhan_hang
-                && ["GIAO_THANH_CONG", "HOAN_THANH"].includes(order.trang_thai);
-            const progress = renderOrderProgress(order.trang_thai);
-            const timeline = progress.steps
-                ? `<ol class="order-progress" aria-label="Tiến độ đơn hàng">${progress.steps.map((step, index) => {
-                    const event = (order.lich_su_trang_thai || [])
-                        .filter(item => step.statuses.includes(item.trang_thai))
-                        .at(-1);
-                    const completed = index <= progress.current;
-                    return `<li class="${completed ? "is-complete" : ""}${index === progress.current ? " is-current" : ""}"${index === progress.current ? ' aria-current="step"' : ""}>
-                        <span class="order-progress-icon" aria-hidden="true">${completed ? "✓" : index + 1}</span>
-                        <strong>${esc(step.label)}</strong>
-                        <small>${event ? date(event.thoi_diem) : "Chờ cập nhật"}</small>
-                    </li>`;
-                }).join("")}</ol>`
-                : progress;
-            content.innerHTML = `
-                <section class="module-panel"><span class="module-eyebrow">${esc(order.ma_dh)} · ${date(order.ngay_dat)}</span><h2>${esc(order.ten_trang_thai_hien_thi || order.ten_trang_thai)}</h2>
-                ${order.ten_trang_thai_hau_mai ? `<p><span class="module-pill warning">Hậu mãi: ${esc(order.ten_trang_thai_hau_mai)}</span></p>` : ""}
-                <h3>Sản phẩm</h3>${renderLines(order.chi_tiet)}
-                <hr><p><strong>Người nhận:</strong> ${esc(order.ho_ten_nguoi_nhan)} · ${esc(order.sdt_nguoi_nhan)}</p><p><strong>Địa chỉ:</strong> ${esc(order.dia_chi_giao_hang)}, ${esc(order.ten_tinh)}</p>
-                <p><strong>Thanh toán:</strong> ${esc(order.ten_pttt)} · ${esc(order.ten_trang_thai_thanh_toan)}</p>
-                <div class="module-summary"><span>Tiền hàng</span><strong>${money(order.tong_tien_hang)}</strong><span>Phí giao hàng</span><strong>${money(order.phi_van_chuyen)}</strong><span class="module-total">Tổng thanh toán</span><strong class="module-total">${money(order.tong_thanh_toan)}</strong></div>
-                ${qr ? `<div class="module-alert"><strong>Chuyển khoản · ${money(qr.so_tien)}</strong><p>Ngân hàng / tài khoản: ${esc(qr.tai_khoan)}</p><p>Nội dung chuyển khoản: <code>${esc(qr.noi_dung)}</code></p><p>Hạn thanh toán: ${date(qr.han_thanh_toan)}</p><fieldset><legend>Mô phỏng thanh toán (bản thử nghiệm)</legend><label><input type="radio" name="payment-result" value="THANH_CONG" checked> Giao dịch thành công</label><label><input type="radio" name="payment-result" value="THAT_BAI"> Giao dịch thất bại</label><button class="module-button" data-payment>Gửi kết quả mô phỏng</button></fieldset></div>` : ""}
-                ${canConfirm ? '<button class="module-button" data-received>Đã nhận hàng</button>' : ""}
-                ${canRequestReturn ? `<p><a href="/tai-khoan/hau-mai/?ma_dh=${encodeURIComponent(order.ma_dh)}">Yêu cầu đổi/trả →</a></p>` : ""}
-                <p><a href="/tai-khoan/hau-mai/?ma_dh=${encodeURIComponent(order.ma_dh)}">${["CHO_XAC_NHAN", "DA_XAC_NHAN", "CHO_THANH_TOAN", "DANG_CHUAN_BI", "CHO_BO_SUNG"].includes(order.trang_thai) ? "Yêu cầu hủy / theo dõi hậu mãi" : "Theo dõi hậu mãi"} →</a></p></section>
-                <section class="module-panel"><h2>Tiến độ đơn hàng</h2>${timeline}<h2>Lịch sử trạng thái</h2><ol>${renderStatusHistory(order.lich_su_trang_thai)}</ol>${order.trang_thai === "CHO_BO_SUNG" ? `<p><strong>Hẹn bổ sung hàng:</strong> ${date(order.thoi_diem_hen_cung_cap)}</p>` : ""}</section>`;
+            const order = (await request(orderApi)).data;
+            main.innerHTML = customerHead(order) + customerPayment(order) + customerProducts(order) + customerDelivery(order);
+            side.innerHTML = historyCard(order, "Lịch sử trạng thái") + customerSupport(order);
         };
+
+        // Ảnh QR không tải được (máy không có Internet) → hiện câu thay thế.
+        // Sự kiện "error" của ảnh không nổi bọt nên phải bắt ở pha capture (tham số true).
+        root.addEventListener("error", event => {
+            if (event.target.matches?.(".so-qr img")) event.target.closest(".so-qr").classList.add("is-offline");
+        }, true);
+
         root.addEventListener("click", async event => {
+            const received = event.target.closest("[data-received]");
+            const payment = event.target.closest("[data-payment]");
+            if (!received && !payment) return;
+            const button = received || payment;
+            button.disabled = true;
             try {
-                if (event.target.closest("[data-received]")) {
+                if (received) {
                     await request(`${orderApi}da-nhan-hang/`, "POST", {});
                     message(messageNode, "Đã xác nhận nhận hàng.");
-                    await load();
+                } else {
+                    await request(`${orderApi}payment/`, "POST", { ket_qua: payment.dataset.payment });
+                    message(messageNode, payment.dataset.payment === "THANH_CONG"
+                        ? "Thanh toán thành công. Cửa hàng sẽ bắt đầu chuẩn bị hàng."
+                        : "Đã ghi nhận giao dịch thất bại (mô phỏng).");
                 }
-                if (event.target.closest("[data-payment]")) {
-                    const value = root.querySelector('[name="payment-result"]:checked')?.value;
-                    await request(`${orderApi}payment/`, "POST", { ket_qua: value });
-                    message(messageNode, "Đã ghi nhận kết quả mô phỏng thanh toán.");
-                    await load();
-                }
-            } catch (error) { message(messageNode, error.message, true); }
+                await load();
+            } catch (error) {
+                message(messageNode, error.message, true);
+                button.disabled = false;
+            }
+            messageNode.scrollIntoView({ behavior: "smooth", block: "center" });
         });
+
         try { await load(); } catch (error) { message(messageNode, error.message, true); }
     }
 
@@ -474,9 +577,9 @@
             rows.innerHTML = '<tr><td colspan="8" class="module-empty">Đang tải…</td></tr>';
             const result = await request(`${root.dataset.api}?${query}`);
             rows.innerHTML = result.data.length ? result.data.map(order => `
-                <tr><td><strong>${esc(order.ma_dh)}</strong><br><small>${date(order.ngay_dat)}</small></td><td>${esc(order.ten_khach_hang)}<br><small>${esc(order.ma_kh)}</small></td>
-                <td>${esc(order.ten_loai_khach)}</td><td>${money(order.tong_thanh_toan)}</td><td><span class="module-pill">${esc(order.ten_trang_thai_hien_thi || order.ten_trang_thai)}</span></td><td>${esc(order.ten_trang_thai_thanh_toan)}</td><td>${esc(order.ten_trang_thai_hau_mai || "—")}</td>
-                <td><a href="/don-hang/${encodeURIComponent(order.ma_dh)}/">Mở đơn →</a></td></tr>`).join("") : '<tr><td colspan="8" class="module-empty">Không có đơn phù hợp bộ lọc.</td></tr>';
+                <tr><td class="nowrap"><strong>${esc(order.ma_dh)}</strong><br><small>${shortDate(order.ngay_dat)}</small></td><td>${esc(order.ten_khach_hang)}<br><small>${esc(order.ma_kh)}</small></td>
+                <td>${esc(order.ten_loai_khach)}</td><td class="nowrap">${money(order.tong_thanh_toan)}</td><td>${statusPill(order)}</td><td>${esc(order.ten_trang_thai_thanh_toan)}</td><td>${afterSalesPill(order)}</td>
+                <td class="nowrap"><a href="/don-hang/${encodeURIComponent(order.ma_dh)}/">Mở đơn →</a></td></tr>`).join("") : '<tr><td colspan="8" class="module-empty">Không có đơn phù hợp bộ lọc.</td></tr>';
             pagination.innerHTML = `<span>${result.tong_so_don} đơn hàng · Trang ${result.trang_hien_tai}/${result.so_trang}</span><div class="module-inline-form"><button class="module-button secondary" data-page="${Math.max(1, page - 1)}" ${page <= 1 ? "disabled" : ""}>← Trước</button><button class="module-button secondary" data-page="${Math.min(result.so_trang || 1, page + 1)}" ${page >= result.so_trang ? "disabled" : ""}>Tiếp →</button></div>`;
         };
         filter.addEventListener("submit", async event => {
@@ -491,138 +594,404 @@
         try { await load(currentPage); } catch (error) { message(status, error.message, true); }
     }
 
-    const actionForms = order => {
-        if (order.trang_thai_hau_mai === "CHO_HUY") {
-            return '<section class="module-panel module-alert warning"><strong>Đơn đang chờ xử lý yêu cầu hủy.</strong><p>Các thao tác vận hành bị tạm khóa cho đến khi yêu cầu hậu mãi được giải quyết.</p></section>';
-        }
-        const input = (name, label, type = "text", required = false, value = "") =>
-            `<div><label>${label}</label><input name="${name}" type="${type}" value="${esc(value)}" ${required ? "required" : ""}></div>`;
-        const textarea = `<div><label>Ghi chú</label><textarea name="ghi_chu"></textarea></div>`;
-        const form = (action, title, fields) => `<form data-action="${action}" class="module-panel"><h3>${title}</h3><div class="module-form-grid">${fields}</div><button class="module-button" type="submit">Ghi nhận</button></form>`;
-        const shortages = (order.chi_tiet || []).map(line =>
-            `<div><label>${esc(line.ten_sp)} · ${esc(line.huong_vi)} · ${esc(line.quy_cach)} (đặt ${line.so_luong}; ${esc(line.ten_ket_qua_kiem_tra || "Chưa kiểm tra")})</label><input type="number" min="0" max="${line.so_luong}" name="thieu-${esc(line.ma_ctdh)}" value="${line.so_luong_thieu || 0}" aria-label="Số lượng thiếu ${esc(line.ten_sp)}"></div>`
-        ).join("");
-        const isChecked = (order.chi_tiet || []).every(line => line.ket_qua_kiem_tra === "DU");
-        const hasShortage = (order.chi_tiet || []).some(line => line.ket_qua_kiem_tra === "THIEU");
-        const payment = order.giao_dich || {};
-        const paymentAmount = payment.so_tien_thuc_nhan || payment.so_tien_phai_thu || order.tong_thanh_toan;
-        const paymentForm = form("ghi-nhan-thanh-toan", "Ghi nhận thanh toán chuyển khoản",
-            input("so_tien_thuc_nhan", "Số tiền thực nhận (đ)", "number", true, payment.so_tien_phai_thu || paymentAmount)
-            + input("ma_giao_dich_ngan_hang", "Mã giao dịch ngân hàng", "text", true)
-            + input("ly_do_dieu_chinh", "Lý do (bắt buộc khi đính chính)")
-            + textarea);
-        const correctionForm = !["HOAN_THANH", "DA_HUY"].includes(order.trang_thai)
-            && order.ma_pttt === "PT001" && order.trang_thai_thanh_toan === "DA_THANH_TOAN"
-            ? form("ghi-nhan-thanh-toan", "Đính chính ghi nhận thanh toán",
-                input("so_tien_thuc_nhan", "Số tiền thực nhận (đ)", "number", true, payment.so_tien_thuc_nhan || "")
-                + input("ma_giao_dich_ngan_hang", "Mã giao dịch ngân hàng", "text", true, payment.ma_giao_dich_ngan_hang || "")
-                + input("ly_do_dieu_chinh", "Lý do đính chính", "text", true)
-                + textarea)
-            : "";
-        switch (order.trang_thai) {
-            case "CHO_XAC_NHAN": {
-                return `<form data-action="kiem-tra-hang" class="module-panel"><h3>Kiểm tra cung ứng</h3><div class="module-form-grid">${shortages}${textarea}</div><button class="module-button" type="submit">Lưu kết quả kiểm tra</button></form>`
-                    + (isChecked ? form("xac-nhan", "Xác nhận đơn", textarea) : hasShortage
-                        ? form("cho-bo-sung", "Chuyển đơn sang chờ bổ sung hàng", input("thoi_diem_hen", "Thời điểm hẹn cung cấp", "datetime-local", true) + textarea)
-                        : '<section class="module-panel"><p>Vui lòng lưu kết quả kiểm tra đủ hàng trước khi xác nhận đơn.</p></section>');
-            }
-            case "CHO_BO_SUNG":
-                return form("gia-han", "Gia hạn thời điểm bổ sung", input("thoi_diem_hen", "Thời điểm hẹn mới", "datetime-local", true) + textarea)
-                    + form("da-du-hang", "Đã đủ hàng", textarea);
-            case "DA_XAC_NHAN":
-                return form("bat-dau-chuan-bi", "Bắt đầu chuẩn bị", textarea) + correctionForm;
-            case "CHO_THANH_TOAN":
-                return order.trang_thai_thanh_toan === "DA_THANH_TOAN"
-                    ? form("bat-dau-chuan-bi", "Bắt đầu chuẩn bị", textarea) + correctionForm
-                    : paymentForm;
-            case "DANG_CHUAN_BI":
-                return `<form data-action="kiem-tra-hang" class="module-panel"><h3>Kiểm tra lại cung ứng</h3><div class="module-form-grid">${shortages}${textarea}</div><button class="module-button secondary" type="submit">Cập nhật kiểm tra</button></form>`
-                    + (hasShortage
-                        ? form("cho-bo-sung", "Chuyển đơn sang chờ bổ sung hàng", input("thoi_diem_hen", "Thời điểm hẹn cung cấp", "datetime-local", true) + textarea)
-                        : isChecked
-                            ? form("san-sang-giao", "Sẵn sàng giao", textarea)
-                            : '<section class="module-panel"><p>Vui lòng kiểm tra và đánh dấu đủ hàng trước khi chuyển sang giao.</p></section>')
-                    + correctionForm;
-            case "SAN_SANG_GIAO":
-                return form("ban-giao", "Bàn giao vận chuyển", `<div><label>Hình thức giao</label><select name="hinh_thuc_giao"><option value="XE_TAI" ${order.goi_y_hinh_thuc_giao.ma === "XE_TAI" ? "selected" : ""}>Xe tải nội bộ</option><option value="SHIPPER" ${order.goi_y_hinh_thuc_giao.ma === "SHIPPER" ? "selected" : ""}>Shipper giao nhanh</option><option value="DVVC" ${order.goi_y_hinh_thuc_giao.ma === "DVVC" ? "selected" : ""}>Đơn vị vận chuyển TMĐT</option></select></div>` + input("don_vi_van_chuyen", "Đơn vị vận chuyển") + input("sdt_shipper", "Số điện thoại shipper") + input("ma_van_don", "Mã vận đơn") + textarea);
-            case "DANG_GIAO":
-                return form("giao-thanh-cong", "Ghi nhận giao thành công", input("thoi_diem_giao", "Thời điểm giao", "datetime-local", true) + textarea) + correctionForm;
-            case "GIAO_THANH_CONG":
-                if (order.ma_pttt === "PT002" && order.trang_thai_thanh_toan !== "DA_THANH_TOAN") {
-                    return form("thu-cod", "Ghi nhận thu COD", input("so_tien_thuc_nhan", "Số tiền thực nhận", "number", true) + textarea);
-                }
-                if (order.ma_pttt === "PT001" && order.trang_thai_thanh_toan !== "DA_THANH_TOAN") {
-                    return paymentForm;
-                }
-                return '<section class="module-panel"><p>Đơn đã giao và thanh toán đầy đủ.</p></section>' + correctionForm;
-            default:
-                return correctionForm || '<section class="module-panel"><p>Không có thao tác vận hành được phép ở trạng thái hiện tại.</p></section>';
-        }
+    // ==========================================================
+    // WF08 – CHI TIẾT VÀ XỬ LÝ ĐƠN (nhân viên, M3-UC07 → UC13)
+    // Bố cục 2 cột: trái là phần ĐỌC (đầu đơn + tiến độ, khách, dòng hàng,
+    // thanh toán, giao hàng, lịch sử); phải là phần LÀM (các khối thao tác,
+    // đánh số theo thứ tự làm, dính khi cuộn). Đổi trạng thái thì chỉ cột phải đổi.
+    // ==========================================================
+    const STAFF_STEPS = [
+        { label: "Chờ xác nhận", statuses: ["CHO_XAC_NHAN"] },
+        { label: "Đã xác nhận", statuses: ["DA_XAC_NHAN", "CHO_THANH_TOAN"] },
+        { label: "Chuẩn bị", statuses: ["DANG_CHUAN_BI", "CHO_BO_SUNG"] },
+        { label: "Sẵn sàng giao", statuses: ["SAN_SANG_GIAO"] },
+        { label: "Đang giao", statuses: ["DANG_GIAO"] },
+        { label: "Giao xong", statuses: ["GIAO_THANH_CONG"] },
+        { label: "Hoàn thành", statuses: ["HOAN_THANH"] },
+    ];
+    // Thao tác bị chặn khi khách đang yêu cầu hủy (M3-BR19).
+    // Khớp các hàm có gọi kiem_tra_khong_cho_huy() trong orders/services.py.
+    const LOCKED_WHEN_CANCEL = {
+        "kiem-tra-hang": "Kiểm tra hàng",
+        "xac-nhan": "Xác nhận đơn",
+        "ghi-nhan-thanh-toan": "Ghi nhận chuyển khoản",
+        "bat-dau-chuan-bi": "Bắt đầu chuẩn bị",
+        "ban-giao": "Bàn giao",
     };
+    // Trạng thái còn cho đính chính ghi nhận chuyển khoản (trước khi bàn giao, feedback mục 25)
+    const CORRECTION_STATUSES = ["DA_XAC_NHAN", "CHO_THANH_TOAN", "DANG_CHUAN_BI", "CHO_BO_SUNG", "SAN_SANG_GIAO"];
+
+    // Giá trị cho ô datetime-local theo giờ máy: "2026-11-12T11:22"
+    const localInputValue = (d = new Date()) => {
+        const p = n => String(n).padStart(2, "0");
+        return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+    };
+
+    // Danh sách nhãn – giá trị. rows: [[nhãn, html đã escape], ...]; phần tử false bị bỏ qua.
+    const infoList = rows => `<dl class="so-info">${rows.filter(Boolean)
+        .map(([label, value]) => `<dt>${esc(label)}</dt><dd>${value}</dd>`).join("")}</dl>`;
+
+    // Thanh tiến độ dùng chung cho WF06 (khách) và WF08 (nhân viên). steps: [{label, statuses}]
+    function progressBar(steps, order) {
+        if (order.trang_thai === "DA_HUY") return '<p class="module-alert error">Đơn hàng đã hủy.</p>';
+        const finished = order.trang_thai === "HOAN_THANH";  // xong hết: mọi bước tô đậm, không còn bước "hiện tại"
+        let current = finished ? steps.length : steps.findIndex(step => step.statuses.includes(order.trang_thai));
+        // Chờ bổ sung hàng có thể xảy ra trước khi xác nhận (UC09 → UC10): khi đó đơn vẫn ở bước đầu tiên
+        const confirmedBefore = (order.lich_su_trang_thai || []).some(item => item.trang_thai === "DA_XAC_NHAN");
+        if (order.trang_thai === "CHO_BO_SUNG" && !confirmedBefore) current = 0;
+        const shownName = order.ten_trang_thai_hien_thi || order.ten_trang_thai;
+        return `<ol class="so-progress" style="--steps:${steps.length}" aria-label="Tiến độ xử lý đơn">${steps.map((step, index) => {
+            const state = index < current ? "is-done" : index === current ? "is-current" : "";
+            // Bước gộp nhiều trạng thái (Chờ bổ sung, Sẵn sàng giao…) hoặc đã thanh toán chờ chuẩn bị: ghi rõ trạng thái thật
+            const sub = index === current && (step.statuses[0] !== order.trang_thai || shownName !== order.ten_trang_thai)
+                ? `<small>${esc(shownName)}</small>` : "";
+            return `<li class="${state}"${index === current ? ' aria-current="step"' : ""}><span class="so-dot" aria-hidden="true"></span><span>${step.label}</span>${sub}</li>`;
+        }).join("")}</ol>`;
+    }
+
+    function staffHead(order, afterSalesUrl) {
+        const cancelPending = order.trang_thai_hau_mai === "CHO_HUY";
+        const method = order.ma_pttt === "PT002" ? "COD" : "Chuyển khoản";
+        const afterSalesClass = cancelPending ? "danger" : order.trang_thai_hau_mai ? "warning" : "";
+        const locked = Object.values(LOCKED_WHEN_CANCEL).join(", ");
+        return `<section class="module-panel so-card">
+            <div class="so-head-top">
+                <span class="module-eyebrow">${esc(order.ma_dh)} · Đặt lúc ${shortDate(order.ngay_dat)}</span>
+                <div class="so-pills"><span class="module-pill">${method} · ${esc(order.ten_trang_thai_thanh_toan)}</span>${order.ten_trang_thai_hau_mai ? `<span class="module-pill ${afterSalesClass}">Hậu mãi: ${esc(order.ten_trang_thai_hau_mai)}</span>` : ""}</div>
+            </div>
+            <h2 class="so-title">${esc(order.ten_trang_thai_hien_thi || order.ten_trang_thai)}${cancelPending ? '<span class="so-badge">Chờ hủy</span>' : ""}</h2>
+            ${cancelPending ? `<div class="so-banner" role="alert"><span aria-hidden="true">⚠️</span><div><strong>Khách đang yêu cầu hủy đơn (Module 4)</strong><p>Tạm khóa: ${locked}. Xử lý yêu cầu hủy tại <a href="${esc(afterSalesUrl)}">Hậu mãi → Yêu cầu hủy</a> trước.</p></div></div>` : ""}
+            ${order.trang_thai_hau_mai && !cancelPending ? `<div class="so-banner"><span aria-hidden="true">ℹ️</span><div><strong>Đơn đang có xử lý hậu mãi: ${esc(order.ten_trang_thai_hau_mai)}</strong><p>Xem chi tiết tại <a href="${esc(afterSalesUrl)}">Hậu mãi</a>.</p></div></div>` : ""}
+            ${order.trang_thai === "CHO_BO_SUNG" ? `<div class="so-banner"><span aria-hidden="true">⏳</span><div><strong>Chờ bổ sung hàng</strong><p>Hẹn cung cấp: ${shortDate(order.thoi_diem_hen_cung_cap)}.</p></div></div>` : ""}
+            ${progressBar(STAFF_STEPS, order)}
+        </section>`;
+    }
+
+    function staffCustomer(order) {
+        return `<section class="module-panel so-card"><h2>Khách hàng và giao hàng</h2>${infoList([
+            ["Khách", `${esc(order.ten_khach_hang)} (${esc(order.ma_kh)}) · ${esc(order.ten_loai_khach)}`],
+            ["Người nhận", `${esc(order.ho_ten_nguoi_nhan)} · ${esc(order.sdt_nguoi_nhan)}`],
+            ["Địa chỉ", `${esc(order.dia_chi_giao_hang)}, ${esc(order.ten_tinh)}`],
+            ["Ghi chú của khách", esc(order.ghi_chu || "—")],
+        ])}</section>`;
+    }
+
+    function staffLines(order) {
+        const check = line => {
+            if (line.ket_qua_kiem_tra === "DU") return '<span class="so-check ok">Đủ hàng</span>';
+            if (line.ket_qua_kiem_tra === "THIEU") return `<span class="so-check bad">Thiếu ${line.so_luong_thieu}</span>`;
+            return '<span class="so-check wait">Chưa kiểm tra</span>';
+        };
+        return `<section class="module-panel so-card"><h2>Dòng hàng</h2>
+            <div class="module-table-wrap"><table class="module-table so-table"><thead><tr><th>Sản phẩm</th><th>Đơn giá</th><th class="num">SL</th><th class="num">Thành tiền</th><th>Kiểm tra hàng</th></tr></thead><tbody>
+            ${(order.chi_tiet || []).map(line => `<tr>
+                <td><strong>${esc(line.ten_sp)}</strong><br><span class="so-sub">${esc(variantLabel(line))}</span></td>
+                <td>${money(line.don_gia)}<br><small class="so-sub">${esc(line.ten_loai_gia)}</small></td>
+                <td class="num">${line.so_luong}</td>
+                <td class="num"><strong>${money(line.thanh_tien)}</strong></td>
+                <td>${check(line)}</td></tr>`).join("")}
+            </tbody></table></div>
+            <dl class="so-totals"><dt>Tiền hàng</dt><dd>${money(order.tong_tien_hang)}</dd><dt>Phí giao hàng</dt><dd>${money(order.phi_van_chuyen)}</dd><dt class="grand">Tổng thanh toán</dt><dd class="grand">${money(order.tong_thanh_toan)}</dd></dl>
+        </section>`;
+    }
+
+    function staffPayment(order) {
+        const p = order.giao_dich || {};
+        const isTransfer = order.ma_pttt === "PT001";
+        const qr = order.thong_tin_chuyen_khoan;
+        return `<section class="module-panel so-card"><h2>Thanh toán</h2>${infoList([
+            ["Phương thức", esc(order.ten_pttt)],
+            ["Trạng thái", esc(order.ten_trang_thai_thanh_toan)],
+            ["Số tiền phải thu", money(p.so_tien_phai_thu ?? order.tong_thanh_toan)],
+            p.so_tien_thuc_nhan !== null && p.so_tien_thuc_nhan !== undefined && ["Số tiền đã nhận", money(p.so_tien_thuc_nhan)],
+            p.thoi_diem_thanh_toan && ["Thời điểm thanh toán", shortDate(p.thoi_diem_thanh_toan)],
+            qr && order.trang_thai_thanh_toan !== "DA_THANH_TOAN" && ["Hạn thanh toán", shortDate(qr.han_thanh_toan)],
+            ["Mã bản ghi", esc(p.ma_giao_dich || "—")],
+            isTransfer && ["Mã GD ngân hàng", esc(p.ma_giao_dich_ngan_hang || "—")],
+            ["Người ghi nhận", esc(p.ten_nhan_vien_ghi_nhan || "—")],
+            p.ghi_chu && ["Ghi chú", esc(p.ghi_chu)],
+        ])}</section>`;
+    }
+
+    function staffDelivery(order) {
+        const list = order.cac_lan_giao || [];
+        if (!list.length) return "";
+        return `<section class="module-panel so-card"><h2>Giao hàng</h2>${list.map(g => infoList([
+            ["Lần giao", `Lần ${g.lan_giao} · ${esc(g.ten_ket_qua_giao)}`],
+            ["Hình thức", esc(g.ten_hinh_thuc_giao)],
+            g.don_vi_van_chuyen && ["Đơn vị vận chuyển", esc(g.don_vi_van_chuyen)],
+            g.sdt_shipper && ["SĐT shipper", esc(g.sdt_shipper)],
+            g.ma_van_don && ["Mã vận đơn", esc(g.ma_van_don)],
+            ["Bàn giao lúc", shortDate(g.thoi_diem_ban_giao)],
+            g.thoi_diem_giao_xong && ["Giao xong lúc", shortDate(g.thoi_diem_giao_xong)],
+            g.ly_do_that_bai && ["Lý do thất bại", esc(g.ly_do_that_bai)],
+        ])).join('<hr class="so-hr">')}</section>`;
+    }
+
+    // Lịch sử dạng dòng thời gian, dùng chung WF06 và WF08.
+    // Dòng có trạng thái cũ = mới là ghi nhận thêm (kiểm tra hàng, gia hạn…), không phải đổi trạng thái:
+    // hiện ghi chú làm tiêu đề thay vì lặp lại tên trạng thái (feedback mục 10).
+    function historyCard(order, title) {
+        const items = order.lich_su_trang_thai || [];
+        const body = items.length ? `<ol class="so-timeline">${items.map(item => {
+            const note = item.trang_thai_cu && item.trang_thai_cu === item.trang_thai;
+            const who = item.ten_nhan_vien ? `Nhân viên ${item.ten_nhan_vien}` : item.ten_tac_nhan;
+            const heading = note ? (item.ghi_chu || "Ghi nhận") : item.ten_trang_thai;
+            const detail = note ? who : `${who}${item.ghi_chu ? ` · ${item.ghi_chu}` : ""}`;
+            return `<li class="${note ? "is-note" : ""}"><div><strong>${esc(heading)}</strong> · ${shortDate(item.thoi_diem)}</div><small>${esc(detail)}</small></li>`;
+        }).join("")}</ol>` : '<p class="module-muted">Chưa có lịch sử.</p>';
+        return `<section class="module-panel so-card"><h2>${esc(title)}</h2>${body}</section>`;
+    }
+
+    // ---------- Cột phải: các khối thao tác ----------
+    let fieldId = 0;
+    const field = (name, label, { type = "text", required = false, value = "", note = "", attrs = "" } = {}) => {
+        const id = `so-f${++fieldId}`;
+        return `<div class="so-field"><label for="${id}">${label}</label><input id="${id}" name="${name}" type="${type}" value="${esc(value)}" ${required ? "required" : ""} ${attrs}>${note ? `<small>${note}</small>` : ""}</div>`;
+    };
+    const noteField = () => {
+        const id = `so-f${++fieldId}`;
+        return `<div class="so-field"><label for="${id}">Ghi chú</label><textarea id="${id}" name="ghi_chu" rows="3"></textarea></div>`;
+    };
+
+    // Một khối thao tác. locked = lý do khóa (chuỗi rỗng = mở). Khối khóa chỉ hiện lý do + nút mờ.
+    const actionCard = ({ no, action, title, hint = "", fields = "", button, locked = "", secondary = false }) => `
+        <form class="module-panel so-action${locked ? " is-locked" : ""}" data-action="${action}">
+            <h3>${no}. ${esc(title)}</h3>
+            ${locked ? `<p class="so-hint">${esc(locked)}</p>` : hint ? `<p class="so-hint">${hint}</p>` : ""}
+            <fieldset ${locked ? "disabled" : ""}>${locked ? "" : fields}<button class="module-button so-submit${secondary ? " secondary" : ""}" type="submit">${esc(button)}</button></fieldset>
+        </form>`;
+    const infoCard = (title, text) => `<section class="module-panel so-action"><h3>${esc(title)}</h3><p class="so-hint">${text}</p></section>`;
+
+    // UC09: mỗi dòng chọn Đủ hàng / Thiếu; ô "SL thiếu" chỉ mở khi chọn Thiếu (feedback mục 16)
+    const supplyFields = order => (order.chi_tiet || []).map(line => {
+        const short = line.ket_qua_kiem_tra === "THIEU";
+        const key = esc(line.ma_ctdh);
+        return `<div class="so-line" data-line="${key}">
+            <strong>${esc(line.ten_sp)} · ${esc(variantLabel(line))} · đặt ${line.so_luong}</strong>
+            <div class="so-radios">
+                <label><input type="radio" name="kq-${key}" value="DU" ${short ? "" : "checked"}> Đủ hàng</label>
+                <label><input type="radio" name="kq-${key}" value="THIEU" ${short ? "checked" : ""}> Thiếu</label>
+            </div>
+            <input type="number" name="thieu-${key}" min="1" max="${line.so_luong}" placeholder="SL thiếu" value="${short ? line.so_luong_thieu : ""}" ${short ? "required" : "disabled"} aria-label="Số lượng thiếu – ${esc(line.ten_sp)}">
+        </div>`;
+    }).join("");
+
+    function staffActions(order) {
+        fieldId = 0;
+        const status = order.trang_thai;
+        const cancelPending = order.trang_thai_hau_mai === "CHO_HUY";
+        const lines = order.chi_tiet || [];
+        const allOk = lines.length > 0 && lines.every(line => line.ket_qua_kiem_tra === "DU");
+        const hasShortage = lines.some(line => line.ket_qua_kiem_tra === "THIEU");
+        const isTransfer = order.ma_pttt === "PT001";
+        const paid = order.trang_thai_thanh_toan === "DA_THANH_TOAN";
+        const payment = order.giao_dich || {};
+        const mustCollect = payment.so_tien_phai_thu || order.tong_thanh_toan;
+        const now = localInputValue();
+
+        const cards = [];
+        const add = card => {
+            const cancelLock = cancelPending && LOCKED_WHEN_CANCEL[card.action]
+                ? "Tạm khóa: khách đang yêu cầu hủy đơn." : "";
+            cards.push(actionCard({ ...card, no: cards.length + 1, locked: card.locked || cancelLock }));
+        };
+
+        const supplyCard = recheck => ({
+            action: "kiem-tra-hang",
+            title: recheck ? "Kiểm tra lại cung ứng" : "Kiểm tra cung ứng",
+            hint: "Đối chiếu hàng thực tế cho từng dòng.",
+            fields: supplyFields(order) + noteField(),
+            button: "Lưu kết quả kiểm tra",
+            secondary: recheck && allOk,
+        });
+        const backorderCard = {
+            action: "cho-bo-sung", title: "Chuyển chờ bổ sung hàng",
+            hint: "Có dòng thiếu hàng. Hẹn thời điểm có hàng để báo khách.",
+            fields: field("thoi_diem_hen", "Thời điểm hẹn cung cấp", { type: "datetime-local", required: true, attrs: `min="${now}"` }) + noteField(),
+            button: "Chuyển chờ bổ sung",
+        };
+        const prepareCard = locked => ({
+            action: "bat-dau-chuan-bi", title: "Bắt đầu chuẩn bị",
+            hint: "Chuyển đơn sang Đang chuẩn bị hàng.", fields: noteField(), button: "Bắt đầu chuẩn bị", locked,
+        });
+        const transferCard = {
+            action: "ghi-nhan-thanh-toan", title: "Ghi nhận chuyển khoản",
+            hint: "Đối soát với sao kê ngân hàng khi khách chuyển khoản ngoài mã QR.",
+            fields: field("so_tien_thuc_nhan", "Số tiền thực nhận (₫)", { type: "number", required: true, value: mustCollect, attrs: 'min="1"' })
+                + field("ma_giao_dich_ngan_hang", "Mã giao dịch ngân hàng", { required: true, attrs: 'maxlength="50"' })
+                + noteField(),
+            button: "Ghi nhận đã nhận tiền",
+        };
+        const codCard = locked => ({
+            action: "thu-cod", title: "Thu tiền COD",
+            fields: field("so_tien_thuc_nhan", "Số tiền thực nhận (₫)", { type: "number", required: true, value: mustCollect, attrs: 'min="0"', note: `Điền sẵn bằng số tiền phải thu ${money(mustCollect)}.` }) + noteField(),
+            button: "Ghi nhận đã thu tiền", locked,
+        });
+
+        switch (status) {
+            case "CHO_XAC_NHAN":
+                add(supplyCard(false));
+                if (hasShortage) add(backorderCard);
+                else add({
+                    action: "xac-nhan", title: "Xác nhận đơn",
+                    hint: isTransfer ? "Đơn chuyển khoản sẽ chuyển sang Chờ thanh toán (khách có 24 giờ)." : "Đơn COD chuyển sang Đã xác nhận.",
+                    fields: noteField(), button: "Xác nhận đơn",
+                    locked: allOk ? "" : 'Mở sau khi mọi dòng "Đủ hàng". Nếu có dòng thiếu, ô này đổi thành [Chuyển chờ bổ sung] kèm thời điểm hẹn.',
+                });
+                break;
+            case "CHO_BO_SUNG":
+                add({
+                    action: "gia-han", title: "Gia hạn thời điểm bổ sung",
+                    hint: "Dùng khi hàng về trễ hơn thời điểm đã hẹn.",
+                    fields: field("thoi_diem_hen", "Thời điểm hẹn mới", { type: "datetime-local", required: true, attrs: `min="${now}"` }) + noteField(),
+                    button: "Gia hạn", secondary: true,
+                });
+                add({
+                    action: "da-du-hang", title: "Đã đủ hàng",
+                    hint: "Hàng đã về đủ: các dòng thiếu chuyển thành Đủ hàng, đơn quay lại bước trước khi chờ bổ sung.",
+                    fields: noteField(), button: "Ghi nhận đã đủ hàng",
+                });
+                break;
+            case "DA_XAC_NHAN":
+                add(prepareCard(""));
+                break;
+            case "CHO_THANH_TOAN":
+                if (paid) add(prepareCard(""));
+                else {
+                    add(transferCard);
+                    add(prepareCard("Mở sau khi khách thanh toán (qua cổng hoặc nhân viên ghi nhận ở khối trên)."));
+                }
+                break;
+            case "DANG_CHUAN_BI":
+                add(supplyCard(true));
+                if (hasShortage) add(backorderCard);
+                else add({
+                    action: "san-sang-giao", title: "Sẵn sàng giao",
+                    hint: "Hàng đã đóng gói xong, chờ bàn giao vận chuyển.",
+                    fields: noteField(), button: "Ghi nhận sẵn sàng giao",
+                    locked: allOk ? "" : 'Mở sau khi mọi dòng "Đủ hàng".',
+                });
+                break;
+            case "SAN_SANG_GIAO": {
+                const suggest = order.goi_y_hinh_thuc_giao || {};
+                const options = [["XE_TAI", "Xe tải nội bộ"], ["SHIPPER", "Shipper giao nhanh"], ["DVVC", "ĐVVC TMĐT"]]
+                    .map(([value, label]) => `<option value="${value}" ${suggest.ma === value ? "selected" : ""}>${label}</option>`).join("");
+                const needCarrier = suggest.ma && suggest.ma !== "XE_TAI";
+                add({
+                    action: "ban-giao", title: "Bàn giao vận chuyển",
+                    hint: `Gợi ý theo loại khách: <strong>${esc(suggest.ten || "—")}</strong> (khách sỉ → xe tải nội bộ, khách lẻ → shipper).`,
+                    fields: `<div class="so-field"><label for="so-ship">Hình thức giao</label><select id="so-ship" name="hinh_thuc_giao" required>${options}</select></div>`
+                        + field("don_vi_van_chuyen", "Đơn vị vận chuyển", { required: needCarrier, note: "Bắt buộc với Shipper và ĐVVC; xe tải để trống." })
+                        + noteField(),
+                    button: "Bàn giao",
+                });
+                break;
+            }
+            case "DANG_GIAO":
+                add({
+                    action: "giao-thanh-cong", title: "Ghi nhận giao thành công",
+                    hint: "Giao thất bại được ghi nhận ở Hậu mãi (Module 4).",
+                    fields: field("thoi_diem_giao", "Thời điểm giao", { type: "datetime-local", attrs: `max="${now}"`, note: "Để trống = thời điểm hiện tại. Không được ở tương lai hoặc trước lúc bàn giao." }) + noteField(),
+                    button: "Giao thành công",
+                });
+                if (!isTransfer && !paid) add(codCard("Mở sau khi ghi nhận giao thành công."));
+                break;
+            case "GIAO_THANH_CONG":
+                if (!isTransfer && !paid) add(codCard(""));
+                else if (isTransfer && !paid) add(transferCard);
+                else cards.push(infoCard("Chờ hoàn thành", `Đơn đã giao và thanh toán đầy đủ. Đơn tự chuyển Hoàn thành khi khách xác nhận đã nhận hàng hoặc hết hạn ${shortDate(order.han_cua_so_doi_tra)}.`));
+                break;
+            case "HOAN_THANH":
+                cards.push(infoCard("Đơn đã hoàn thành", "Không còn thao tác vận hành. Đổi/trả (nếu có) xử lý ở Hậu mãi."));
+                break;
+            case "DA_HUY":
+                cards.push(infoCard("Đơn đã hủy", "Không còn thao tác vận hành."));
+                break;
+            default:
+                cards.push(infoCard("Không có thao tác", "Không có thao tác vận hành ở trạng thái hiện tại."));
+        }
+
+        // Đính chính: chỉ đơn chuyển khoản đã ghi nhận tiền, trước khi bàn giao, không có yêu cầu hủy (feedback mục 25)
+        if (isTransfer && paid && !cancelPending && CORRECTION_STATUSES.includes(status)) {
+            cards.push(`<details class="module-panel so-action so-correction"><summary>Đính chính ghi nhận thanh toán</summary>
+                <form data-action="ghi-nhan-thanh-toan"><fieldset>
+                    ${field("so_tien_thuc_nhan", "Số tiền thực nhận (₫)", { type: "number", required: true, value: payment.so_tien_thuc_nhan ?? "", attrs: 'min="1"' })}
+                    ${field("ma_giao_dich_ngan_hang", "Mã giao dịch ngân hàng", { required: true, value: payment.ma_giao_dich_ngan_hang || "", attrs: 'maxlength="50"' })}
+                    ${field("ly_do_dieu_chinh", "Lý do đính chính", { required: true, attrs: 'maxlength="120"' })}
+                    ${noteField()}
+                    <button class="module-button secondary so-submit" type="submit">Lưu đính chính</button>
+                </fieldset></form></details>`);
+        }
+        return cards.join("");
+    }
 
     async function setupStaffOrderDetail(root) {
         const status = root.querySelector("#staff-order-detail-message");
-        const content = root.querySelector("#staff-order-detail-content");
-        const load = async () => {
-            const result = await request(root.dataset.api);
-            const order = result.data;
-            const paymentRecords = renderRecordGroup("Thanh toán", order.giao_dich, [
-                ["Trạng thái", "ten_trang_thai"],
-                ["Số tiền phải thu", "so_tien_phai_thu", money],
-                ["Số tiền đã nhận", "so_tien_thuc_nhan", money],
-                ["Thời điểm thanh toán", "thoi_diem_thanh_toan", date],
-                ["Mã giao dịch", "ma_giao_dich"],
-                ["Mã giao dịch ngân hàng", "ma_giao_dich_ngan_hang"],
-                ["Nhân viên ghi nhận", "ten_nhan_vien_ghi_nhan"],
-                ["Ghi chú", "ghi_chu"]
-            ]);
-            const deliveryRecords = renderRecordGroup("Lịch sử giao hàng", order.cac_lan_giao, [
-                ["Lần giao", "lan_giao"],
-                ["Trạng thái", "ten_ket_qua_giao"],
-                ["Hình thức giao", "ten_hinh_thuc_giao"],
-                ["Đơn vị vận chuyển", "don_vi_van_chuyen"],
-                ["Mã vận đơn", "ma_van_don"],
-                ["Thời điểm bàn giao", "thoi_diem_ban_giao", date],
-                ["Thời điểm giao xong", "thoi_diem_giao_xong", date],
-                ["Lý do giao thất bại", "ly_do_that_bai"]
-            ]);
-            content.innerHTML = `
-                <section class="module-panel"><span class="module-eyebrow">${esc(order.ma_dh)} · ${date(order.ngay_dat)}</span><h2>${esc(order.ten_trang_thai_hien_thi || order.ten_trang_thai)}</h2>
-                <p><strong>Khách:</strong> ${esc(order.ten_khach_hang)} (${esc(order.ma_kh)}) · ${esc(order.ten_loai_khach)}</p>
-                <p><strong>Giao đến:</strong> ${esc(order.ho_ten_nguoi_nhan)} · ${esc(order.sdt_nguoi_nhan)} · ${esc(order.dia_chi_giao_hang)}</p>
-                <p><strong>Thanh toán:</strong> ${esc(order.ten_pttt)} / ${esc(order.ten_trang_thai_thanh_toan)} · ${money(order.tong_thanh_toan)}</p>
-                ${order.ten_trang_thai_hau_mai ? `<p class="module-alert warning"><strong>Đang có trạng thái hậu mãi:</strong> ${esc(order.ten_trang_thai_hau_mai)}</p>` : ""}
-                <h3>Dòng hàng</h3>${renderLines(order.chi_tiet, true)}
-                ${paymentRecords}
-                ${deliveryRecords}
-                <h3>Lịch sử xử lý</h3><ol>${renderStatusHistory(order.lich_su_trang_thai)}</ol>
-                ${order.trang_thai === "CHO_BO_SUNG" && order.thoi_diem_hen_cung_cap ? `<p><strong>Hẹn bổ sung:</strong> ${date(order.thoi_diem_hen_cung_cap)}</p>` : ""}
-                </section>${actionForms(order)}`;
+        const main = root.querySelector("#staff-order-main");
+        const aside = root.querySelector("#staff-order-actions");
+        const afterSalesUrl = root.dataset.afterSales || "/nhan-vien/hau-mai/";
+
+        const render = order => {
+            main.innerHTML = staffHead(order, afterSalesUrl) + staffCustomer(order) + staffLines(order)
+                + staffPayment(order) + staffDelivery(order) + historyCard(order, "Lịch sử xử lý");
+            aside.innerHTML = staffActions(order);
         };
+        const load = async () => render((await request(root.dataset.api)).data);
+
+        // Kiểm tra hàng: bật/tắt ô "SL thiếu" theo radio. Bàn giao: đơn vị vận chuyển bắt buộc khi không phải xe tải.
+        root.addEventListener("change", event => {
+            const radio = event.target.closest('.so-line input[type="radio"]');
+            if (radio) {
+                const input = radio.closest(".so-line").querySelector('input[type="number"]');
+                const short = radio.value === "THIEU";
+                input.disabled = !short;
+                input.required = short;
+                if (short) input.focus(); else input.value = "";
+            }
+            if (event.target.name === "hinh_thuc_giao") {
+                const carrier = event.target.form.querySelector('[name="don_vi_van_chuyen"]');
+                if (carrier) carrier.required = event.target.value !== "XE_TAI";
+            }
+        });
+
         root.addEventListener("submit", async event => {
-            const form = event.target.closest("[data-action]");
+            const form = event.target.closest("form[data-action]");
             if (!form) return;
             event.preventDefault();
-            const values = Object.fromEntries(new FormData(form).entries());
-            if (form.dataset.action === "kiem-tra-hang") {
-                values.ket_qua = {};
-                Object.entries(values).forEach(([key, value]) => {
-                    if (key.startsWith("thieu-")) {
-                        values.ket_qua[key.slice(6)] = Number(value);
-                        delete values[key];
-                    }
+            const action = form.dataset.action;
+            const data = Object.fromEntries(new FormData(form).entries());
+            if (action === "kiem-tra-hang") {
+                // Gửi đúng định dạng API cũ: {"ket_qua": {ma_ctdh: so_luong_thieu}}, 0 = đủ hàng
+                data.ket_qua = {};
+                form.querySelectorAll(".so-line").forEach(row => {
+                    const short = row.querySelector('input[value="THIEU"]').checked;
+                    data.ket_qua[row.dataset.line] = short ? Number(row.querySelector('input[type="number"]').value) : 0;
+                });
+                Object.keys(data).forEach(key => {
+                    if (key.startsWith("kq-") || key.startsWith("thieu-")) delete data[key];
                 });
             }
-            if (values.thoi_diem_hen || values.thoi_diem_giao) {
-                const key = values.thoi_diem_hen ? "thoi_diem_hen" : "thoi_diem_giao";
-                values[key] = new Date(values[key]).toISOString();
-            }
+            ["thoi_diem_hen", "thoi_diem_giao"].forEach(key => {
+                if (!(key in data)) return;
+                if (data[key]) data[key] = new Date(data[key]).toISOString();
+                else delete data[key]; // để trống → API dùng thời điểm hiện tại
+            });
+            if (data.so_tien_thuc_nhan !== undefined) data.so_tien_thuc_nhan = Number(data.so_tien_thuc_nhan);
+
+            const button = form.querySelector('[type="submit"]');
+            button.disabled = true;
             try {
-                const result = await request(`${root.dataset.api}${form.dataset.action}/`, "POST", values);
+                const result = await request(`${root.dataset.api}${action}/`, "POST", data);
                 message(status, result.message);
-                await load();
-            } catch (error) { message(status, error.message, true); }
+                if (result.data) render(result.data); else await load();
+            } catch (error) {
+                message(status, error.message, true);
+                button.disabled = false;
+            }
+            status.scrollIntoView({ behavior: "smooth", block: "center" });
         });
+
         try { await load(); } catch (error) { message(status, error.message, true); }
     }
 

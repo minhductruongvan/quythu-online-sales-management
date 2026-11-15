@@ -1,13 +1,17 @@
 {% extends "layouts/base_customer.html" %}
 {% load static %}
 {% block title %}Chi tiết đơn {{ ma_dh }} | Quý Thu{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}"><link rel="stylesheet" href="{% static 'css/staff-order.css' %}">{% endblock %}
 {% block content %}
-<main class="module-page" id="customer-order-detail" data-order="{{ ma_dh }}" data-api="/api/orders/{{ ma_dh }}/">
+<main class="module-page" id="customer-order-detail" data-order="{{ ma_dh }}" data-api="/api/orders/{{ ma_dh }}/" data-after-sales="{% url 'customer-after-sales' %}">
     {% csrf_token %}
     <header class="module-heading"><div><span class="module-eyebrow">THEO DÕI ĐƠN HÀNG</span><h1>Đơn {{ ma_dh }}</h1><p>Thông tin giao hàng, thanh toán và lịch sử xử lý.</p></div><a class="module-link-button secondary" href="{% url 'customer-orders-page' %}">← Đơn hàng của tôi</a></header>
     <div id="order-detail-message" role="status"></div>
-    <div id="order-detail-content" class="module-grid"><section class="module-panel module-empty">Đang tải chi tiết…</section></div>
+    {# WF06: trái = đơn hàng và việc cần làm, phải = lịch sử và hỗ trợ #}
+    <div class="so-layout so-layout--customer">
+        <div class="so-main" id="order-detail-main"><section class="module-panel module-empty">Đang tải chi tiết…</section></div>
+        <aside class="so-side" id="order-detail-side" aria-label="Lịch sử và hỗ trợ"></aside>
+    </div>
 </main>
 {% endblock %}
 {% block extra_js %}<script src="{% static 'js/storefront.js' %}" defer></script>{% endblock %}
