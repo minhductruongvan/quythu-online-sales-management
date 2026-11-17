@@ -8,7 +8,13 @@ from django.urls import reverse
 
 from customers.models import NhanVien, TaiKhoan
 from .forms import BienTheForm, DanhMucForm, SanPhamForm
-from .models import BienTheSanPham, DanhMucSanPham, HinhAnhSanPham, SanPham
+from .models import (
+    BienTheSanPham,
+    DanhMucSanPham,
+    HinhAnhSanPham,
+    LichSuGiaBienThe,
+    SanPham,
+)
 from .templatetags.money import vnd
 
 
@@ -362,6 +368,110 @@ class ProductCatalogTests(TestCase):
 			"/static/images/vi-gung.webp",
 		)
 		self.assertContains(response, "/media/products/primary.jpg")
+
+	def test_price_change_is_audited_and_rendered_with_actor_and_old_values(self):
+		self.client.force_login(self.manager)
+		url = reverse("products:quan_ly_gia", args=[self.product.ma_sp])
+
+		response = self.client.post(
+			url,
+			{
+				"ma_bien_the": self.variant.ma_bien_the,
+				"gia_ban_le": "36000",
+				"gia_ban_si": "28000",
+				"so_luong_toi_thieu_si": "8",
+			},
+		)
+
+		self.assertRedirects(response, url)
+		event = LichSuGiaBienThe.objects.get()
+		self.assertEqual(event.bien_the, self.variant)
+		self.assertEqual(event.nguoi_thuc_hien, self.manager)
+		self.assertEqual(event.gia_ban_le_cu, Decimal("35000"))
+		self.assertEqual(event.gia_ban_le_moi, Decimal("36000"))
+		self.assertEqual(event.gia_ban_si_cu, Decimal("29000"))
+		self.assertEqual(event.gia_ban_si_moi, Decimal("28000"))
+		self.assertEqual(event.so_luong_toi_thieu_si_cu, 10)
+		self.assertEqual(event.so_luong_toi_thieu_si_moi, 8)
+
+		page = self.client.get(url)
+		self.assertContains(page, "Lịch sử chỉnh sửa giá")
+		self.assertContains(page, "manager@products.test")
+		self.assertContains(page, "35.000 → 36.000")
+
+	def test_variant_edit_also_records_price_changes(self):
+		self.client.force_login(self.employee)
+		response = self.client.post(
+			reverse("products:sua_bien_the", args=[self.variant.ma_bien_the]),
+			{
+				"ma_bien_the": self.variant.ma_bien_the,
+				"huong_vi": self.variant.huong_vi,
+				"quy_cach": self.variant.quy_cach,
+				"barcode": self.variant.barcode,
+				"gia_ban_le": "36000",
+				"gia_ban_si": "28000",
+				"so_luong_toi_thieu_si": "8",
+				"trang_thai": self.variant.trang_thai,
+			},
+		)
+
+		self.assertRedirects(
+			response,
+			reverse("products:danh_sach_bien_the", args=[self.product.ma_sp]),
+		)
+		event = LichSuGiaBienThe.objects.get()
+		self.assertEqual(event.nguoi_thuc_hien, self.employee)
+		self.assertEqual(event.gia_ban_le_cu, Decimal("35000"))
+		self.assertEqual(event.gia_ban_le_moi, Decimal("36000"))
+
+	def test_unchanged_prices_do_not_create_duplicate_history(self):
+		self.client.force_login(self.manager)
+		url = reverse("products:quan_ly_gia", args=[self.product.ma_sp])
+
+		response = self.client.post(
+			url,
+			{
+				"ma_bien_the": self.variant.ma_bien_the,
+				"gia_ban_le": "35000",
+				"gia_ban_si": "29000",
+				"so_luong_toi_thieu_si": "10",
+			},
+		)
+
+		self.assertRedirects(response, url)
+		self.assertFalse(LichSuGiaBienThe.objects.exists())
+
+	def test_price_can_be_cleared_and_invalid_price_change_is_rejected(self):
+		self.client.force_login(self.manager)
+		url = reverse("products:quan_ly_gia", args=[self.product.ma_sp])
+		response = self.client.post(
+			url,
+			{
+				"ma_bien_the": self.variant.ma_bien_the,
+				"gia_ban_le": "35000",
+				"gia_ban_si": "",
+				"so_luong_toi_thieu_si": "10",
+			},
+		)
+
+		self.assertRedirects(response, url)
+		self.variant.refresh_from_db()
+		self.assertIsNone(self.variant.gia_ban_si)
+		event = LichSuGiaBienThe.objects.get()
+		self.assertEqual(event.gia_ban_si_cu, Decimal("29000"))
+		self.assertIsNone(event.gia_ban_si_moi)
+
+		response = self.client.post(
+			url,
+			{
+				"ma_bien_the": self.variant.ma_bien_the,
+				"gia_ban_le": "35000",
+				"gia_ban_si": "40000",
+				"so_luong_toi_thieu_si": "10",
+			},
+		)
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(LichSuGiaBienThe.objects.count(), 1)
 
 	def test_upload_after_deleting_an_image_uses_a_new_unique_code(self):
 		self.client.force_login(self.manager)

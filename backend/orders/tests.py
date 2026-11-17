@@ -333,10 +333,11 @@ class KiemThuTinhGia(TestCase):
         self.assertEqual(loai, LoaiGia.GIA_SI)
         self.assertEqual(thanh_tien, Decimal("400000"))
 
-    def test_khach_si_chua_du_muc_thi_gia_le(self):
+    def test_khach_si_duoc_gia_si_duoi_muc_so_luong_tham_khao(self):
         loai, don_gia, thanh_tien = DichVuTinhTien.tinh_gia_dong(self.kh_si, self.bt_si, 9)
-        self.assertEqual(loai, LoaiGia.GIA_LE)
-        self.assertEqual(thanh_tien, Decimal("450000"))
+        self.assertEqual(loai, LoaiGia.GIA_SI)
+        self.assertEqual(don_gia, Decimal("40000"))
+        self.assertEqual(thanh_tien, Decimal("360000"))
 
     def test_bien_the_khong_co_gia_si_thi_gia_le(self):
         loai, don_gia, thanh_tien = DichVuTinhTien.tinh_gia_dong(self.kh_si, self.bt_le, 100)
@@ -365,10 +366,10 @@ class KiemThuTinhGia(TestCase):
         self.assertFalse(dong_ngung["con_ban"])               # UC02-E3: bị đánh dấu
         self.assertFalse(dong_ngung["da_chon"])               # và không được chọn
 
-    def test_doi_so_luong_thi_doi_loai_gia(self):  # UC02 bước 2
+    def test_doi_so_luong_khong_lam_doi_loai_gia_cua_doi_tac(self):  # UC02 bước 2
         dong = DichVuGioHang.them_vao_gio(self.kh_si, self.bt_si, 9)
         ket_qua = DichVuTinhTien.xem_gio_hang(self.kh_si, [dong.ma_ctgh])
-        self.assertEqual(ket_qua["cac_dong"][0]["loai_gia"], LoaiGia.GIA_LE)
+        self.assertEqual(ket_qua["cac_dong"][0]["loai_gia"], LoaiGia.GIA_SI)
 
         DichVuGioHang.cap_nhat_so_luong(self.kh_si, dong.ma_ctgh, 10)
         ket_qua = DichVuTinhTien.xem_gio_hang(self.kh_si, [dong.ma_ctgh])

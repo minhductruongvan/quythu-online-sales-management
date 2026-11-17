@@ -1,12 +1,36 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static money %}
 {% block title %}Giá bán · {{ san_pham.ten_sp }} | Quý Thu{% endblock %}
 {% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}">{% endblock %}
 {% block content %}
 <main class="module-page">
-    <header class="module-heading"><div><span class="module-eyebrow">THÔNG TIN SẢN PHẨM</span><h1>Giá bán · {{ san_pham.ten_sp }}</h1><p>Giá sỉ không cao hơn giá lẻ; giá sỉ chỉ áp dụng từ số lượng tối thiểu.</p></div><a class="module-link-button secondary" href="{% url 'products:quan_ly' %}">← Sản phẩm</a></header>
-    <section class="module-card module-table-wrap"><table class="module-table"><thead><tr><th>Biến thể</th><th>Giá lẻ</th><th>Giá sỉ</th><th>Số lượng tối thiểu</th><th></th></tr></thead><tbody>
-        {% for variant in danh_sach_bien_the %}{% with form_id="gia-"|add:variant.ma_bien_the %}<tr><td>{{ variant.huong_vi }} · {{ variant.quy_cach }}<form id="{{ form_id }}" method="post">{% csrf_token %}<input type="hidden" name="ma_bien_the" value="{{ variant.ma_bien_the }}"></form></td><td><input form="{{ form_id }}" type="number" name="gia_ban_le" min="0" value="{{ variant.gia_ban_le }}" aria-label="Giá lẻ"></td><td><input form="{{ form_id }}" type="number" name="gia_ban_si" min="0" value="{{ variant.gia_ban_si|default_if_none:'' }}" aria-label="Giá sỉ"></td><td><input form="{{ form_id }}" type="number" name="so_luong_toi_thieu_si" min="1" value="{{ variant.so_luong_toi_thieu_si }}" aria-label="Số lượng tối thiểu"></td><td><button form="{{ form_id }}" class="module-button" type="submit">Cập nhật giá</button></td></tr>{% endwith %}{% empty %}<tr><td colspan="5" class="module-empty">Chưa có biến thể.</td></tr>{% endfor %}
+    <header class="module-heading"><div><span class="module-eyebrow">THÔNG TIN SẢN PHẨM</span><h1>Giá bán · {{ san_pham.ten_sp }}</h1><p>Giá bán sỉ không cao hơn giá lẻ. Đối tác đã được xác minh được áp dụng giá sỉ ở mọi số lượng; mức số lượng chỉ mang tính tham khảo.</p></div><a class="module-link-button secondary" href="{% url 'products:quan_ly' %}">← Sản phẩm</a></header>
+    <section class="module-card module-table-wrap"><table class="module-table"><thead><tr><th>Biến thể</th><th>Giá lẻ</th><th>Giá bán sỉ đối tác</th><th>Mức số lượng đặt sỉ tham khảo</th><th></th></tr></thead><tbody>
+        {% for variant in danh_sach_bien_the %}{% with form_id="gia-"|add:variant.ma_bien_the %}<tr><td>{{ variant.huong_vi }} · {{ variant.quy_cach }}<form id="{{ form_id }}" method="post">{% csrf_token %}<input type="hidden" name="ma_bien_the" value="{{ variant.ma_bien_the }}"></form></td><td><input form="{{ form_id }}" type="number" name="gia_ban_le" min="0" value="{{ variant.gia_ban_le }}" aria-label="Giá lẻ"></td><td><input form="{{ form_id }}" type="number" name="gia_ban_si" min="0" value="{{ variant.gia_ban_si|default_if_none:'' }}" aria-label="Giá bán sỉ cho đối tác"></td><td><input form="{{ form_id }}" type="number" name="so_luong_toi_thieu_si" min="1" value="{{ variant.so_luong_toi_thieu_si }}" aria-label="Mức số lượng đặt sỉ tham khảo"></td><td><button form="{{ form_id }}" class="module-button" type="submit">Cập nhật giá</button></td></tr>{% endwith %}{% empty %}<tr><td colspan="5" class="module-empty">Chưa có biến thể.</td></tr>{% endfor %}
     </tbody></table></section>
+    <section class="module-card module-table-wrap" aria-labelledby="price-history-heading">
+        <h2 id="price-history-heading">Lịch sử chỉnh sửa giá</h2>
+        <table class="module-table">
+            <thead><tr><th>Thời gian</th><th>Hàng bán sỉ</th><th>Người cập nhật</th><th>Giá lẻ (cũ → mới)</th><th>Giá sỉ (cũ → mới)</th><th>Số lượng tham khảo (cũ → mới)</th></tr></thead>
+            <tbody>
+                {% for item in lich_su_gia %}
+                <tr>
+                    <td>{{ item.thoi_gian|date:"d/m/Y H:i" }}</td>
+                    <td>{{ item.ma_bien_the }} · {{ item.ten_bien_the }}</td>
+                    <td>{% if item.nguoi_thuc_hien %}{{ item.nguoi_thuc_hien.get_full_name|default:item.nguoi_thuc_hien.email }}{% else %}—{% endif %}</td>
+                    <td>{{ item.gia_ban_le_cu|vnd }} → {{ item.gia_ban_le_moi|vnd }}</td>
+                    <td>
+                        {% if item.gia_ban_si_cu is not None %}{{ item.gia_ban_si_cu|vnd }}{% else %}Chưa thiết lập{% endif %}
+                        →
+                        {% if item.gia_ban_si_moi is not None %}{{ item.gia_ban_si_moi|vnd }}{% else %}Chưa thiết lập{% endif %}
+                    </td>
+                    <td>{{ item.so_luong_toi_thieu_si_cu }} → {{ item.so_luong_toi_thieu_si_moi }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" class="module-empty">Chưa có lần chỉnh sửa giá nào.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
 </main>
 {% endblock %}

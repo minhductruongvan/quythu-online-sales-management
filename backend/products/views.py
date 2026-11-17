@@ -1,7 +1,13 @@
 # File: backend/products/views.py
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
-from .models import SanPham, DanhMucSanPham, BienTheSanPham, HinhAnhSanPham
+from .models import (
+    SanPham,
+    DanhMucSanPham,
+    BienTheSanPham,
+    HinhAnhSanPham,
+    LichSuGiaBienThe,
+)
 from .image_assets import PRODUCT_IMAGE_ASSETS
 from .search import search_products_by_name
 from .forms import (
@@ -11,10 +17,37 @@ from .forms import (
     CapNhatGiaForm,
     DanhMucForm,
 )
+from django.db import transaction
 from django.db.models import Prefetch, Q
 from django.views.decorators.http import require_POST
 from config.decorators import role_required
 from customers.models import KhachHang, TaiKhoan
+
+
+def _ghi_lich_su_gia_bien_the(bien_the, nguoi_thuc_hien, gia_cu):
+    gia_moi = (
+        bien_the.gia_ban_le,
+        bien_the.gia_ban_si,
+        bien_the.so_luong_toi_thieu_si,
+    )
+    if gia_cu == gia_moi:
+        return False
+
+    LichSuGiaBienThe.objects.create(
+        san_pham=bien_the.san_pham,
+        bien_the=bien_the,
+        ma_bien_the=bien_the.ma_bien_the,
+        ten_bien_the=f"{bien_the.huong_vi} - {bien_the.quy_cach}",
+        nguoi_thuc_hien=nguoi_thuc_hien,
+        gia_ban_le_cu=gia_cu[0],
+        gia_ban_le_moi=gia_moi[0],
+        gia_ban_si_cu=gia_cu[1],
+        gia_ban_si_moi=gia_moi[1],
+        so_luong_toi_thieu_si_cu=gia_cu[2],
+        so_luong_toi_thieu_si_moi=gia_moi[2],
+    )
+    return True
+
 
 # ==============================================================================
 # USE CASE 1 & USE CASE 8: XEM DANH SÁCH, TÌM KIẾM & LỌC SẢN PHẨM PHÍA KHÁCH HÀNG
@@ -381,28 +414,48 @@ def sua_bien_the(request, ma_bien_the):
     san_pham = bien_the.san_pham
 
     if request.method == 'POST':
-        # Bước 2: Nhận dữ liệu cập nhật
-        form = BienTheForm(request.POST, instance=bien_the)
+        with transaction.atomic():
+            bien_the = get_object_or_404(
+                BienTheSanPham.objects.select_for_update().select_related("san_pham"),
+                ma_bien_the=ma_bien_the,
+            )
+            san_pham = bien_the.san_pham
+            gia_cu = (
+                bien_the.gia_ban_le,
+                bien_the.gia_ban_si,
+                bien_the.so_luong_toi_thieu_si,
+            )
+            form = BienTheForm(request.POST, instance=bien_the)
 
-        if form.is_valid():
-            huong_vi = form.cleaned_data.get('huong_vi')
-            quy_cach = form.cleaned_data.get('quy_cach')
+            if form.is_valid():
+                huong_vi = form.cleaned_data.get('huong_vi')
+                quy_cach = form.cleaned_data.get('quy_cach')
+                da_trung_to_hop = BienTheSanPham.objects.filter(
+                    san_pham=san_pham,
+                    huong_vi=huong_vi,
+                    quy_cach=quy_cach
+                ).exclude(ma_bien_the=ma_bien_the).exists()
 
-            # Bước 3: Kiểm tra nếu sửa trùng với một biến thể KHÁC trong cùng sản phẩm
-            da_trung_to_hop = BienTheSanPham.objects.filter(
-                san_pham=san_pham,
-                huong_vi=huong_vi,
-                quy_cach=quy_cach
-            ).exclude(ma_bien_the=ma_bien_the).exists()
-
-            if da_trung_to_hop:
-                messages.error(request, f'Tổ hợp vị "{huong_vi} - {quy_cach}" đã bị trùng với một gói bánh khác!')
+                if da_trung_to_hop:
+                    messages.error(request, f'Tổ hợp vị "{huong_vi} - {quy_cach}" đã bị trùng với một gói bánh khác!')
+                else:
+                    bien_the = form.save()
+                    gia_thay_doi = _ghi_lich_su_gia_bien_the(
+                        bien_the, request.user, gia_cu
+                    )
+                    if gia_thay_doi:
+                        messages.success(
+                            request,
+                            f'Đã cập nhật biến thể "{bien_the.ma_bien_the}" và lưu lịch sử giá.',
+                        )
+                    else:
+                        messages.success(
+                            request,
+                            f'Đã cập nhật biến thể "{bien_the.ma_bien_the}" thành công!',
+                        )
+                    return redirect('products:danh_sach_bien_the', ma_sp=san_pham.ma_sp)
             else:
-                form.save()
-                messages.success(request, f'Đã cập nhật biến thể "{bien_the.ma_bien_the}" thành công!')
-                return redirect('products:danh_sach_bien_the', ma_sp=san_pham.ma_sp)
-        else:
-            messages.error(request, 'Thông tin chưa hợp lệ, vui lòng kiểm tra lại!')
+                messages.error(request, 'Thông tin chưa hợp lệ, vui lòng kiểm tra lại!')
     else:
         # Bước 4: Mở form có sẵn dữ liệu cũ của gói bánh
         form = BienTheForm(instance=bien_the)
@@ -564,19 +617,42 @@ def quan_ly_gia(request, ma_sp):
             gia_si_moi = form.cleaned_data.get('gia_ban_si')
             sl_toi_thieu_moi = form.cleaned_data.get('so_luong_toi_thieu_si')
 
-            # Tìm đúng biến thể cần cập nhật
-            bien_the = get_object_or_404(BienTheSanPham, ma_bien_the=ma_bt)
+            with transaction.atomic():
+                bien_the = get_object_or_404(
+                    BienTheSanPham.objects.select_for_update(),
+                    ma_bien_the=ma_bt,
+                    san_pham=san_pham,
+                )
+                gia_le_cu = bien_the.gia_ban_le
+                gia_si_cu = bien_the.gia_ban_si
+                sl_toi_thieu_cu = bien_the.so_luong_toi_thieu_si
+                gia_cu = (gia_le_cu, gia_si_cu, sl_toi_thieu_cu)
+                gia_moi = (gia_le_moi, gia_si_moi, sl_toi_thieu_moi)
+                gia_thay_doi = gia_cu != gia_moi
 
-            # Gán giá trị mới
-            bien_the.gia_ban_le = gia_le_moi
-            bien_the.gia_ban_si = gia_si_moi
-            bien_the.so_luong_toi_thieu_si = sl_toi_thieu_moi
-            bien_the.save()
+                if gia_thay_doi:
+                    bien_the.gia_ban_le = gia_le_moi
+                    bien_the.gia_ban_si = gia_si_moi
+                    bien_the.so_luong_toi_thieu_si = sl_toi_thieu_moi
+                    bien_the.save(
+                        update_fields=(
+                            "gia_ban_le",
+                            "gia_ban_si",
+                            "so_luong_toi_thieu_si",
+                        )
+                    )
+                    _ghi_lich_su_gia_bien_the(
+                        bien_the, request.user, gia_cu
+                    )
 
-            messages.success(
-                request,
-                f"Đã cập nhật bảng giá mới cho gói '{bien_the.huong_vi} - {bien_the.quy_cach}' thành công!"
-            )
+            if gia_thay_doi:
+                messages.success(
+                    request,
+                    f"Đã cập nhật bảng giá và lưu lịch sử cho gói "
+                    f"'{bien_the.huong_vi} - {bien_the.quy_cach}' thành công!",
+                )
+            else:
+                messages.info(request, "Bảng giá không thay đổi; không tạo bản ghi lịch sử.")
             return redirect('products:quan_ly_gia', ma_sp=san_pham.ma_sp)
         else:
             # Nếu vi phạm quy tắc M2-BR07 (nhập giá sỉ > giá lẻ) thì báo lỗi
@@ -588,6 +664,9 @@ def quan_ly_gia(request, ma_sp):
     du_lieu = {
         'san_pham': san_pham,
         'danh_sach_bien_the': danh_sach_bien_the,
+        'lich_su_gia': LichSuGiaBienThe.objects.filter(
+            san_pham=san_pham
+        ).select_related('nguoi_thuc_hien', 'bien_the'),
     }
     return render(request, 'products/quan_ly_gia.html', du_lieu)
 

@@ -8,6 +8,7 @@
     --home-muted: #78827a;
     color: var(--home-ink);
     background: var(--home-paper);
+    overflow-x: clip;
 }
 
 .qt-home *,
@@ -75,7 +76,7 @@
     display: inline-block;
     color: var(--home-forest);
     font-size: 10px;
-    font-weight: 750;
+    font-weight: 700;
     letter-spacing: .19em;
 }
 
@@ -317,11 +318,12 @@
 }
 
 .home-benefit {
-    display: flex;
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr);
+    align-items: start;
     min-height: 75px;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 19px;
+    gap: 14px;
+    padding: 12px 18px;
     border-right: 1px solid #eee8dc;
 }
 
@@ -334,6 +336,7 @@
     width: 34px;
     height: 34px;
     flex: 0 0 34px;
+    margin-top: 3px;
     place-items: center;
     border-radius: 50%;
     color: var(--home-forest);
@@ -348,14 +351,18 @@
 
 .home-benefit strong {
     color: #34443a;
-    font-size: 10px;
-    font-weight: 700;
+    font-family: var(--qt-font-body);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
 }
 
 .home-benefit small {
     margin-top: 4px;
-    color: #8b918a;
-    font-size: 9px;
+    color: #7d857f;
+    font-family: var(--qt-font-body);
+    font-size: 14px;
+    line-height: 1.55;
 }
 
 .home-section {
@@ -538,7 +545,7 @@
     overflow-wrap: anywhere;
     font-family: var(--qt-font-body);
     font-size: 17px;
-    font-weight: 650;
+    font-weight: 600;
     line-height: 1.2;
 }
 
@@ -681,7 +688,7 @@
     color: #2b3d32;
     font-family: var(--qt-font-body);
     font-size: 14px;
-    font-weight: 650;
+    font-weight: 600;
     line-height: 1.35;
 }
 
@@ -711,7 +718,7 @@
     align-self: flex-start;
     color: var(--home-forest);
     font-size: 15px;
-    font-weight: 750;
+    font-weight: 700;
     white-space: nowrap;
 }
 
@@ -1136,6 +1143,14 @@
 .home-container {
     width: min(1320px, calc(100% - 48px));
     padding-bottom: 48px;
+}
+
+.home-hero,
+.home-benefits,
+.home-account-promo {
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
 }
 
 .home-hero-link {

@@ -669,7 +669,7 @@ button:disabled {
     align-items: center;
     gap: 12px;
     font-size: 19px;
-    font-weight: 800;
+    font-weight: 700;
     letter-spacing: 1px;
 }
 
@@ -683,7 +683,7 @@ button:disabled {
     background: var(--surface);
     color: var(--primary);
     font-size: 23px;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .auth-brand-text {
@@ -693,7 +693,7 @@ button:disabled {
 .auth-eyebrow {
     color: var(--primary);
     font-size: 11px;
-    font-weight: 800;
+    font-weight: 700;
     letter-spacing: 1.5px;
 }
 
@@ -704,7 +704,7 @@ button:disabled {
 .auth-brand-text h1 {
     font-size: 36px;
     line-height: 1.35;
-    font-weight: 800;
+    font-weight: 700;
     margin: 20px 0;
 }
 
@@ -748,7 +748,7 @@ button:disabled {
     margin: 12px 0;
     color: var(--text-primary);
     font-size: 30px;
-    font-weight: 800;
+    font-weight: 700;
 }
 
 .auth-heading p {

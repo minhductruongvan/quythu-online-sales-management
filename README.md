@@ -40,10 +40,10 @@ Khi chưa cấu hình SMTP trong môi trường phát triển, email và OTP đ�
 
 ## Luồng sử dụng
 
-- Tài khoản đăng ký mới mặc định là khách lẻ; nhân viên hoặc quản lý phân loại khách sỉ sau khi xác minh. Giá sỉ chỉ áp dụng khi đạt số lượng tối thiểu của từng biến thể.
+- Tài khoản đăng ký mới mặc định là khách lẻ. Chỉ nhân viên hoặc quản lý sau khi xác minh hồ sơ đối tác mới phân loại khách hàng thành khách sỉ; đối tác đã xác minh được áp dụng giá bán sỉ của biến thể ở mọi số lượng. Mức số lượng bán sỉ trên sản phẩm chỉ mang tính tham khảo.
 - Khách hàng có thể xem catalog, đăng ký/đăng nhập, quản lý địa chỉ, thêm biến thể vào giỏ, đặt hàng COD hoặc chuyển khoản giả lập, theo dõi đơn và gửi yêu cầu hậu mãi.
 - Nhân viên xử lý đơn theo trạng thái, quản lý catalog, làm việc với yêu cầu hậu mãi và xem báo cáo; quản lý có các chức năng đó cùng phân quyền nhân viên và dashboard quản trị.
 - Từ cửa hàng, khách chọn sản phẩm → giỏ hàng → thanh toán → theo dõi đơn. Nhân viên xử lý đơn trong `/don-hang/`; khách tìm đơn và hỗ trợ trong khu vực tài khoản.
-- Nghiệp vụ và dữ liệu được lưu trong SQLite qua các model/migration Django hiện có; giao diện gọi API cùng dịch vụ nghiệp vụ thay vì tự tính giá hoặc tự đổi trạng thái.
+- Nghiệp vụ và dữ liệu được lưu trong SQLite qua các model/migration Django hiện có; giao diện gọi API cùng dịch vụ nghiệp vụ thay vì tự tính giá hoặc tự đổi trạng thái. Mỗi lần thay đổi giá ở M2 lưu người thực hiện, thời gian và giá trị cũ/mới.
 
 `seed_demo_catalog` thêm 10 sản phẩm với nhiều quy cách và hương vị; `seed_demo_sales` tạo thêm 8 hồ sơ khách hàng, địa chỉ, 10 đơn hàng ở các trạng thái khác nhau, lịch sử trạng thái minh họa và một yêu cầu hủy mẫu gắn với tài khoản khách hàng mẫu. Các lệnh chỉ chạy khi `DEBUG=True`, có thể chạy lặp lại và không ghi đè các bản ghi đã tồn tại. Người dùng mới có thể tự đăng ký trực tiếp trên website.

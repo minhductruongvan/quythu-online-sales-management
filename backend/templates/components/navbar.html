@@ -10,18 +10,10 @@
 
         <div>
             <span class="topbar-label">{% if request.user.vai_tro == "MANAGER" %}KHÔNG GIAN QUẢN LÝ{% else %}KHÔNG GIAN NHÂN VIÊN{% endif %}</span>
-            <h6>Quản lý bán hàng trực tuyến</h6>
         </div>
     </div>
 
     <div class="topbar-right">
-
-
-        <div class="topbar-date">
-            <span>●</span> {% if request.user.vai_tro == "MANAGER" %}Không gian quản lý{% else %}Không gian nhân viên{% endif %}
-        </div>
-
-
         <div class="topbar-profile">
             <div class="profile-avatar">
                 {% if request.user.is_authenticated %}

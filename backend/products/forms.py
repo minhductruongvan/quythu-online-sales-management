@@ -109,8 +109,8 @@ class BienTheForm(forms.ModelForm):
             'ma_bien_the': 'Mã biến thể (Ví dụ: BT001, BT002)',
             'barcode': 'Mã vạch bao bì (EAN-13 gồm 13 số)',
             'gia_ban_le': 'Giá bán lẻ niêm yết (VNĐ)',
-            'gia_ban_si': 'Giá bán sỉ cho đại lý (VNĐ)',
-            'so_luong_toi_thieu_si': 'Số lượng gói tối thiểu để được giá sỉ',
+            'gia_ban_si': 'Giá bán sỉ cho đối tác (VNĐ)',
+            'so_luong_toi_thieu_si': 'Mức số lượng đặt sỉ tham khảo',
         }
 
         # Giao diện ô nhập liệu Bootstrap đẹp và dễ nhìn
@@ -147,9 +147,9 @@ class BienTheForm(forms.ModelForm):
             if gia_si > gia_le:
                 self.add_error('gia_ban_si', 'Quy tắc M2-BR07: Giá bán sỉ phải nhỏ hơn hoặc bằng giá bán lẻ!')
 
-        # Quy tắc M2-BR07: Số lượng tối thiểu hưởng giá sỉ phải từ 1 trở lên
+        # Mức số lượng tham khảo phải là số nguyên dương.
         if so_luong_si is not None and so_luong_si < 1:
-            self.add_error('so_luong_toi_thieu_si', 'Số lượng tối thiểu hưởng giá sỉ phải là số nguyên từ 1 trở lên!')
+            self.add_error('so_luong_toi_thieu_si', 'Mức số lượng đặt sỉ tham khảo phải từ 1 gói trở lên!')
 
         return cleaned_data
 
@@ -221,6 +221,7 @@ class CapNhatGiaForm(forms.Form):
     gia_ban_si = forms.DecimalField(
         max_digits=15,
         decimal_places=0,
+        required=False,
         min_value=0,
         label="Giá bán sỉ mới (VNĐ)",
         widget=forms.NumberInput(attrs={
@@ -231,10 +232,10 @@ class CapNhatGiaForm(forms.Form):
         })
     )
 
-    # 4. Ô nhập số lượng tối thiểu để được giá sỉ
+    # 4. Mức số lượng tham khảo cho đơn hàng bán sỉ
     so_luong_toi_thieu_si = forms.IntegerField(
         min_value=1,
-        label="Số lượng tối thiểu hưởng giá sỉ",
+        label="Mức số lượng đặt sỉ tham khảo",
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
             'placeholder': 'Ví dụ: 10',
@@ -257,11 +258,11 @@ class CapNhatGiaForm(forms.Form):
                     'Giá bán sỉ không được lớn hơn giá bán lẻ!'
                 )
 
-        # Kiểm tra quy tắc M2-BR07: Số lượng tối thiểu >= 1
+        # Mức số lượng tham khảo phải từ một gói trở lên.
         if so_luong_toi_thieu is not None and so_luong_toi_thieu < 1:
             self.add_error(
                 'so_luong_toi_thieu_si',
-                'Số lượng tối thiểu hưởng giá sỉ phải từ 1 gói trở lên!'
+                'Mức số lượng đặt sỉ tham khảo phải từ 1 gói trở lên!'
             )
 
         return cleaned_data

@@ -170,7 +170,8 @@ class IntegratedActorPagesTests(TestCase):
         customer.loai_khach_hang = wholesale_type
         customer.save(update_fields=["loai_khach_hang"])
         wholesale_page = self.client.get("/products/chi-tiet/UISP010/")
-        self.assertContains(wholesale_page, "Giá sỉ")
+        self.assertContains(wholesale_page, "Giá bán sỉ đối tác")
+        self.assertContains(wholesale_page, "được xác minh")
 
         self.client.force_login(self.manager_account)
         manager_page = self.client.get("/products/chi-tiet/UISP010/")

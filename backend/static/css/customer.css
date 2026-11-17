@@ -47,7 +47,7 @@
     gap: 11px;
     color: var(--customer-dark);
     font-size: 17px;
-    font-weight: 800;
+    font-weight: 700;
     letter-spacing: 1px;
     text-decoration: none;
 }
@@ -422,7 +422,7 @@
 
 .qt-action-text strong {
     font-size: 12px;
-    font-weight: 650;
+    font-weight: 600;
 }
 
 /* NAVIGATION */

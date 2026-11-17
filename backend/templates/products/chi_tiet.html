@@ -43,7 +43,7 @@
             <p class="product-detail-description">{{ san_pham.mo_ta|default:"Đặc sản Quý Thu với hương vị truyền thống, phù hợp để thưởng thức hoặc làm quà tặng." }}</p>
 
             {% if la_khach_si %}
-            <div class="module-alert success product-wholesale-note">Tài khoản khách sỉ của bạn được áp dụng giá sỉ theo khối lượng và số lượng tối thiểu.</div>
+            <div class="module-alert success product-wholesale-note">Tài khoản đối tác của bạn đã được xác minh. Giá bán sỉ áp dụng cho mọi số lượng nếu phiên bản có thiết lập giá sỉ.</div>
             {% endif %}
 
             {% if danh_sach_bien_the %}
@@ -53,8 +53,8 @@
                 <strong id="product-retail-price" aria-live="polite">{{ variant.gia_ban_le|vnd }} ₫</strong>
                 {% if la_khach_si %}
                 <p id="product-wholesale-line" {% if not variant.gia_ban_si %}hidden{% endif %}>
-                    Giá sỉ <strong id="product-wholesale-price">{% if variant.gia_ban_si %}{{ variant.gia_ban_si|vnd }} ₫{% endif %}</strong>
-                    <span>· tối thiểu <span id="product-wholesale-min">{{ variant.so_luong_toi_thieu_si }}</span> gói</span>
+                    Giá bán sỉ đối tác <strong id="product-wholesale-price">{% if variant.gia_ban_si %}{{ variant.gia_ban_si|vnd }} ₫{% endif %}</strong>
+                    <span>· số lượng tham khảo <span id="product-wholesale-min">{{ variant.so_luong_toi_thieu_si }}</span> gói</span>
                 </p>
                 {% endif %}
             </div>
@@ -153,7 +153,7 @@
                         <span class="product-variant-price-label">Giá bán lẻ</span>
                         <strong class="product-variant-price" data-product-variant-price>{{ variant.gia_ban_le|vnd }} ₫</strong>
                         {% if la_khach_si and variant.gia_ban_si %}
-                        <span class="product-variant-wholesale">Giá sỉ: <strong data-product-variant-wholesale-price>{{ variant.gia_ban_si|vnd }} ₫</strong>{% if variant.so_luong_toi_thieu_si %}, từ {{ variant.so_luong_toi_thieu_si }} gói{% endif %}</span>
+                        <span class="product-variant-wholesale">Giá bán sỉ đối tác: <strong data-product-variant-wholesale-price>{{ variant.gia_ban_si|vnd }} ₫</strong> · số lượng tham khảo {{ variant.so_luong_toi_thieu_si }} gói</span>
                         {% endif %}
                     </button>
                     {% endfor %}

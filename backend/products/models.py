@@ -109,8 +109,8 @@ class BienTheSanPham(models.Model):
     # Giá bán sỉ
     gia_ban_si = models.DecimalField(max_digits=15, decimal_places=0, blank=True, null=True, verbose_name="Giá bán sỉ")
 
-    # Số lượng tối thiểu để được giá sỉ
-    so_luong_toi_thieu_si = models.IntegerField(default=10, verbose_name="Số lượng tối thiểu hưởng giá sỉ")
+    # Mức tham khảo, không phải điều kiện áp dụng giá cho đối tác bán sỉ.
+    so_luong_toi_thieu_si = models.IntegerField(default=10, verbose_name="Mức số lượng đặt sỉ tham khảo")
 
     # Trạng thái: ACTIVE (còn bán) hoặc INACTIVE (ngừng bán)
     trang_thai = models.CharField(max_length=20, default='ACTIVE', verbose_name="Trạng thái")
@@ -124,6 +124,51 @@ class BienTheSanPham(models.Model):
 
     def __str__(self):
         return self.san_pham.ten_sp + " - " + self.huong_vi + " (" + self.quy_cach + ")"
+
+
+class LichSuGiaBienThe(models.Model):
+    san_pham = models.ForeignKey(
+        SanPham,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="lich_su_gia",
+        verbose_name="Sản phẩm",
+    )
+    bien_the = models.ForeignKey(
+        BienTheSanPham,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="lich_su_gia",
+        verbose_name="Biến thể",
+    )
+    ma_bien_the = models.CharField(max_length=10, verbose_name="Mã biến thể")
+    ten_bien_the = models.CharField(max_length=120, verbose_name="Tên biến thể")
+    nguoi_thuc_hien = models.ForeignKey(
+        "customers.TaiKhoan",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="lich_su_gia_san_pham",
+        verbose_name="Người cập nhật",
+    )
+    gia_ban_le_cu = models.DecimalField(max_digits=15, decimal_places=0)
+    gia_ban_le_moi = models.DecimalField(max_digits=15, decimal_places=0)
+    gia_ban_si_cu = models.DecimalField(max_digits=15, decimal_places=0, null=True, blank=True)
+    gia_ban_si_moi = models.DecimalField(max_digits=15, decimal_places=0, null=True, blank=True)
+    so_luong_toi_thieu_si_cu = models.IntegerField()
+    so_luong_toi_thieu_si_moi = models.IntegerField()
+    thoi_gian = models.DateTimeField(auto_now_add=True, verbose_name="Thời gian cập nhật")
+
+    class Meta:
+        db_table = "LICHSU_GIA_BIENTHE"
+        ordering = ["-thoi_gian", "-pk"]
+        verbose_name = "Lịch sử giá biến thể"
+        verbose_name_plural = "Lịch sử giá biến thể"
+
+    def __str__(self):
+        return f"{self.ma_bien_the} - {self.thoi_gian:%Y-%m-%d %H:%M}"
 
 
 # ==========================================================

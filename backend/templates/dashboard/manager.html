@@ -4,7 +4,6 @@
 
 {% block extra_css %}
 <style>
-    .manager-hero { background:linear-gradient(120deg,#102d25,#24543d 70%,#9a7941); color:#fff; border-radius:18px; padding:30px; }
     .manager-stat { background:#fff; border:1px solid #e8edf3; border-radius:14px; padding:20px; box-shadow:0 6px 22px rgba(30,45,70,.05); height:100%; }
     .manager-stat span { display:block; color:#64748b; font-size:.88rem; }
     .manager-stat strong { display:block; color:#172554; font-size:1.9rem; margin:.25rem 0; }
@@ -13,12 +12,6 @@
 
 {% block content %}
 <div class="container-fluid py-3 m1-admin-page">
-    <section class="manager-hero mb-4">
-        <div class="text-uppercase small opacity-75">Quản lý · Điều hành cửa hàng</div>
-        <h1 class="h3 fw-bold mt-2">Xin chào, {{ request.user.email }}</h1>
-        <p class="mb-0 opacity-75">Theo dõi hiệu quả cửa hàng, quản trị nhân sự và hoạt động kinh doanh.</p>
-    </section>
-
     <div class="row g-3 mb-4">
         <div class="col-sm-6 col-xl-3"><div class="manager-stat"><span>Tổng khách hàng</span><strong>{{ total_customers }}</strong><small class="text-muted">Tất cả hồ sơ</small></div></div>
         <div class="col-sm-6 col-xl-3"><div class="manager-stat"><span>Đang hoạt động</span><strong>{{ active_customers }}</strong><small class="text-muted">Khách hàng hiện hoạt</small></div></div>

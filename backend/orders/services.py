@@ -353,7 +353,7 @@ class DichVuDiaChiGiaoHang:
 #    Quy tắc: M3-BR02 (loại khách), M3-BR04 (giá sỉ theo từng dòng),
 #    M3-BR06 (thành tiền = tiền hàng + phí). Giá luôn tính ở máy chủ.
 # ==========================================================
-MA_LOAI_KHACH_SI = "LKH002"  # Khách tự chọn khi đăng ký; quản lý cũng có thể cập nhật.
+MA_LOAI_KHACH_SI = "LKH002"  # Chỉ nhân viên/quản lý xác minh mới được phân loại khách sỉ.
 
 
 class DichVuTinhTien:
@@ -361,20 +361,19 @@ class DichVuTinhTien:
     # ---------- Giá của một dòng ----------
     @staticmethod
     def la_khach_si(khach_hang):
-        """Khách sỉ được phân loại khi đăng ký hoặc khi hồ sơ được cập nhật."""
+        """Tài khoản chỉ mang loại khách sỉ sau khi nhân viên xác minh đối tác."""
         return khach_hang.loai_khach_hang_id == MA_LOAI_KHACH_SI
 
     @staticmethod
     def tinh_gia_dong(khach_hang, bien_the, so_luong):
         """
         M3-BR04: trả về (loai_gia, don_gia, thanh_tien) cho MỘT dòng.
-        Giá sỉ khi đủ cả ba điều kiện: khách sỉ, biến thể có giá sỉ,
-        số lượng đạt mức tối thiểu của biến thể. Thiếu một điều kiện -> giá lẻ.
+        Đối tác đã được xác minh nhận giá sỉ ở mọi số lượng nếu biến thể có giá sỉ.
+        Mức số lượng trên biến thể chỉ để tham khảo, không quyết định loại giá.
         """
         dung_gia_si = (
             DichVuTinhTien.la_khach_si(khach_hang)
             and bien_the.gia_ban_si is not None
-            and so_luong >= bien_the.so_luong_toi_thieu_si
         )
 
         if dung_gia_si:

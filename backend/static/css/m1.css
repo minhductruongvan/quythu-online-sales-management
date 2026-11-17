@@ -283,7 +283,7 @@
     margin: 3px 0 0;
     color: #2b3932;
     font-size: 13px;
-    font-weight: 650;
+    font-weight: 600;
 }
 
 .topbar-date {
@@ -412,11 +412,6 @@
     .app-footer {
         padding: 12px 16px;
     }
-}
-
-.m1-admin-page .manager-hero h1,
-.m1-admin-page .dashboard-hero h1 {
-    color: #fff;
 }
 
 .m1-admin-page {
@@ -575,29 +570,6 @@
 .m1-admin-page .btn-outline-secondary,
 .m1-admin-page .btn-outline-dark {
     border-color: #d4ddd7;
-}
-
-.m1-admin-page .dashboard-hero,
-.m1-admin-page .manager-hero {
-    position: relative;
-    overflow: hidden;
-    border: 1px solid rgba(201, 177, 127, .35);
-    border-radius: 18px;
-    background: linear-gradient(120deg, #203b35, #294a40);
-    box-shadow: 0 12px 30px rgba(32, 59, 53, .13);
-}
-
-.m1-admin-page .dashboard-hero::after,
-.m1-admin-page .manager-hero::after {
-    position: absolute;
-    right: -42px;
-    bottom: -96px;
-    width: 250px;
-    height: 250px;
-    border: 1px solid rgba(224, 202, 158, .22);
-    border-radius: 50%;
-    content: "";
-    pointer-events: none;
 }
 
 .m1-admin-page .dashboard-stat,
@@ -869,13 +841,6 @@
 .qt-storefront .qt-logout-button:hover {
     color: #fff;
     background: #203b35;
-}
-
-.m1-admin-page .dashboard-hero p,
-.m1-admin-page .manager-hero p,
-.m1-admin-page .dashboard-hero .text-uppercase,
-.m1-admin-page .manager-hero .text-uppercase {
-    color: rgba(255, 255, 255, .82);
 }
 
 @media (max-width: 768px) {

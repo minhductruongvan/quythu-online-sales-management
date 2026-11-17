@@ -8,7 +8,7 @@
     .m1-card { background:#fff; border:1px solid #e8edf3; border-radius:14px; box-shadow:0 6px 24px rgba(30,45,70,.05); }
     .m1-label { color:#64748b; font-size:.82rem; margin-bottom:.35rem; }
     .m1-value { font-weight:600; overflow-wrap:anywhere; }
-    .m1-section-title { font-weight:750; color:#1e293b; }
+    .m1-section-title { font-weight:700; color:#1e293b; }
     .m1-timeline { border-left:2px solid #e2e8f0; margin-left:.45rem; padding-left:1.2rem; }
     .m1-timeline-item { position:relative; padding-bottom:1.25rem; }
     .m1-timeline-item::before { content:""; position:absolute; width:10px; height:10px; border-radius:50%; background:#4f6bed; left:-1.58rem; top:.35rem; }
@@ -62,6 +62,7 @@
                                 <option value="{{ type.ten_loai_kh }}" {% if type.pk == customer.loai_khach_hang_id %}selected{% endif %}>{{ type.ten_loai_kh }}</option>
                                 {% endfor %}
                             </select>
+                            <small class="form-text text-muted">Khách sỉ là đối tác đã được nhân viên/quản lý xác minh.</small>
                         </div>
                     </div>
                     <div class="text-end mt-4">
