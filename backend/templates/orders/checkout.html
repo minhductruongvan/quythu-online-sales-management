@@ -20,7 +20,7 @@
             <h2>Phương thức thanh toán</h2><div id="checkout-payments" class="module-form-grid"></div>
             <h2>Đơn hàng</h2><div id="checkout-items"></div>
         </section>
-        <aside class="module-panel"><span class="module-eyebrow">TÓM TẮT</span><div class="module-summary"><span>Tiền hàng</span><strong id="checkout-subtotal">—</strong></div><div class="module-summary"><span>Phí giao hàng</span><strong id="checkout-shipping">—</strong></div><hr><div class="module-summary"><span class="module-total">Tổng thanh toán</span><strong class="module-total" id="checkout-total">—</strong></div><button id="place-order-button" class="module-button" type="button" style="width:100%;margin-top:18px" disabled>Đặt hàng</button><p class="module-muted" style="margin-top:12px">Tổng tiền sẽ được xác nhận lại từ dữ liệu hệ thống khi đặt hàng.</p></aside>
+        <aside class="module-panel"><div class="module-summary"><span>Tiền hàng</span><strong id="checkout-subtotal">—</strong></div><div class="module-summary"><span>Phí giao hàng</span><strong id="checkout-shipping">—</strong></div><hr><div class="module-summary"><span class="module-total">Tổng thanh toán</span><strong class="module-total" id="checkout-total">—</strong></div><button id="place-order-button" class="module-button" type="button" style="width:100%;margin-top:18px" disabled>Đặt hàng</button><p class="module-muted" style="margin-top:12px">Tổng tiền sẽ được xác nhận lại từ dữ liệu hệ thống khi đặt hàng.</p></aside>
     </div>
     <dialog class="checkout-address-dialog" id="checkout-address-dialog" aria-labelledby="checkout-address-title">
         <form id="checkout-address-form" class="module-panel" novalidate>
@@ -46,4 +46,4 @@
     </dialog>
 </main>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/storefront.js' %}?v=2" defer></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/storefront.js' %}?v=3" defer></script>{% endblock %}

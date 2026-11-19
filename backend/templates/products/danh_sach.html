@@ -1,7 +1,7 @@
 {% extends "layouts/base_customer.html" %}
 {% load static money %}
 {% block title %}Danh mục sản phẩm | Quý Thu{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}?v=4">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}?v=7">{% endblock %}
 {% block content %}
 <main class="module-page product-catalog">
     <nav class="product-breadcrumb" aria-label="Đường dẫn">
@@ -10,7 +10,6 @@
 
     <header class="catalog-heading">
         <div>
-            <span class="module-eyebrow">CỬA HÀNG QUÝ THU</span>
             <h1>Danh mục sản phẩm</h1>
             <p>Khám phá các món đặc sản được tuyển chọn từ Quý Thu.</p>
         </div>
@@ -91,6 +90,7 @@
                         </a>
                         <div class="catalog-card-body">
                             <span class="catalog-category">{{ product.danh_muc.ten_dm }}</span>
+                            <span class="catalog-product-code">{{ product.ma_sp }}</span>
                             <div class="catalog-card-title-row">
                                 <h3><a href="{% url 'products:chi_tiet' product.ma_sp %}">{{ product.ten_sp }}</a></h3>
                                     <span class="catalog-card-price"><strong>{{ product.lay_gia_thap_nhat|vnd }} ₫</strong></span>

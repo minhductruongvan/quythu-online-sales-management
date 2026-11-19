@@ -68,6 +68,8 @@
         const checkout = root.querySelector("#checkout-button");
         const selectAll = root.querySelector("#cart-select-all");
         const selectedCount = root.querySelector("#cart-selected-count");
+        const tablePanel = root.querySelector("#cart-items-panel");
+        const emptyState = root.querySelector("#cart-empty-state");
         const selected = new Set();
         let cart = { cac_dong: [], tam_tinh: 0 };
 
@@ -79,15 +81,17 @@
                 cart.cac_dong.filter(line => line.da_chon).forEach(line => selected.add(line.ma_ctgh));
             }
             const selectable = cart.cac_dong.filter(line => line.con_ban);
+            tablePanel.hidden = !cart.cac_dong.length;
+            emptyState.hidden = Boolean(cart.cac_dong.length);
             rows.innerHTML = cart.cac_dong.length ? cart.cac_dong.map(line => `
                 <tr>
                     <td><input type="checkbox" data-select="${esc(line.ma_ctgh)}" ${line.da_chon || selected.has(line.ma_ctgh) ? "checked" : ""} ${line.con_ban ? "" : "disabled"} aria-label="Chọn ${esc(line.ten_sp)}"></td>
                     <td>${productCell(line)}${line.con_ban ? "" : '<span class="module-pill danger">Ngừng kinh doanh</span>'}</td>
-                    <td>${money(line.don_gia)}<br><small>${esc(line.ten_loai_gia)}</small></td>
+                    <td>${money(line.don_gia)}</td>
                     <td class="cart-qty"><form class="module-inline-form" data-update="${esc(line.ma_ctgh)}"><button class="module-button secondary" type="button" data-step="-1" aria-label="Giảm số lượng">−</button><input type="number" min="1" name="so_luong" value="${line.so_luong}" data-current="${line.so_luong}" aria-label="Số lượng"><button class="module-button secondary" type="button" data-step="1" aria-label="Tăng số lượng">+</button></form></td>
                     <td><strong>${money(line.thanh_tien)}</strong></td>
                     <td><button class="module-button danger" type="button" data-delete="${esc(line.ma_ctgh)}">Xóa</button></td>
-                </tr>`).join("") : '<tr><td colspan="6" class="module-empty">Giỏ hàng đang trống. Khám phá các sản phẩm Quý Thu để bắt đầu.</td></tr>';
+                </tr>`).join("") : "";
             total.textContent = money(cart.tam_tinh);
             selectedCount.textContent = String(selected.size);
             selectAll.disabled = !selectable.length;
@@ -178,50 +182,68 @@
                 const option = picker.selectedOptions[0];
                 if (!option) return;
 
-                const retailPrice = root.querySelector("#product-retail-price");
-                const wholesaleLine = root.querySelector("#product-wholesale-line");
-                const wholesalePrice = root.querySelector("#product-wholesale-price");
-                const wholesaleMinimum = root.querySelector("#product-wholesale-min");
+                const price = root.querySelector("#product-price");
                 const selectedVariant = root.querySelector("[data-selected-variant]");
+                const isWholesaleCustomer = root.dataset.wholesaleCustomer === "true";
+                const appliedPrice = (retailPrice, wholesalePrice) =>
+                    isWholesaleCustomer && wholesalePrice ? wholesalePrice : retailPrice;
 
-                if (retailPrice) retailPrice.textContent = money(option.dataset.retailPrice);
-                if (selectedVariant) selectedVariant.value = option.value;
-                root.querySelectorAll("[data-product-variant-select]").forEach(card => {
-                    card.setAttribute(
-                        "aria-pressed",
-                        String(card.dataset.productVariantSelect === option.value),
+                if (price) {
+                    price.textContent = money(
+                        appliedPrice(option.dataset.retailPrice, option.dataset.wholesalePrice),
                     );
-                    const cardRetailPrice = card.querySelector("[data-product-variant-price]");
-                    const cardWholesalePrice = card.querySelector("[data-product-variant-wholesale-price]");
-                    if (cardRetailPrice) {
-                        cardRetailPrice.textContent = money(card.dataset.productRetailPrice);
-                    }
-                    if (cardWholesalePrice) {
-                        cardWholesalePrice.textContent = money(card.dataset.productWholesalePrice);
-                    }
-                });
-                if (wholesaleLine) {
-                    const hasWholesalePrice = Boolean(option.dataset.wholesalePrice);
-                    wholesaleLine.hidden = !hasWholesalePrice;
-                    if (wholesalePrice) {
-                        wholesalePrice.textContent = hasWholesalePrice
-                            ? money(option.dataset.wholesalePrice)
-                            : "";
-                    }
-                    if (wholesaleMinimum) {
-                        wholesaleMinimum.textContent = option.dataset.wholesaleMin || "";
-                    }
                 }
+                if (selectedVariant) selectedVariant.value = option.value;
             };
 
             picker.addEventListener("change", update);
-            root.querySelectorAll("[data-product-variant-select]").forEach(card => {
-                card.addEventListener("click", () => {
-                    picker.value = card.dataset.productVariantSelect;
-                    picker.dispatchEvent(new Event("change", { bubbles: true }));
-                });
+            root.addEventListener("click", event => {
+                const stepButton = event.target.closest("[data-quantity-step]");
+                const quantity = root.querySelector("#product-quantity");
+                if (!stepButton || !quantity) return;
+                const minimum = Number(quantity.min) || 1;
+                const current = Number(quantity.value) || minimum;
+                quantity.value = String(Math.max(minimum, current + Number(stepButton.dataset.quantityStep)));
             });
             update();
+        });
+    }
+
+    function setupProductInformationTabs() {
+        document.querySelectorAll("[data-product-information-tabs]").forEach(tabList => {
+            const root = tabList.closest(".product-information");
+            if (!root) return;
+
+            const tabs = [...tabList.querySelectorAll("[data-product-info-tab]")];
+            const panels = [...root.querySelectorAll("[data-product-info-panel]")];
+            const activate = (tab, focus = false) => {
+                tabs.forEach(candidate => {
+                    const selected = candidate === tab;
+                    candidate.setAttribute("aria-selected", String(selected));
+                    candidate.tabIndex = selected ? 0 : -1;
+                });
+                panels.forEach(panel => {
+                    panel.hidden = panel.id !== tab.getAttribute("aria-controls");
+                });
+                if (focus) tab.focus();
+            };
+
+            tabs.forEach((tab, index) => {
+                tab.addEventListener("click", () => activate(tab));
+                tab.addEventListener("keydown", event => {
+                    let nextIndex;
+                    if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
+                    else if (event.key === "ArrowLeft") nextIndex = (index - 1 + tabs.length) % tabs.length;
+                    else if (event.key === "Home") nextIndex = 0;
+                    else if (event.key === "End") nextIndex = tabs.length - 1;
+                    else return;
+                    event.preventDefault();
+                    activate(tabs[nextIndex], true);
+                });
+            });
+
+            const initiallySelected = tabs.find(tab => tab.getAttribute("aria-selected") === "true") || tabs[0];
+            if (initiallySelected) activate(initiallySelected);
         });
     }
 
@@ -275,7 +297,7 @@
 
             const lines = orderData.cac_dong || [];
             root.querySelector("#checkout-items").innerHTML = `<div class="module-table-wrap"><table class="module-table checkout-lines"><thead><tr><th>Sản phẩm</th><th>Đơn giá</th><th class="num">SL</th><th class="num">Thành tiền</th></tr></thead><tbody>
-                ${lines.map(line => `<tr><td>${productCell(line)}</td><td>${money(line.don_gia)}<br><small>${esc(line.ten_loai_gia)}</small></td><td class="num">${line.so_luong}</td><td class="num"><strong>${money(line.thanh_tien)}</strong></td></tr>`).join("")}
+                ${lines.map(line => `<tr><td>${productCell(line)}</td><td>${money(line.don_gia)}</td><td class="num">${line.so_luong}</td><td class="num"><strong>${money(line.thanh_tien)}</strong></td></tr>`).join("")}
                 </tbody></table></div>`;
             root.querySelector("#checkout-subtotal").textContent = money(orderData.tong_tien_hang ?? orderData.tam_tinh);
             root.querySelector("#checkout-shipping").textContent = addressList.length ? money(orderData.phi_van_chuyen) : "Thêm địa chỉ để tính";
@@ -476,11 +498,11 @@
     }
 
     function customerProducts(order) {
-        return `<section class="module-panel so-card"><h2>Sản phẩm</h2>
-            <div class="module-table-wrap"><table class="module-table so-table"><thead><tr><th>Sản phẩm</th><th>Loại giá</th><th>Đơn giá</th><th class="num">SL</th><th class="num">Thành tiền</th></tr></thead><tbody>
+        return `<section class="module-panel so-card so-products-card"><h2>Sản phẩm</h2>
+            <div class="module-table-wrap"><table class="module-table so-table so-products-table"><thead><tr><th>Sản phẩm</th><th>Loại giá</th><th>Đơn giá</th><th class="num">SL</th><th class="num">Thành tiền</th></tr></thead><tbody>
             ${(order.chi_tiet || []).map(line => `<tr>
                 <td><strong>${esc(line.ten_sp)}</strong><br><span class="so-sub">${esc(variantLabel(line))}</span></td>
-                <td>${esc(line.ten_loai_gia)}</td>
+                <td>${money(line.don_gia)}</td>
                 <td>${money(line.don_gia)}</td>
                 <td class="num">${line.so_luong}</td>
                 <td class="num"><strong>${money(line.thanh_tien)}</strong></td></tr>`).join("")}
@@ -577,9 +599,9 @@
             rows.innerHTML = '<tr><td colspan="8" class="module-empty">Đang tải…</td></tr>';
             const result = await request(`${root.dataset.api}?${query}`);
             rows.innerHTML = result.data.length ? result.data.map(order => `
-                <tr><td class="nowrap"><strong>${esc(order.ma_dh)}</strong><br><small>${shortDate(order.ngay_dat)}</small></td><td>${esc(order.ten_khach_hang)}<br><small>${esc(order.ma_kh)}</small></td>
-                <td>${esc(order.ten_loai_khach)}</td><td class="nowrap">${money(order.tong_thanh_toan)}</td><td>${statusPill(order)}</td><td>${esc(order.ten_trang_thai_thanh_toan)}</td><td>${afterSalesPill(order)}</td>
-                <td class="nowrap"><a href="/don-hang/${encodeURIComponent(order.ma_dh)}/">Mở đơn →</a></td></tr>`).join("") : '<tr><td colspan="8" class="module-empty">Không có đơn phù hợp bộ lọc.</td></tr>';
+                <tr><td class="nowrap" data-label="Mã đơn"><strong>${esc(order.ma_dh)}</strong><br><small>${shortDate(order.ngay_dat)}</small></td><td data-label="Khách hàng">${esc(order.ten_khach_hang)}<br><small>${esc(order.ma_kh)}</small></td>
+                <td data-label="Loại khách">${esc(order.ten_loai_khach)}</td><td class="nowrap" data-label="Tổng tiền">${money(order.tong_thanh_toan)}</td><td data-label="Trạng thái">${statusPill(order)}</td><td data-label="Thanh toán">${esc(order.ten_trang_thai_thanh_toan)}</td><td data-label="Hậu mãi">${afterSalesPill(order)}</td>
+                <td class="nowrap" data-label="Thao tác"><a href="/don-hang/${encodeURIComponent(order.ma_dh)}/">Mở đơn →</a></td></tr>`).join("") : '<tr><td colspan="8" class="module-empty">Không có đơn phù hợp bộ lọc.</td></tr>';
             pagination.innerHTML = `<span>${result.tong_so_don} đơn hàng · Trang ${result.trang_hien_tai}/${result.so_trang}</span><div class="module-inline-form"><button class="module-button secondary" data-page="${Math.max(1, page - 1)}" ${page <= 1 ? "disabled" : ""}>← Trước</button><button class="module-button secondary" data-page="${Math.min(result.so_trang || 1, page + 1)}" ${page >= result.so_trang ? "disabled" : ""}>Tiếp →</button></div>`;
         };
         filter.addEventListener("submit", async event => {
@@ -686,7 +708,7 @@
             <div class="module-table-wrap"><table class="module-table so-table"><thead><tr><th>Sản phẩm</th><th>Đơn giá</th><th class="num">SL</th><th class="num">Thành tiền</th><th>Kiểm tra hàng</th></tr></thead><tbody>
             ${(order.chi_tiet || []).map(line => `<tr>
                 <td><strong>${esc(line.ten_sp)}</strong><br><span class="so-sub">${esc(variantLabel(line))}</span></td>
-                <td>${money(line.don_gia)}<br><small class="so-sub">${esc(line.ten_loai_gia)}</small></td>
+                <td>${money(line.don_gia)}</td>
                 <td class="num">${line.so_luong}</td>
                 <td class="num"><strong>${money(line.thanh_tien)}</strong></td>
                 <td>${check(line)}</td></tr>`).join("")}
@@ -1009,6 +1031,7 @@
         if (staffList) setupStaffOrders(staffList);
         if (staffDetail) setupStaffOrderDetail(staffDetail);
         setupProductVariantPicker();
+        setupProductInformationTabs();
         setupProductGallery();
         setupAddToCart();
     });

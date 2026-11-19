@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}Xử lý đơn {{ ma_dh }} | Quý Thu{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}"><link rel="stylesheet" href="{% static 'css/staff-order.css' %}">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}"><link rel="stylesheet" href="{% static 'css/staff-order.css' %}?v=3">{% endblock %}
 {% block content %}
 <main class="module-page" id="staff-order-detail" data-order="{{ ma_dh }}" data-api="/api/orders/staff/{{ ma_dh }}/" data-after-sales="{% url 'staff-after-sales' %}">
     {% csrf_token %}
@@ -14,4 +14,4 @@
     </div>
 </main>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/storefront.js' %}" defer></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/storefront.js' %}?v=3" defer></script>{% endblock %}

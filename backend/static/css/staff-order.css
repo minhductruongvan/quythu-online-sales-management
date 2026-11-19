@@ -5,6 +5,15 @@
    ========================================================== */
 
 /* Bố cục 2 cột: trái đọc, phải làm */
+#customer-order-detail {
+    --qt-font-display: var(--qt-font-body);
+}
+
+#customer-order-detail .module-heading,
+#customer-order-detail .module-heading p {
+    text-align: left;
+}
+
 .so-layout *,
 .so-layout *::before,
 .so-layout *::after {
@@ -225,7 +234,46 @@
 
 .so-table .num {
     text-align: right;
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
+}
+
+.so-products-table {
+    border-collapse: separate;
+    border-spacing: 0 8px;
+    table-layout: fixed;
+}
+
+.so-products-table th:nth-child(1) { width: 39%; }
+.so-products-table th:nth-child(2) { width: 15%; }
+.so-products-table th:nth-child(3) { width: 15%; }
+.so-products-table th:nth-child(4) { width: 8%; }
+.so-products-table th:nth-child(5) { width: 23%; }
+
+.so-products-table thead th {
+    border-bottom-color: rgba(32, 59, 53, .1);
+    padding-bottom: 10px;
+}
+
+.so-products-table tbody td {
+    background: rgba(255, 255, 255, .6);
+    border-top: 1px solid rgba(32, 59, 53, .12);
+    border-bottom: 1px solid rgba(32, 59, 53, .12);
+    padding: 12px 10px;
+}
+
+.so-products-table tbody tr:last-child td {
+    border-bottom: 1px solid rgba(32, 59, 53, .12);
+}
+
+.so-products-table tbody td:first-child {
+    border-left: 1px solid rgba(32, 59, 53, .12);
+    border-radius: 12px 0 0 12px;
+}
+
+.so-products-table tbody td:last-child {
+    border-right: 1px solid rgba(32, 59, 53, .12);
+    border-radius: 0 12px 12px 0;
 }
 
 .so-sub {
@@ -244,7 +292,7 @@
 .so-totals {
     display: grid;
     gap: 10px 0;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: minmax(0, 1fr) minmax(120px, 45%);
     margin: 14px 0 0 auto;
     width: min(100%, 360px);
 }
@@ -254,10 +302,14 @@
 }
 
 .so-totals dd {
+    box-sizing: border-box;
     font-weight: 700;
     margin: 0;
+    min-width: 0;
     padding-left: 24px;
     text-align: right;
+    width: 100%;
+    font-variant-numeric: tabular-nums;
 }
 
 .so-totals .grand {
@@ -495,6 +547,16 @@
 }
 
 @media (max-width: 680px) {
+    .so-products-table {
+        min-width: 560px;
+    }
+
+    .so-products-table th,
+    .so-products-table td {
+        padding-right: 7px;
+        padding-left: 7px;
+    }
+
     .so-qr-wrap {
         grid-template-columns: minmax(0, 1fr);
     }

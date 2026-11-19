@@ -1,16 +1,16 @@
 :root {
     --qt-font-body: "Be Vietnam Pro", Arial, sans-serif;
     --qt-font-display: "Playfair Display", Georgia, serif;
-    --qt-display-size: 56px;
-    --qt-h1-size: 44px;
-    --qt-h2-size: 36px;
-    --qt-h3-size: 28px;
-    --qt-h4-size: 22px;
-    --qt-h5-size: 16px;
-    --qt-body-large: 18px;
-    --qt-body-size: 16px;
-    --qt-body-small: 14px;
-    --qt-caption-size: 12px;
+    --qt-display-size: 48px;
+    --qt-h1-size: 30px;
+    --qt-h2-size: 24px;
+    --qt-h3-size: 20px;
+    --qt-h4-size: 18px;
+    --qt-h5-size: 15px;
+    --qt-body-large: 16px;
+    --qt-body-size: 15px;
+    --qt-body-small: 13px;
+    --qt-caption-size: 11px;
 }
 
 body,
@@ -34,6 +34,10 @@ body {
     word-break: normal;
     overflow-wrap: break-word;
     hyphens: manual;
+}
+
+.app-container {
+    --qt-font-display: var(--qt-font-body);
 }
 
 .app-container .main-content {
@@ -315,12 +319,36 @@ body small,
 .home-product-price,
 .qt-home .home-product-price,
 .product-price-panel strong,
-.product-variant-price,
 .module-summary > span {
     font-family: var(--qt-font-body);
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 700;
     line-height: 1.4;
+}
+
+.qt-storefront .catalog-heading h1 {
+    font-size: var(--qt-h1-size);
+}
+
+.qt-storefront .product-detail-card h1 {
+    font-size: clamp(1.25rem, 1.8vw, 1.6rem);
+}
+
+.qt-storefront .product-price-panel > strong {
+    font-size: clamp(1.25rem, 1.8vw, 1.6rem);
+}
+
+#customer-after-sales .cancel-request-heading h1 {
+    font-size: var(--qt-h1-size);
+}
+
+#customer-after-sales .module-grid > .module-panel > h2,
+#customer-after-sales > .module-panel > .module-heading h2 {
+    font-size: var(--qt-h4-size);
+}
+
+#customer-after-sales .cancel-refund-section legend {
+    font-size: var(--qt-h4-size);
 }
 
 .qt-nav-inner a,
@@ -357,15 +385,16 @@ body small,
 
 @media (max-width: 768px) {
     :root {
-        --qt-display-size: 36px;
-        --qt-h1-size: 32px;
-        --qt-h2-size: 28px;
-        --qt-h3-size: 24px;
-        --qt-h4-size: 20px;
-        --qt-h5-size: 15px;
-        --qt-body-large: 16px;
+        --qt-display-size: 32px;
+        --qt-h1-size: 26px;
+        --qt-h2-size: 22px;
+        --qt-h3-size: 19px;
+        --qt-h4-size: 17px;
+        --qt-h5-size: 14px;
+        --qt-body-large: 15px;
         --qt-body-size: 14px;
-        --qt-body-small: 13px;
+        --qt-body-small: 12px;
+        --qt-caption-size: 11px;
     }
 
     .qt-footer-logo img {
@@ -392,9 +421,8 @@ body small,
     .home-product-price,
     .qt-home .home-product-price,
     .product-price-panel strong,
-    .product-variant-price,
     .module-summary > span {
-        font-size: 18px;
+        font-size: 16px;
     }
 
     .qt-footer,
@@ -410,4 +438,69 @@ body small,
     .module-product-old-price {
         font-size: var(--qt-body-small);
     }
+}
+
+/* Keep content surfaces quiet so text and controls remain the focus. */
+.module-card,
+.module-panel,
+.module-toolbar,
+.catalog-sidebar,
+.catalog-card,
+.catalog-card:hover,
+.module-product-card,
+.module-product-card:hover,
+.home-benefits,
+.home-category-card,
+.home-category-card:hover,
+.home-product-card,
+.home-product-card:hover,
+.home-empty,
+.cart-empty-state,
+.report-toolbar,
+.report-panel,
+.report-kpi,
+.stat-card,
+.stat-card:hover,
+.dashboard-panel,
+.welcome-panel,
+.m1-admin-page .customer-stat,
+.m1-admin-page .dashboard-stat,
+.m1-admin-page .manager-stat,
+.m1-admin-page .m1-card,
+.m1-admin-page .add-customer-card,
+.m1-admin-page .import-card,
+.m1-admin-page .card,
+.m1-admin-page .customer-panel,
+.m1-admin-page .customer-toolbar,
+.m1-admin-page .add-customer-card-header,
+.qt-storefront .profile-summary-card,
+.qt-storefront .profile-card,
+.qt-storefront .profile-side-card,
+.qt-storefront .address-card,
+.qt-storefront .address-card:hover,
+.qt-storefront .purchase-stat,
+.qt-storefront .purchase-panel {
+    background: rgba(255, 255, 255, .72);
+    border-color: rgba(32, 59, 53, .12);
+    box-shadow: 0 5px 18px rgba(27, 58, 48, .04);
+}
+
+.qt-home .home-category-card,
+.qt-home .home-category-card:hover,
+.qt-home .home-category-card:nth-child(n) {
+    border: 1px solid rgba(32, 59, 53, .12);
+    background-color: rgba(255, 255, 255, .72);
+    box-shadow: 0 5px 18px rgba(27, 58, 48, .04);
+}
+
+.home-benefit,
+.so-box,
+.so-line {
+    background: transparent;
+    border-color: rgba(32, 59, 53, .1);
+    box-shadow: none;
+}
+
+.product-price-panel {
+    border-color: rgba(32, 59, 53, .1);
 }

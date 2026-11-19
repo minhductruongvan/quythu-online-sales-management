@@ -1,14 +1,22 @@
 {% extends "layouts/base_customer.html" %}
 {% load static %}
 {% block title %}Giỏ hàng | Quý Thu{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}?v=3">{% endblock %}
 {% block content %}
 <main class="module-page" id="cart-page" data-api="/api/orders/cart/">
     {% csrf_token %}
-    <header class="module-heading"><div><span class="module-eyebrow">MUA SẮM QUÝ THU</span><h1>Giỏ hàng của bạn</h1><p>Chọn các sản phẩm muốn đặt; giá và thành tiền được tính theo chính sách hiện hành.</p></div><a class="module-link-button secondary" href="{% url 'products:danh_sach' %}">← Tiếp tục mua sắm</a></header>
-    <div id="cart-message" role="status"></div>
-    <section class="module-card module-table-wrap"><table class="module-table"><thead><tr><th><label><input id="cart-select-all" type="checkbox" aria-label="Chọn tất cả sản phẩm"> Chọn</label></th><th>Sản phẩm</th><th>Đơn giá</th><th class="cart-qty">Số lượng</th><th>Thành tiền</th><th></th></tr></thead><tbody id="cart-rows"><tr><td colspan="6" class="module-empty">Đang tải giỏ hàng…</td></tr></tbody></table></section>
-    <section class="module-panel module-summary" style="margin-top:18px"><div><span class="module-muted">Đã chọn <strong id="cart-selected-count">0</strong> dòng · Tạm tính</span><div class="module-total" id="cart-total">—</div></div><button id="checkout-button" class="module-button" type="button" disabled>Tiến hành thanh toán →</button></section>
+    <header class="module-heading cart-heading"><div><span class="module-eyebrow">MUA SẮM QUÝ THU</span><h1>Giỏ hàng của bạn</h1><p>Chọn các sản phẩm muốn đặt; giá và thành tiền được tính theo chính sách hiện hành.</p></div><a class="module-link-button secondary" href="{% url 'products:danh_sach' %}">← Tiếp tục mua sắm</a></header>
+    <div id="cart-message" role="status" aria-live="polite"></div>
+    <section class="module-card module-table-wrap cart-items-panel" id="cart-items-panel"><table class="module-table"><thead><tr><th><label><input id="cart-select-all" type="checkbox" aria-label="Chọn tất cả sản phẩm"> Chọn</label></th><th>Sản phẩm</th><th>Đơn giá</th><th class="cart-qty">Số lượng</th><th>Thành tiền</th><th></th></tr></thead><tbody id="cart-rows"><tr><td colspan="6" class="module-empty">Đang tải giỏ hàng…</td></tr></tbody></table></section>
+    <section class="cart-empty-state" id="cart-empty-state" hidden>
+        <span class="cart-empty-illustration" aria-hidden="true">
+            <svg viewBox="0 0 96 72" fill="none"><path d="M22 30h52l-6 34H28l-6-34Z" fill="#E8DFC8" stroke="#9D865A" stroke-width="2"/><path d="M33 31c0-15 6-23 15-23s15 8 15 23" stroke="#9D865A" stroke-width="3"/><path d="M37 45c6 5 16 5 22 0" stroke="#315D43" stroke-width="3" stroke-linecap="round"/><circle cx="77" cy="52" r="13" fill="#F5F1E7"/><path d="M72 52h10m-5-5v10" stroke="#9D865A" stroke-width="2" stroke-linecap="round"/></svg>
+        </span>
+        <h2>Giỏ hàng của bạn đang trống</h2>
+        <p>Hãy khám phá hương vị truyền thống và các bộ quà tặng đặc sản miền Trung từ Quý Thu.</p>
+        <a class="module-button" href="{% url 'products:danh_sach' %}">Khám phá sản phẩm ngay <span aria-hidden="true">→</span></a>
+    </section>
+    <section class="module-panel module-summary cart-summary-bar"><div><span class="module-muted">Đã chọn <strong id="cart-selected-count">0</strong> dòng · Tổng cộng</span><div class="module-total" id="cart-total">—</div></div><button id="checkout-button" class="module-button" type="button" disabled>Tiến hành thanh toán →</button></section>
 </main>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/storefront.js' %}" defer></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/storefront.js' %}?v=3" defer></script>{% endblock %}

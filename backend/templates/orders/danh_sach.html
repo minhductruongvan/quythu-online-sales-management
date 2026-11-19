@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}Quản lý đơn hàng | Quý Thu{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}?v=4">{% endblock %}
 {% block content %}
 <main class="module-page" id="staff-orders-page" data-api="/api/orders/staff/">
     {% csrf_token %}
@@ -14,8 +14,8 @@
         <div><button class="module-button" type="submit">Lọc</button></div>
     </form>
     <div id="staff-orders-message" role="status"></div>
-    <section class="module-card module-table-wrap"><table class="module-table order-table"><thead><tr><th>Mã đơn</th><th>Khách hàng</th><th>Loại khách</th><th>Tổng tiền</th><th>Trạng thái</th><th>Thanh toán</th><th>Hậu mãi</th><th></th></tr></thead><tbody id="staff-order-rows"><tr><td colspan="8" class="module-empty">Đang tải đơn…</td></tr></tbody></table></section>
+    <section class="module-card module-table-wrap"><table class="module-table order-table"><thead><tr><th scope="col">Mã đơn</th><th scope="col">Khách hàng</th><th scope="col">Loại khách</th><th scope="col">Tổng tiền</th><th scope="col">Trạng thái</th><th scope="col">Thanh toán</th><th scope="col">Hậu mãi</th><th scope="col">Thao tác</th></tr></thead><tbody id="staff-order-rows"><tr><td colspan="8" class="module-empty">Đang tải đơn…</td></tr></tbody></table></section>
     <nav id="staff-order-pagination" class="module-toolbar" aria-label="Phân trang"></nav>
 </main>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/storefront.js' %}" defer></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/storefront.js' %}?v=2" defer></script>{% endblock %}

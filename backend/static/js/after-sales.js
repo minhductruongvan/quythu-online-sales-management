@@ -196,18 +196,14 @@
         const returnNote = root.querySelector("#return-note");
         const returnImages = root.querySelector("#return-images");
         const returnRefundAccount = root.querySelector("#return-refund-account");
-        const history = root.querySelector("#after-sales-history");
-        const notifications = root.querySelector("#after-sales-notifications");
         let eligibleLines = [];
         let cancelReasonOptions = [];
         let returnReasonOptions = [];
         const refresh = async () => {
-            const [ordersResult, cancelReasons, returnReasons, historyResult, notificationResult] = await Promise.all([
+            const [ordersResult, cancelReasons, returnReasons] = await Promise.all([
                 api("/api/orders/"),
                 api("/api/after-sales/nguyen-nhan/?loai=HUY_DON"),
-                api("/api/after-sales/nguyen-nhan/?loai=DOI_TRA"),
-                api("/api/after-sales/lich-su/"),
-                api("/api/after-sales/thong-bao/")
+                api("/api/after-sales/nguyen-nhan/?loai=DOI_TRA")
             ]);
             const orders = ordersResult.data;
             const options = orders.map(order => `<option value="${esc(order.ma_dh)}">${esc(order.ma_dh)} · ${esc(order.ten_trang_thai)} · ${esc(order.ten_tinh)}</option>`).join("");
@@ -221,10 +217,6 @@
             returnReasonOptions = returnReasons.data;
             returnReason.innerHTML = reasonOptions(returnReasonOptions);
             returnReason.dispatchEvent(new Event("change"));
-            const entries = historyResult.data?.ket_qua || [];
-            history.innerHTML = `<h3>Lịch sử yêu cầu</h3>${entries.length ? `<div class="module-table-wrap"><table class="module-table"><thead><tr><th>Đơn</th><th>Loại yêu cầu</th><th>Trạng thái</th><th>Cập nhật</th><th></th></tr></thead><tbody>${entries.map(item => `<tr><td>${esc(item.ma_dh)}</td><td>${esc(item.ten_loai_yeu_cau || humanValue(item.loai_yeu_cau))}</td><td><span class="module-pill">${esc(item.ten_trang_thai || item.trang_thai)}</span></td><td>${formatDate(item.cap_nhat_cuoi || item.thoi_diem_tao)}</td><td><button class="module-button secondary" data-timeline="${esc(item.loai_yeu_cau)}" data-id="${esc(item.ma_yeu_cau)}">Timeline</button>${item.trang_thai === "CHO_XU_LY" && ["HUY_DON", "DOI_TRA"].includes(item.loai_yeu_cau) ? ` <button class="module-button danger" data-withdraw="${esc(item.loai_yeu_cau)}" data-id="${esc(item.ma_yeu_cau)}">Thu hồi</button>` : ""}</td></tr>`).join("")}</tbody></table></div>` : '<p class="module-muted">Chưa có lịch sử hậu mãi.</p>'}`;
-            const notices = notificationResult.data || [];
-            notifications.innerHTML = `<h3>Thông báo</h3>${notices.length ? notices.map(item => `<article class="module-alert ${item.da_doc ? "" : "success"}"><strong>${esc(item.tieu_de)}</strong><p>${esc(item.noi_dung)}</p><small>${formatDate(item.thoi_diem_gui)}</small>${item.da_doc ? "" : `<button class="module-button secondary" data-read="${esc(item.ma_thong_bao)}">Đánh dấu đã đọc</button>`}</article>`).join("") : '<p class="module-muted">Bạn chưa có thông báo.</p>'}`;
             if (orders.length && !new URLSearchParams(location.search).get("ma_dh")) {
                 cancelOrder.value = orders[0].ma_dh;
                 returnOrder.value = orders.find(item => ["GIAO_THANH_CONG", "HOAN_THANH"].includes(item.trang_thai))?.ma_dh || orders[0].ma_dh;
@@ -272,10 +264,6 @@
             const reason = cancelReasonOptions.find(item => item.ma_nguyen_nhan === cancelReason.value);
             cancelNote.required = Boolean(reason?.bat_buoc_ghi_chu);
         });
-        root.querySelector("#refresh-after-sales").addEventListener("click", async () => {
-            try { await refresh(); notice(status, "Đã làm mới thông tin hậu mãi."); }
-            catch (error) { notice(status, error.message, true); }
-        });
         root.querySelector("#cancel-request-form").addEventListener("submit", async event => {
             event.preventDefault();
             const values = Object.fromEntries(new FormData(event.currentTarget).entries());
@@ -311,28 +299,6 @@
                 await refresh();
             } catch (error) { notice(status, error.message, true); }
         });
-        root.addEventListener("click", async event => {
-            const timeline = event.target.closest("[data-timeline]");
-            const read = event.target.closest("[data-read]");
-            const withdraw = event.target.closest("[data-withdraw]");
-            try {
-                if (timeline) {
-                    const result = await api(`/api/after-sales/lich-su/${encodeURIComponent(timeline.dataset.timeline)}/${encodeURIComponent(timeline.dataset.id)}/`);
-                    notice(status, result.data.cac_moc.map(item => `${formatDate(item.thoi_diem)} · ${item.moc}`).join(" | "));
-                }
-                if (read) {
-                    await api(`/api/after-sales/thong-bao/${encodeURIComponent(read.dataset.read)}/da-doc/`, "POST", {});
-                    await refresh();
-                }
-                if (withdraw) {
-                    const base = withdraw.dataset.withdraw === "HUY_DON" ? "huy" : "doi-tra";
-                    await api(`/api/after-sales/${base}/${encodeURIComponent(withdraw.dataset.id)}/thu-hoi/`, "POST", {});
-                    notice(status, "Đã thu hồi yêu cầu hậu mãi.");
-                    await refresh();
-                }
-            } catch (error) { notice(status, error.message, true); }
-        });
-
         try {
             await refresh();
             const requested = new URLSearchParams(location.search).get("ma_dh");

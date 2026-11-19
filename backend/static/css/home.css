@@ -680,6 +680,11 @@
     font-size: 8px;
     font-weight: 700;
     letter-spacing: .12em;
+    text-align: left;
+}
+
+.qt-home .home-product-code {
+    text-align: left;
 }
 
 .home-product-info h3 {
@@ -707,6 +712,7 @@
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     font-size: 14px;
+    text-align: left;
 }
 
 .home-product-info h3 a:hover {
@@ -720,6 +726,7 @@
     font-size: 15px;
     font-weight: 700;
     white-space: nowrap;
+    text-align: right;
 }
 
 .home-empty {

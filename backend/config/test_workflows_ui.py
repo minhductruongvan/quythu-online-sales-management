@@ -146,9 +146,17 @@ class IntegratedActorPagesTests(TestCase):
         self.assertContains(guest_page, 'data-product-variant-picker')
         self.assertContains(guest_page, "THÔNG TIN MINH BẠCH")
         self.assertContains(guest_page, "Danh sách thành phần chi tiết chưa được cung cấp")
-        self.assertContains(guest_page, 'data-product-variant-select="UIBT010"')
-        self.assertContains(guest_page, "Khối lượng")
-        self.assertNotContains(guest_page, "Giá sỉ")
+        self.assertContains(guest_page, 'role="tablist"')
+        self.assertContains(guest_page, 'aria-selected="true"')
+        self.assertContains(guest_page, 'data-product-info-panel hidden')
+        self.assertContains(guest_page, 'value="UIBT010"')
+        self.assertContains(guest_page, "Truyền thống · 120g")
+        self.assertNotContains(guest_page, "CÁC LỰA CHỌN ĐANG BÁN")
+        self.assertNotContains(guest_page, 'data-product-variant-select="UIBT010"')
+        self.assertContains(guest_page, 'data-wholesale-customer="false"')
+        self.assertContains(guest_page, "50.000 ₫")
+        self.assertNotContains(guest_page, "Giá bán lẻ")
+        self.assertNotContains(guest_page, "Giá bán sỉ")
         self.assertContains(guest_page, "Đăng nhập để mua hàng")
         self.assertNotContains(guest_page, "js-add-to-cart")
 
@@ -160,7 +168,11 @@ class IntegratedActorPagesTests(TestCase):
         )
         self.assertContains(customer_page, 'name="ma_bien_the"')
         self.assertContains(customer_page, "Mô tả sản phẩm thử nghiệm.")
-        self.assertNotContains(customer_page, "Giá sỉ")
+        self.assertContains(customer_page, "50.000 ₫")
+        self.assertContains(customer_page, 'data-quantity-step="1"')
+        self.assertContains(customer_page, 'data-quantity-step="-1"')
+        self.assertNotContains(customer_page, "Giá bán lẻ")
+        self.assertNotContains(customer_page, "Giá bán sỉ")
 
         wholesale_type, _ = LoaiKhachHang.objects.get_or_create(
             ma_loai_kh="LKH002",
@@ -170,8 +182,11 @@ class IntegratedActorPagesTests(TestCase):
         customer.loai_khach_hang = wholesale_type
         customer.save(update_fields=["loai_khach_hang"])
         wholesale_page = self.client.get("/products/chi-tiet/UISP010/")
-        self.assertContains(wholesale_page, "Giá bán sỉ đối tác")
-        self.assertContains(wholesale_page, "được xác minh")
+        self.assertContains(wholesale_page, 'data-wholesale-customer="true"')
+        self.assertContains(wholesale_page, "45.000 ₫")
+        self.assertNotContains(wholesale_page, "50.000 ₫")
+        self.assertNotContains(wholesale_page, "Giá bán lẻ")
+        self.assertNotContains(wholesale_page, "Giá bán sỉ")
 
         self.client.force_login(self.manager_account)
         manager_page = self.client.get("/products/chi-tiet/UISP010/")
@@ -266,6 +281,7 @@ class IntegratedActorPagesTests(TestCase):
         self.assertContains(addresses, '<select id="province" required>')
         checkout = self.client.get("/thanh-toan/?chon=CG001")
         self.assertContains(checkout, '<select id="checkout-province"')
+        self.assertNotContains(checkout, "TÓM TẮT")
         cart = self.client.get("/gio-hang/")
         self.assertContains(cart, 'id="cart-select-all"')
         self.assertContains(cart, 'id="cart-selected-count"')
@@ -286,6 +302,16 @@ class IntegratedActorPagesTests(TestCase):
         ):
             with self.subTest(path=path):
                 self.assertEqual(self.client.get(path).status_code, 200)
+        after_sales = self.client.get("/tai-khoan/hau-mai/")
+        self.assertContains(after_sales, "Gửi yêu cầu hủy đơn")
+        self.assertContains(after_sales, "Thông tin hủy đơn")
+        self.assertContains(after_sales, 'class="cancel-request-fields"')
+        self.assertContains(after_sales, "Thông tin nhận hoàn tiền (nếu cần)")
+        self.assertContains(after_sales, "Ghi chú thêm (không bắt buộc)")
+        self.assertContains(after_sales, "Hủy bỏ")
+        self.assertNotContains(after_sales, "THEO DÕI")
+        self.assertNotContains(after_sales, "Thông báo và lịch sử hậu mãi")
+        self.assertNotContains(after_sales, 'id="after-sales-history"')
         checkout = self.client.get("/thanh-toan/?chon=CG001")
         self.assertContains(checkout, "checkout-add-address")
         self.assertContains(checkout, "checkout-address-dialog")
@@ -346,6 +372,35 @@ class IntegratedActorPagesTests(TestCase):
         self.assertContains(dashboard, "Xuất khách hàng")
         self.assertContains(dashboard, "Thêm sản phẩm")
         self.assertContains(dashboard, "Báo cáo chi tiết")
+        employee_navigation = dashboard.content.decode("utf-8").split(
+            '<nav class="sidebar-nav">', 1
+        )[1]
+        self.assertNotIn("CHĂM SÓC SAU MUA", employee_navigation)
+        self.assertNotIn("BÁO CÁO", employee_navigation)
+        employee_order = [
+            employee_navigation.index(label)
+            for label in (
+                "Tổng quan",
+                "Khách hàng",
+                "Sản phẩm",
+                "Đơn hàng",
+                "Hậu mãi",
+                "Báo cáo",
+            )
+        ]
+        self.assertEqual(employee_order, sorted(employee_order))
+
+        employee_order_page = self.client.get("/don-hang/DH001/")
+        employee_detail_navigation = employee_order_page.content.decode("utf-8").split(
+            '<nav class="sidebar-nav">', 1
+        )[1]
+        self.assertNotIn("CHĂM SÓC SAU MUA", employee_detail_navigation)
+        self.assertNotIn("BÁO CÁO", employee_detail_navigation)
+        employee_detail_order = [
+            employee_detail_navigation.index(label)
+            for label in ("Tổng quan", "Danh sách khách hàng", "Sản phẩm", "Đơn hàng", "Hậu mãi", "Báo cáo")
+        ]
+        self.assertEqual(employee_detail_order, sorted(employee_detail_order))
         self.assertEqual(self.client.get("/quan-ly/phan-quyen/").status_code, 403)
         for path in (
             "/don-hang/",
@@ -381,6 +436,29 @@ class IntegratedActorPagesTests(TestCase):
         ):
             with self.subTest(path=path):
                 self.assertEqual(self.client.get(path).status_code, 200)
+
+    def test_manager_sidebar_starts_with_overview_module(self):
+        self.client.force_login(self.manager_account)
+        dashboard = self.client.get("/quan-ly/")
+        self.assertEqual(dashboard.status_code, 200)
+        manager_navigation = dashboard.content.decode("utf-8").split(
+            '<nav class="sidebar-nav">', 1
+        )[1]
+        self.assertNotIn("CHĂM SÓC SAU MUA", manager_navigation)
+        self.assertNotIn("BÁO CÁO", manager_navigation)
+        manager_order = [
+            manager_navigation.index(label)
+            for label in (
+                "Tổng quan",
+                "Khách hàng",
+                "Quản lý nhân sự",
+                "Sản phẩm",
+                "Đơn hàng",
+                "Hậu mãi",
+                "Báo cáo",
+            )
+        ]
+        self.assertEqual(manager_order, sorted(manager_order))
 
     def test_report_exports_and_data_require_staff_login(self):
         self.assertEqual(self.client.get("/reports/api/dashboard-data/").status_code, 302)

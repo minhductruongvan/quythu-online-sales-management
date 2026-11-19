@@ -365,9 +365,9 @@
         .qt-header-bar .qt-nav-inner {
             display: grid;
             width: 100%;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(4, max-content);
             min-height: 0;
-            justify-content: stretch;
+            justify-content: space-between;
             gap: 0;
             margin: 0;
             padding: 0;
@@ -379,8 +379,8 @@
             color: #354a3c;
             font-size: 13px;
             font-weight: 600;
-            text-align: center;
-            white-space: normal;
+            text-align: left;
+            white-space: nowrap;
             line-height: 1.35;
         }
 
@@ -467,7 +467,7 @@
                 grid-column: 2;
                 grid-row: 1;
                 min-width: 0;
-                grid-template-columns: repeat(4, minmax(0, 1fr));
+                grid-template-columns: repeat(4, max-content);
             }
 
             .qt-header-bar .qt-nav-link {
@@ -619,8 +619,9 @@
             .qt-header-bar .qt-nav-inner {
                 grid-column: 1 / -1;
                 grid-row: 2;
-                grid-template-columns: repeat(4, minmax(0, 1fr));
-                overflow: visible;
+                grid-template-columns: repeat(4, max-content);
+                justify-content: space-between;
+                overflow-x: auto;
             }
 
             .qt-header-bar .qt-search-row {
@@ -656,7 +657,7 @@
     </style>
 
     {% block extra_css %}{% endblock %}
-    <link rel="stylesheet" href="{% static 'css/typography.css' %}?v=6">
+    <link rel="stylesheet" href="{% static 'css/typography.css' %}?v=12">
 </head>
 
 <body class="qt-storefront">
