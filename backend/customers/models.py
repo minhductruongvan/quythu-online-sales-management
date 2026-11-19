@@ -117,6 +117,9 @@ class LoaiKhachHang(models.Model):
         verbose_name="Mô tả",
     )
 
+    class Meta:
+        db_table = "LOAIKHACHHANG"
+
     def __str__(self):
         return self.ten_loai_kh
 
@@ -182,6 +185,9 @@ class KhachHang(models.Model):
         verbose_name="Ngày cập nhật",
     )
 
+    class Meta:
+        db_table = "KHACHHANG"
+
     def __str__(self):
         return f"{self.ma_kh} - {self.ho_ten}"
 
@@ -231,6 +237,9 @@ class NhanVien(models.Model):
         auto_now=True,
         verbose_name="Ngày cập nhật",
     )
+
+    class Meta:
+        db_table = "NHANVIEN"
 
     def __str__(self):
         return f"{self.ma_nv} - {self.ho_ten}"
@@ -298,6 +307,9 @@ class DiaChiKH(models.Model):
         verbose_name="Ngày cập nhật",
     )
 
+    class Meta:
+        db_table = "DIACHIKH"
+
     def __str__(self):
         return f"{self.ten_nguoi_nhan} - {self.dia_chi_chi_tiet}"
 
@@ -357,6 +369,9 @@ class LichSuKhachHang(models.Model):
         auto_now_add=True,
         verbose_name="Thời gian",
     )
+
+    class Meta:
+        db_table = "LICHSUTHAYDOI_KH"
 
     def __str__(self):
         return f"{self.ma_lich_su} - {self.get_loai_thay_doi_display()}"

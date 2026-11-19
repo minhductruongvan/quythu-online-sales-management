@@ -14,6 +14,7 @@ from .models import (
     GioHang,
     LichSuTrangThaiDonHang,
     PhuongThucThanhToan,
+    ThongBaoDonHang,
     TinhThanh,
 )
 
@@ -175,3 +176,10 @@ class GiaoHangAdmin(ChiXemMixin, admin.ModelAdmin):
                     "ket_qua_giao", "thoi_diem_ban_giao", "thoi_diem_giao_xong")
     list_filter = ("hinh_thuc_giao", "ket_qua_giao")
     search_fields = ("don_hang__ma_dh", "ma_van_don")
+
+
+@admin.register(ThongBaoDonHang)
+class ThongBaoDonHangAdmin(ChiXemMixin, admin.ModelAdmin):
+    list_display = ("ma_thong_bao", "khach_hang", "don_hang", "loai_thong_bao", "da_doc", "thoi_diem_gui")
+    list_filter = ("loai_thong_bao", "da_doc")
+    search_fields = ("ma_thong_bao", "don_hang__ma_dh", "khach_hang__ho_ten", "tieu_de")

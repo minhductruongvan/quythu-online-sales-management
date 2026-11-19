@@ -84,6 +84,21 @@ class SanPham(models.Model):
         return "https://placehold.co/400x300?text=Banh+Dua+Quy+Thu"
 
 
+class DonViTinh(models.Model):
+    ma_dvt = models.CharField(max_length=10, primary_key=True, verbose_name="Mã đơn vị tính")
+    ten_dvt = models.CharField(max_length=50, unique=True, verbose_name="Tên đơn vị")
+    ky_hieu = models.CharField(max_length=20, unique=True, verbose_name="Ký hiệu")
+
+    class Meta:
+        db_table = "DONVITINH"
+        verbose_name = "Đơn vị tính"
+        verbose_name_plural = "Đơn vị tính"
+        ordering = ["ten_dvt"]
+
+    def __str__(self):
+        return self.ten_dvt
+
+
 # ==========================================================
 # 3. BẢNG BIẾN THỂ SẢN PHẨM (Hương vị, Quy cách, Giá, Mã vạch)
 # ==========================================================
@@ -93,6 +108,15 @@ class BienTheSanPham(models.Model):
 
     # Biến thể này thuộc sản phẩm nào
     san_pham = models.ForeignKey(SanPham, on_delete=models.CASCADE, verbose_name="Sản phẩm")
+
+    don_vi_tinh = models.ForeignKey(
+        DonViTinh,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="bien_the",
+        verbose_name="Đơn vị tính",
+    )
 
     # Hương vị: Truyền thống, Mè đen, Gừng (theo tài liệu M2-BR04)
     huong_vi = models.CharField(max_length=50, verbose_name="Hương vị")

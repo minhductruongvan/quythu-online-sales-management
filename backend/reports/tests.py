@@ -12,7 +12,8 @@ from orders.models import (
     TinhThanh,
     PhuongThucThanhToan,
 )
-from products.models import DanhMucSanPham, SanPham, BienTheSanPham
+from products.models import DanhMucSanPham, DonViTinh, SanPham, BienTheSanPham
+from reports.models import NhatKyXuatBaoCao, PhanQuyenBaoCao
 from reports import services
 
 
@@ -316,6 +317,11 @@ class Module5ReportsTestCase(TestCase):
         )
         self.assertEqual(export.status_code, 200)
         self.assertIn("text/csv", export["Content-Type"])
+        export_log = NhatKyXuatBaoCao.objects.get()
+        self.assertEqual(export_log.nhan_vien_id, "NV001")
+        self.assertEqual(export_log.loai_bao_cao, "Sản phẩm bán chạy")
+        self.assertEqual(export_log.dinh_dang_file, NhatKyXuatBaoCao.DinhDang.CSV)
+        self.assertIn('"product": "SP01"', export_log.bo_loc_ap_dung)
 
         no_match = client.get(
             "/reports/chi-tiet/",
@@ -351,3 +357,17 @@ class Module5ReportsTestCase(TestCase):
         )
         self.assertEqual(invalid_dates.status_code, 400)
         self.assertContains(invalid_dates, "Ngày bắt đầu không được sau ngày kết thúc.", status_code=400)
+
+    def test_completed_database_support_tables_are_available(self):
+        self.assertEqual(
+            set(DonViTinh.objects.values_list("ky_hieu", flat=True)),
+            {"goi", "hop", "thung"},
+        )
+        self.assertEqual(
+            NhatKyXuatBaoCao._meta.db_table,
+            "NHATKY_XUAT_BAOCAO",
+        )
+        self.assertEqual(
+            PhanQuyenBaoCao._meta.db_table,
+            "PHANQUYEN_BAOCAO",
+        )

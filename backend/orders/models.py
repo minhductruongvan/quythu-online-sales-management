@@ -654,3 +654,51 @@ class GiaoHang(models.Model):
 
     def __str__(self):
         return f"{self.ma_giao_hang} - {self.don_hang_id} - lần {self.lan_giao}"
+
+
+class LoaiThongBaoDonHang(models.TextChoices):
+    XAC_NHAN_DON = "Xác nhận đơn", "Xác nhận đơn"
+    CHO_BO_SUNG_HANG = "Chờ bổ sung hàng", "Chờ bổ sung hàng"
+    DANG_GIAO_HANG = "Đang giao hàng", "Đang giao hàng"
+    GIAO_THANH_CONG = "Giao thành công", "Giao thành công"
+    DA_HUY = "Đã hủy", "Đã hủy"
+
+
+class ThongBaoDonHang(models.Model):
+    ma_thong_bao = models.CharField(max_length=10, primary_key=True, verbose_name="Mã thông báo")
+    khach_hang = models.ForeignKey(
+        "customers.KhachHang",
+        on_delete=models.CASCADE,
+        related_name="thong_bao_don_hang",
+        verbose_name="Khách hàng",
+    )
+    don_hang = models.ForeignKey(
+        DonHang,
+        on_delete=models.CASCADE,
+        related_name="thong_bao",
+        verbose_name="Đơn hàng",
+    )
+    tieu_de = models.CharField(max_length=150, verbose_name="Tiêu đề")
+    noi_dung = models.CharField(max_length=500, verbose_name="Nội dung")
+    loai_thong_bao = models.CharField(
+        max_length=50,
+        choices=LoaiThongBaoDonHang.choices,
+        verbose_name="Loại thông báo",
+    )
+    da_doc = models.BooleanField(default=False, verbose_name="Đã đọc")
+    thoi_diem_gui = models.DateTimeField(default=timezone.now, verbose_name="Thời điểm gửi")
+
+    class Meta:
+        db_table = "THONGBAO_DONHANG"
+        verbose_name = "Thông báo đơn hàng"
+        verbose_name_plural = "Thông báo đơn hàng"
+        ordering = ["-thoi_diem_gui"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(loai_thong_bao__in=LoaiThongBaoDonHang.values),
+                name="ck_tb_donhang_loai_hop_le",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.ma_thong_bao} - {self.tieu_de}"

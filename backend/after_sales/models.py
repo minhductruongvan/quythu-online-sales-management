@@ -53,7 +53,7 @@ class NguyenNhan(models.Model):
     ngay_cap_nhat = models.DateTimeField(auto_now=True, verbose_name="Ngày cập nhật")
 
     class Meta:
-        db_table = "HM_NGUYENNHAN"
+        db_table = "DANHMUC_NGUYENNHAN"
         verbose_name = "Nguyên nhân hậu mãi"
         verbose_name_plural = "Nguyên nhân hậu mãi"
         ordering = ["loai_xu_ly", "thu_tu_hien_thi", "ma_nguyen_nhan"]
@@ -92,7 +92,7 @@ class LichSuNguyenNhan(models.Model):
     gia_tri_moi = models.TextField(null=True, blank=True, verbose_name="Giá trị mới")
 
     class Meta:
-        db_table = "HM_LICHSU_NGUYENNHAN"
+        db_table = "LICHSU_NGUYENNHAN"
         verbose_name = "Lịch sử danh mục nguyên nhân"
         verbose_name_plural = "Lịch sử danh mục nguyên nhân"
         ordering = ["-thoi_diem", "-ma_lich_su"]
@@ -142,7 +142,7 @@ class YeuCauHuy(models.Model):
     ghi_chu_noi_bo = models.CharField(max_length=255, null=True, blank=True, verbose_name="Ghi chú nội bộ")
 
     class Meta:
-        db_table = "HM_YEUCAU_HUY"
+        db_table = "YEUCAU_HUYDON"
         verbose_name = "Yêu cầu hủy đơn"
         verbose_name_plural = "Yêu cầu hủy đơn"
         ordering = ["thoi_diem_gui", "ma_yc_huy"]  # cũ nhất trước (UC02 bước 1)
@@ -300,7 +300,7 @@ class YeuCauDoiTra(models.Model):
     thoi_diem_hoan_tat = models.DateTimeField(null=True, blank=True, verbose_name="Thời điểm hoàn tất")
 
     class Meta:
-        db_table = "HM_YEUCAU_DOITRA"
+        db_table = "YEUCAU_DOITRA"
         verbose_name = "Yêu cầu đổi/trả"
         verbose_name_plural = "Yêu cầu đổi/trả"
         ordering = ["thoi_diem_gui", "ma_yc_doi_tra"]
@@ -353,7 +353,7 @@ class DongDoiTra(models.Model):
     ghi_chu_kiem_tra = models.CharField(max_length=255, null=True, blank=True)
 
     class Meta:
-        db_table = "HM_DONG_DOITRA"
+        db_table = "CT_YEUCAU_DOITRA"
         verbose_name = "Dòng đổi/trả"
         verbose_name_plural = "Dòng đổi/trả"
         constraints = [
@@ -388,7 +388,7 @@ class AnhMinhChung(models.Model):
     thoi_diem_tai = models.DateTimeField(default=timezone.now)
 
     class Meta:
-        db_table = "HM_ANH_MINHCHUNG"
+        db_table = "ANH_DOITRA"
         verbose_name = "Ảnh minh chứng"
         verbose_name_plural = "Ảnh minh chứng"
         ordering = ["thoi_diem_tai", "ma_anh"]
@@ -467,7 +467,7 @@ class GiaoDichHoanTien(models.Model):
     )
 
     class Meta:
-        db_table = "HM_GIAODICH_HOANTIEN"
+        db_table = "GIAODICH_HOANTIEN"
         verbose_name = "Giao dịch hoàn tiền"
         verbose_name_plural = "Giao dịch hoàn tiền"
         ordering = ["thoi_diem_tao", "ma_hoan_tien"]
@@ -574,7 +574,7 @@ class LichSuHauMai(models.Model):
     )
 
     class Meta:
-        db_table = "HM_LICHSU_HAUMAI"
+        db_table = "LICHSU_HAUMAI"
         verbose_name = "Mốc timeline hậu mãi"
         verbose_name_plural = "Timeline hậu mãi"
         ordering = ["thoi_diem", "ma_lich_su"]  # cũ đến mới, đọc như một dòng thời gian

@@ -1,4 +1,5 @@
 import csv
+import json
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from django.http import HttpResponse, JsonResponse
@@ -6,10 +7,11 @@ from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.http import require_GET
 
-from customers.models import LoaiKhachHang
+from customers.models import LoaiKhachHang, NhanVien
 from orders.models import PhuongThucThanhToan
 from products.models import DanhMucSanPham, SanPham
 from .permissions import manager_or_report_staff_required
+from .models import LoaiBaoCao, NhatKyXuatBaoCao
 from . import services
 
 
@@ -507,4 +509,51 @@ def export_report_csv(request):
                 r["full_time"],
             ])
 
+    nhan_vien = NhanVien.objects.filter(tai_khoan=request.user).first()
+    if nhan_vien is None:
+        return HttpResponse(
+            "Tài khoản chưa có hồ sơ nhân viên để ghi nhật ký xuất báo cáo.",
+            status=403,
+        )
+
+    loai_bao_cao = {
+        "revenue": LoaiBaoCao.CHI_TIET_DOANH_THU,
+        "products": LoaiBaoCao.SAN_PHAM_BAN_CHAY,
+        "recent": LoaiBaoCao.SAN_PHAM_BAN_GAN_DAY,
+        "area": LoaiBaoCao.KHU_VUC,
+    }.get(tab, LoaiBaoCao.CHI_TIET_DOANH_THU)
+    filters_applied = {
+        key: value[:100] if key == "q" else value
+        for key, value in request.GET.items()
+        if key in {
+            "preset",
+            "start_date",
+            "end_date",
+            "customer_type",
+            "pttt",
+            "category",
+            "product",
+            "amount_min",
+            "amount_max",
+            "q",
+            "sort_by",
+            "level",
+        }
+    }
+    sequence = NhatKyXuatBaoCao.objects.count() + 1
+    ma_nhat_ky_xuat = f"NKX{sequence:07d}"
+    while NhatKyXuatBaoCao.objects.filter(ma_nhat_ky_xuat=ma_nhat_ky_xuat).exists():
+        sequence += 1
+        ma_nhat_ky_xuat = f"NKX{sequence:07d}"
+    NhatKyXuatBaoCao.objects.create(
+        ma_nhat_ky_xuat=ma_nhat_ky_xuat,
+        nhan_vien=nhan_vien,
+        loai_bao_cao=loai_bao_cao,
+        ky_bao_cao=(
+            f"{date_range['start_date']:%Y-%m-%d} - "
+            f"{date_range['end_date']:%Y-%m-%d}"
+        ),
+        bo_loc_ap_dung=json.dumps(filters_applied, ensure_ascii=False)[:500] or None,
+        dinh_dang_file=NhatKyXuatBaoCao.DinhDang.CSV,
+    )
     return response
