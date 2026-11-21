@@ -657,7 +657,7 @@
     </style>
 
     {% block extra_css %}{% endblock %}
-    <link rel="stylesheet" href="{% static 'css/typography.css' %}?v=12">
+    <link rel="stylesheet" href="{% static 'css/typography.css' %}?v=14">
 </head>
 
 <body class="qt-storefront">
@@ -691,7 +691,12 @@
             <a href="{% url 'storefront-home' %}#lien-he" class="qt-nav-link">Liên hệ</a>
         </nav>
         <div class="qt-search-row">
-            <form class="qt-search" method="get" action="{% url 'storefront-home' %}#san-pham">
+            <form class="qt-search" method="get" action="{% if request.resolver_match.namespace == 'products' %}{% url 'products:danh_sach' %}{% else %}{% url 'storefront-home' %}#san-pham{% endif %}">
+                {% if request.resolver_match.namespace == 'products' and request.resolver_match.url_name == 'danh_sach' %}
+                    {% for value in ma_dm_da_chon %}<input type="hidden" name="category" value="{{ value }}">{% endfor %}
+                    {% for value in huong_vi_da_chon %}<input type="hidden" name="flavor" value="{{ value }}">{% endfor %}
+                    {% for value in quy_cach_da_chon %}<input type="hidden" name="pack" value="{{ value }}">{% endfor %}
+                {% endif %}
                 <span class="qt-search-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path></svg></span>
                 <input type="search" name="q" placeholder="Tìm kiếm sản phẩm..." aria-label="Tìm kiếm sản phẩm" value="{{ request.GET.q|default:'' }}">
                 <button type="submit" aria-label="Tìm kiếm">Tìm kiếm</button>
@@ -719,6 +724,10 @@
                     </form>
                 </div>
             </details>
+            {% elif request.user.is_authenticated and request.user.vai_tro == "MANAGER" %}
+            <a href="{% url 'manager-dashboard' %}" class="qt-account-link" aria-label="Không gian quản lý"><span class="qt-action-icon" aria-hidden="true">◈</span><span class="qt-action-text"><small>ĐIỀU HÀNH</small><strong>Bảng quản lý</strong></span></a>
+            {% elif request.user.is_authenticated and request.user.vai_tro == "EMPLOYEE" %}
+            <a href="{% url 'employee-dashboard' %}" class="qt-account-link" aria-label="Không gian nhân viên"><span class="qt-action-icon" aria-hidden="true">◈</span><span class="qt-action-text"><small>ĐIỀU HÀNH</small><strong>Bảng nhân viên</strong></span></a>
             {% elif not request.user.is_authenticated %}
             <a href="{% url 'login-page' %}" class="qt-login-link" aria-label="Đăng nhập"><span class="qt-action-icon" aria-hidden="true">♙</span><span class="qt-action-text"><small>CHÀO MỪNG</small><strong>Đăng nhập</strong></span></a>
             {% endif %}

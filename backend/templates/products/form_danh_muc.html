@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}Sửa danh mục | Quý Thu{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}?v=10">{% endblock %}
 {% block content %}
-<main class="module-page">
-    <header class="module-heading"><div><span class="module-eyebrow">SẢN PHẨM</span><h1>Sửa {{ danh_muc.ten_dm }}</h1></div><a class="module-link-button secondary" href="{% url 'products:quan_ly_danh_muc' %}">← Danh mục</a></header>
-    <section class="module-panel"><form method="post">{% csrf_token %}{{ form.as_p }}<button class="module-button" type="submit">Lưu thay đổi</button></form></section>
-</main>
+<div class="module-page">
+    <header class="module-heading"><div><span class="module-eyebrow">SẢN PHẨM</span><h1>Sửa {{ ten_dm_hien_thi|default:danh_muc.ten_dm }}</h1><p>Cập nhật tên, mô tả và trạng thái áp dụng của danh mục.</p></div><a class="module-link-button secondary" href="{% url 'products:quan_ly_danh_muc' %}">← Danh mục</a></header>
+    <section class="module-panel"><form method="post">{% csrf_token %}{{ form.as_p }}<div class="module-inline-form"><button class="module-button" type="submit">Lưu thay đổi</button><a href="{% url 'products:quan_ly_danh_muc' %}">Hủy</a></div></form></section>
+</div>
 {% endblock %}

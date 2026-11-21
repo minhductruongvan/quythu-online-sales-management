@@ -39,6 +39,7 @@ from products.models import (
 )
 from products.image_assets import CATEGORY_IMAGE_ASSETS, PRODUCT_IMAGE_ASSETS
 from products.search import search_products_by_name
+from products.views import la_khach_si_da_xac_minh
 
 @role_required(
     TaiKhoan.VaiTro.EMPLOYEE,
@@ -998,6 +999,7 @@ def storefront_home_page(request):
     products = (
         SanPham.objects.filter(
             trang_thai="ACTIVE",
+            danh_muc__trang_thai="ACTIVE",
             bienthesanpham__trang_thai="ACTIVE",
         )
         .select_related("danh_muc")
@@ -1028,8 +1030,32 @@ def storefront_home_page(request):
 
     if search_query:
         products = search_products_by_name(products, search_query)
+        danh_sach_san_pham = list(products)
+    else:
+        danh_sach_san_pham = list(products[:8])
 
-    danh_sach_san_pham = list(products[:8])
+    la_khach_si = la_khach_si_da_xac_minh(request.user)
+    if danh_sach_san_pham:
+        gia_theo_sp = {}
+        cac_muc_gia_theo_sp = {}
+        ma_sp_list = [sp.ma_sp for sp in danh_sach_san_pham]
+        for bien_the in BienTheSanPham.objects.filter(
+            san_pham_id__in=ma_sp_list,
+            trang_thai="ACTIVE",
+        ):
+            gia_ap_dung = (
+                bien_the.gia_ban_si
+                if la_khach_si and bien_the.gia_ban_si is not None
+                else bien_the.gia_ban_le
+            )
+            cac_muc_gia_theo_sp.setdefault(bien_the.san_pham_id, set()).add(gia_ap_dung)
+            gia_hien_tai = gia_theo_sp.get(bien_the.san_pham_id)
+            if gia_hien_tai is None or gia_ap_dung < gia_hien_tai:
+                gia_theo_sp[bien_the.san_pham_id] = gia_ap_dung
+        for product in danh_sach_san_pham:
+            product.home_price = gia_theo_sp.get(product.ma_sp)
+            product.nhieu_muc_gia = len(cac_muc_gia_theo_sp.get(product.ma_sp, ())) > 1
+
     for product in danh_sach_san_pham:
         product.home_product_image = PRODUCT_IMAGE_ASSETS.get(product.ma_sp)
 

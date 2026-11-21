@@ -1,9 +1,9 @@
 {% extends "layouts/base_customer.html" %}
 {% load static money %}
 {% block title %}Danh mục sản phẩm | Quý Thu{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}?v=7">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/modules.css' %}?v=10">{% endblock %}
 {% block content %}
-<main class="module-page product-catalog">
+<div class="module-page product-catalog">
     <nav class="product-breadcrumb" aria-label="Đường dẫn">
         <a href="{% url 'storefront-home' %}">Trang chủ</a><span aria-hidden="true">/</span><span>Danh mục sản phẩm</span>
     </nav>
@@ -50,6 +50,8 @@
                         <input type="checkbox" name="flavor" value="{{ flavor }}" {% if flavor in huong_vi_da_chon %}checked{% endif %}>
                         <span>{{ flavor }}</span>
                     </label>
+                    {% empty %}
+                    <p class="catalog-filter-empty">Chưa có hương vị đang bán.</p>
                     {% endfor %}
                 </fieldset>
 
@@ -60,6 +62,8 @@
                         <input type="checkbox" name="pack" value="{{ pack }}" {% if pack in quy_cach_da_chon %}checked{% endif %}>
                         <span>{{ pack }}</span>
                     </label>
+                    {% empty %}
+                    <p class="catalog-filter-empty">Chưa có quy cách đang bán.</p>
                     {% endfor %}
                 </fieldset>
 
@@ -81,11 +85,11 @@
                     <article class="catalog-card">
                         <a class="catalog-product-placeholder" href="{% url 'products:chi_tiet' product.ma_sp %}" aria-label="Xem {{ product.ten_sp }}">
                             {% if product.catalog_image_url %}
-                            <img src="{{ product.catalog_image_url }}" alt="{{ product.ten_sp }}" loading="lazy">
+                            <img src="{{ product.catalog_image_url }}" alt="{{ product.ten_sp }}" loading="lazy" onerror="this.onerror=null;this.src='{% static 'images/logo-removebg-preview.webp' %}';">
                             {% elif product.catalog_image_asset %}
                             <img src="{% static product.catalog_image_asset %}" alt="{{ product.ten_sp }}" loading="lazy">
                             {% else %}
-                            <img src="{{ product.lay_anh_dai_dien }}" alt="{{ product.ten_sp }}" loading="lazy">
+                            <img src="{{ product.catalog_fallback_image }}" alt="{{ product.ten_sp }}" loading="lazy" onerror="this.onerror=null;this.src='{% static 'images/logo-removebg-preview.webp' %}';">
                             {% endif %}
                         </a>
                         <div class="catalog-card-body">
@@ -93,7 +97,7 @@
                             <span class="catalog-product-code">{{ product.ma_sp }}</span>
                             <div class="catalog-card-title-row">
                                 <h3><a href="{% url 'products:chi_tiet' product.ma_sp %}">{{ product.ten_sp }}</a></h3>
-                                    <span class="catalog-card-price"><strong>{{ product.lay_gia_thap_nhat|vnd }} ₫</strong></span>
+                                <span class="catalog-card-price"><strong>{% if product.gia_hien_thi is not None %}{% if product.nhieu_muc_gia %}Từ {% endif %}{{ product.gia_hien_thi|vnd }} ₫{% else %}Liên hệ{% endif %}</strong></span>
                             </div>
                         </div>
                     </article>
@@ -109,5 +113,5 @@
             </section>
         </div>
     </form>
-</main>
+</div>
 {% endblock %}

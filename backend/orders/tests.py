@@ -85,12 +85,12 @@ def tao_khach_hang(ma_kh, email, ma_loai="LKH001"):
     )
 
 
-def tao_bien_the(ma_bien_the, san_pham, gia_le=50000, gia_si=None, toi_thieu_si=10):
+def tao_bien_the(ma_bien_the, san_pham, gia_le=50000, gia_si=None, toi_thieu_si=10, huong_vi=None, quy_cach="150g"):
     return BienTheSanPham.objects.create(
         ma_bien_the=ma_bien_the,
         san_pham=san_pham,
-        huong_vi="Truyền thống",
-        quy_cach="150g",
+        huong_vi=huong_vi or f"Vị {ma_bien_the}",
+        quy_cach=quy_cach,
         barcode=f"BC_{ma_bien_the}",
         gia_ban_le=gia_le,
         gia_ban_si=gia_si,

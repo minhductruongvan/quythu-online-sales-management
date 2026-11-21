@@ -2,7 +2,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from products.models import BienTheSanPham, DanhMucSanPham, SanPham
+from products.models import BienTheSanPham, DanhMucSanPham, DonViTinh, SanPham
 
 
 def barcode_for(sequence):
@@ -150,6 +150,15 @@ class Command(BaseCommand):
             ),
         )
 
+        don_vi_goi, _ = DonViTinh.objects.get_or_create(
+            ma_dvt="DVT001",
+            defaults={"ten_dvt": "Gói", "ky_hieu": "goi"},
+        )
+        don_vi_hop, _ = DonViTinh.objects.get_or_create(
+            ma_dvt="DVT002",
+            defaults={"ten_dvt": "Hộp", "ky_hieu": "hop"},
+        )
+
         created_variants = 0
         for product_code, category, name, description, variants in products:
             product, _ = SanPham.objects.get_or_create(
@@ -165,10 +174,13 @@ class Command(BaseCommand):
                 variants, start=1
             ):
                 variant_code = f"BT{product_code[-3:]}{index:02d}"
-                _, created = BienTheSanPham.objects.get_or_create(
+                la_hop = pack in ("150g", "300g") or "Hộp quà" in name
+                don_vi_mac_dinh = don_vi_hop if la_hop else don_vi_goi
+                variant_obj, created = BienTheSanPham.objects.get_or_create(
                     ma_bien_the=variant_code,
                     defaults={
                         "san_pham": product,
+                        "don_vi_tinh": don_vi_mac_dinh,
                         "huong_vi": flavor,
                         "quy_cach": pack,
                         "barcode": barcode_for(int(product_code[-3:]) * 10 + index),
@@ -178,6 +190,9 @@ class Command(BaseCommand):
                         "trang_thai": "ACTIVE",
                     },
                 )
+                if not created and variant_obj.don_vi_tinh_id is None:
+                    variant_obj.don_vi_tinh = don_vi_mac_dinh
+                    variant_obj.save(update_fields=["don_vi_tinh"])
                 created_variants += int(created)
 
         demo_product_codes = [f"SP{index:03d}" for index in range(1, 11)]

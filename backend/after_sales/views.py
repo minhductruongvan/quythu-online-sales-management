@@ -143,6 +143,8 @@ class DongDoiTraKhachView(APIView):
             variants = BienTheSanPham.objects.filter(
                 san_pham=ct.bien_the.san_pham,
                 trang_thai="ACTIVE",
+                san_pham__trang_thai="ACTIVE",
+                san_pham__danh_muc__trang_thai="ACTIVE",
             ).order_by("huong_vi", "quy_cach")
             dong.append({
                 "ma_ctdh": ct.ma_ctdh,

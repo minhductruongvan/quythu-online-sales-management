@@ -154,10 +154,11 @@ class DichVuGioHang:
 
     @staticmethod
     def bien_the_con_ban(bien_the):
-        """True nếu cả biến thể lẫn sản phẩm cha đều đang bán (M2-BR09)."""
+        """True nếu biến thể, sản phẩm cha và danh mục đều đang hoạt động (M2-BR09)."""
         return (
             bien_the.trang_thai == TRANG_THAI_DANG_BAN
             and bien_the.san_pham.trang_thai == TRANG_THAI_DANG_BAN
+            and bien_the.san_pham.danh_muc.trang_thai == TRANG_THAI_DANG_BAN
         )
 
     @staticmethod
@@ -190,7 +191,7 @@ class DichVuGioHang:
         """M3-BR24: chỉ trả dòng giỏ thuộc giỏ của chính khách này."""
         dong = (
             ChiTietGioHang.objects
-            .select_related("gio_hang", "bien_the__san_pham")
+            .select_related("gio_hang", "bien_the__san_pham__danh_muc")
             .filter(ma_ctgh=ma_ctgh)
             .first()
         )
@@ -362,7 +363,13 @@ class DichVuTinhTien:
     @staticmethod
     def la_khach_si(khach_hang):
         """Tài khoản chỉ mang loại khách sỉ sau khi nhân viên xác minh đối tác."""
-        return khach_hang.loai_khach_hang_id == MA_LOAI_KHACH_SI
+        return (
+            khach_hang.loai_khach_hang_id == MA_LOAI_KHACH_SI
+            or (
+                khach_hang.loai_khach_hang is not None
+                and khach_hang.loai_khach_hang.ten_loai_kh == "Khách sỉ"
+            )
+        )
 
     @staticmethod
     def tinh_gia_dong(khach_hang, bien_the, so_luong):
@@ -414,7 +421,7 @@ class DichVuTinhTien:
 
         cac_dong = (
             ChiTietGioHang.objects
-            .select_related("bien_the__san_pham")
+            .select_related("bien_the__san_pham__danh_muc")
             .filter(gio_hang__khach_hang=khach_hang)
             .order_by("ma_ctgh")
         )

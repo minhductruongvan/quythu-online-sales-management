@@ -80,9 +80,9 @@
             </a>
             <details class="nav-group" {% if request.resolver_match.namespace == 'products' %}open{% endif %}>
                 <summary><span class="nav-icon">◈</span><span>Sản phẩm</span></summary>
-                <a href="{% url 'products:quan_ly' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'quan_ly' %}is-active{% endif %}">Danh sách sản phẩm</a>
+                <a href="{% url 'products:quan_ly' %}" class="nav-link-custom {% if request.resolver_match.namespace == 'products' and request.resolver_match.url_name != 'them' and request.resolver_match.url_name != 'quan_ly_danh_muc' and request.resolver_match.url_name != 'sua_danh_muc' %}is-active{% endif %}">Danh sách sản phẩm</a>
                 <a href="{% url 'products:them' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'them' %}is-active{% endif %}">Thêm sản phẩm</a>
-                <a href="{% url 'products:quan_ly_danh_muc' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'quan_ly_danh_muc' %}is-active{% endif %}">Danh mục</a>
+                <a href="{% url 'products:quan_ly_danh_muc' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'quan_ly_danh_muc' or request.resolver_match.url_name == 'sua_danh_muc' %}is-active{% endif %}">Danh mục</a>
             </details>
             <a href="{% url 'order-list' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'order-list' or request.resolver_match.url_name == 'staff-order-detail' %}is-active{% endif %}">
                 <span class="nav-icon">▤</span><span>Đơn hàng</span>
@@ -111,9 +111,9 @@
         <div class="nav-section-title">ĐIỀU HÀNH CỬA HÀNG</div>
         <details class="nav-group" {% if request.resolver_match.namespace == 'products' %}open{% endif %}>
             <summary><span class="nav-icon">◈</span><span>Sản phẩm</span></summary>
-            <a href="{% url 'products:quan_ly' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'quan_ly' %}is-active{% endif %}">Danh sách sản phẩm</a>
+            <a href="{% url 'products:quan_ly' %}" class="nav-link-custom {% if request.resolver_match.namespace == 'products' and request.resolver_match.url_name != 'them' and request.resolver_match.url_name != 'quan_ly_danh_muc' and request.resolver_match.url_name != 'sua_danh_muc' %}is-active{% endif %}">Danh sách sản phẩm</a>
             <a href="{% url 'products:them' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'them' %}is-active{% endif %}">Thêm sản phẩm</a>
-            <a href="{% url 'products:quan_ly_danh_muc' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'quan_ly_danh_muc' %}is-active{% endif %}">Danh mục</a>
+            <a href="{% url 'products:quan_ly_danh_muc' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'quan_ly_danh_muc' or request.resolver_match.url_name == 'sua_danh_muc' %}is-active{% endif %}">Danh mục</a>
         </details>
         <a href="{% url 'order-list' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'order-list' or request.resolver_match.url_name == 'staff-order-detail' %}is-active{% endif %}">
             <span class="nav-icon">▤</span><span>Đơn hàng</span>

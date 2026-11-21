@@ -12,7 +12,7 @@
     const variantLabel = line => String(line.ten_sp).toLowerCase().includes(String(line.huong_vi).toLowerCase())
         ? line.quy_cach : `${line.huong_vi} · ${line.quy_cach}`;
     // Ô sản phẩm có ảnh, dùng chung cho giỏ hàng và trang thanh toán
-    const productCell = line => `<div class="cart-product"><img src="${esc(line.anh)}" alt="" width="56" height="56" loading="lazy"><div><strong>${esc(line.ten_sp)}</strong><br><span>${esc(variantLabel(line))}</span></div></div>`;
+    const productCell = line => `<div class="cart-product"><img src="${esc(line.anh)}" alt="" width="56" height="56" loading="lazy" onerror="this.onerror=null;this.src='/static/images/logo-removebg-preview.webp';"><div><strong>${esc(line.ten_sp)}</strong><br><span>${esc(variantLabel(line))}</span></div></div>`;
     // Pill trạng thái: chờ khách/chờ hàng = vàng, đã hủy = đỏ
     const statusPill = order => {
         const waiting = ["CHO_THANH_TOAN", "CHO_BO_SUNG"].includes(order.trang_thai) && order.trang_thai_thanh_toan !== "DA_THANH_TOAN";
@@ -160,15 +160,26 @@
         document.querySelectorAll(".js-add-to-cart").forEach(form => form.addEventListener("submit", async event => {
             event.preventDefault();
             const status = form.parentElement.querySelector(".js-form-message");
+            const submitButton = form.querySelector('button[type="submit"]');
             const data = Object.fromEntries(new FormData(form).entries());
+            const soLuong = Number(data.so_luong);
+
+            if (!Number.isInteger(soLuong) || soLuong < 1 || soLuong > 9999) {
+                status.innerHTML = '<div class="module-alert error">Số lượng phải là số nguyên từ 1 đến 9.999.</div>';
+                return;
+            }
+
+            if (submitButton) submitButton.disabled = true;
             try {
                 const result = await request(form.dataset.api, "POST", {
                     ma_bien_the: data.ma_bien_the,
-                    so_luong: Number(data.so_luong)
+                    so_luong: soLuong
                 });
                 status.innerHTML = `<div class="module-alert success">${esc(result.message)} <a href="/gio-hang/">Mở giỏ hàng →</a></div>`;
             } catch (error) {
                 status.innerHTML = `<div class="module-alert error">${esc(error.message)}</div>`;
+            } finally {
+                if (submitButton) submitButton.disabled = false;
             }
         }));
     }
@@ -183,27 +194,37 @@
                 if (!option) return;
 
                 const price = root.querySelector("#product-price");
+                const priceLabel = root.querySelector("#product-price-label");
                 const selectedVariant = root.querySelector("[data-selected-variant]");
                 const isWholesaleCustomer = root.dataset.wholesaleCustomer === "true";
-                const appliedPrice = (retailPrice, wholesalePrice) =>
-                    isWholesaleCustomer && wholesalePrice ? wholesalePrice : retailPrice;
+                const wholesalePrice = option.dataset.wholesalePrice;
+                const hasWholesalePrice = isWholesaleCustomer && wholesalePrice !== undefined && wholesalePrice !== "";
+                const displayPrice = hasWholesalePrice ? wholesalePrice : option.dataset.retailPrice;
 
-                if (price) {
-                    price.textContent = money(
-                        appliedPrice(option.dataset.retailPrice, option.dataset.wholesalePrice),
-                    );
+                if (price) price.textContent = money(displayPrice);
+                if (priceLabel) {
+                    priceLabel.textContent = isWholesaleCustomer
+                        ? (hasWholesalePrice ? "Giá đối tác" : "Giá niêm yết")
+                        : "Giá";
                 }
                 if (selectedVariant) selectedVariant.value = option.value;
             };
 
-            picker.addEventListener("change", update);
+            picker.addEventListener("change", () => {
+                update();
+                const status = root.querySelector(".js-form-message");
+                if (status) status.innerHTML = "";
+            });
             root.addEventListener("click", event => {
                 const stepButton = event.target.closest("[data-quantity-step]");
                 const quantity = root.querySelector("#product-quantity");
                 if (!stepButton || !quantity) return;
-                const minimum = Number(quantity.min) || 1;
-                const current = Number(quantity.value) || minimum;
-                quantity.value = String(Math.max(minimum, current + Number(stepButton.dataset.quantityStep)));
+                const minimum = parseInt(quantity.min, 10) || 1;
+                const maximum = parseInt(quantity.max, 10) || 9999;
+                const parsed = Number(quantity.value);
+                const current = Number.isFinite(parsed) ? Math.trunc(parsed) : minimum;
+                const step = parseInt(stepButton.dataset.quantityStep, 10) || 0;
+                quantity.value = String(Math.min(maximum, Math.max(minimum, current + step)));
             });
             update();
         });
@@ -216,7 +237,7 @@
 
             const tabs = [...tabList.querySelectorAll("[data-product-info-tab]")];
             const panels = [...root.querySelectorAll("[data-product-info-panel]")];
-            const activate = (tab, focus = false) => {
+            const activate = (tab, moveFocus = false) => {
                 tabs.forEach(candidate => {
                     const selected = candidate === tab;
                     candidate.setAttribute("aria-selected", String(selected));
@@ -225,20 +246,22 @@
                 panels.forEach(panel => {
                     panel.hidden = panel.id !== tab.getAttribute("aria-controls");
                 });
-                if (focus) tab.focus();
+                if (moveFocus) tab.focus();
             };
 
             tabs.forEach((tab, index) => {
                 tab.addEventListener("click", () => activate(tab));
                 tab.addEventListener("keydown", event => {
-                    let nextIndex;
+                    if (!tabs.length) return;
+                    let nextIndex = null;
                     if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
                     else if (event.key === "ArrowLeft") nextIndex = (index - 1 + tabs.length) % tabs.length;
                     else if (event.key === "Home") nextIndex = 0;
                     else if (event.key === "End") nextIndex = tabs.length - 1;
-                    else return;
-                    event.preventDefault();
-                    activate(tabs[nextIndex], true);
+                    if (nextIndex !== null) {
+                        event.preventDefault();
+                        activate(tabs[nextIndex], true);
+                    }
                 });
             });
 
@@ -251,9 +274,18 @@
         document.querySelectorAll("[data-product-gallery]").forEach(gallery => {
             const mainImage = gallery.querySelector("[data-product-main-image]");
             if (!mainImage) return;
+            const fallbackImage = mainImage.dataset.fallbackImage || "";
+            if (fallbackImage) {
+                mainImage.addEventListener("error", () => {
+                    if (mainImage.dataset.fallbackApplied === "true") return;
+                    mainImage.dataset.fallbackApplied = "true";
+                    mainImage.src = fallbackImage;
+                });
+            }
             gallery.addEventListener("click", event => {
                 const thumbnail = event.target.closest("[data-product-image]");
                 if (!thumbnail) return;
+                delete mainImage.dataset.fallbackApplied;
                 mainImage.src = thumbnail.dataset.productImage;
                 mainImage.alt = thumbnail.dataset.imageAlt || mainImage.alt;
                 gallery.querySelectorAll("[data-product-image]").forEach(image => {

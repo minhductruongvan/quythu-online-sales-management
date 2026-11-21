@@ -55,7 +55,7 @@ class ThemVaoGioSerializer(serializers.Serializer):
     # source="bien_the": trong validated_data, khóa là "bien_the" chứ không
     # phải "ma_bien_the", vì giá trị lúc đó đã là đối tượng, không còn là mã.
     ma_bien_the = serializers.PrimaryKeyRelatedField(
-        queryset=BienTheSanPham.objects.select_related("san_pham"),
+        queryset=BienTheSanPham.objects.select_related("san_pham__danh_muc"),
         source="bien_the",
         error_messages={
             "required": "Vui lòng chọn sản phẩm.",

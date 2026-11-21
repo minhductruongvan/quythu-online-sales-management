@@ -1097,9 +1097,19 @@ class DichVuDoiTra:
             bien_the_doi = None
             if hinh_thuc == HinhThucDoiTra.DOI:
                 from products.models import BienTheSanPham
-                bien_the_doi = BienTheSanPham.objects.filter(ma_bien_the=d.get("ma_bien_the_doi")).first()
+                bien_the_doi = (
+                    BienTheSanPham.objects.select_related("san_pham__danh_muc")
+                    .filter(ma_bien_the=d.get("ma_bien_the_doi"))
+                    .first()
+                )
                 if bien_the_doi is None:
                     raise LoiNghiepVuHauMai("Vui lòng chọn sản phẩm/phân loại muốn nhận.")
+                if (
+                    bien_the_doi.trang_thai != "ACTIVE"
+                    or bien_the_doi.san_pham.trang_thai != "ACTIVE"
+                    or bien_the_doi.san_pham.danh_muc.trang_thai != "ACTIVE"
+                ):
+                    raise LoiNghiepVuHauMai("Sản phẩm/phân loại thay thế hiện đã ngừng kinh doanh.")
                 if not DichVuKho.con_hang(bien_the_doi, so_luong):  # E5
                     raise LoiNghiepVuHauMai("Sản phẩm thay thế hiện không đủ tồn kho")
             cac_dong.append((ct, so_luong, bien_the_doi))

@@ -1,5 +1,5 @@
 from django.db import models
-from django.db.models import Min
+from django.db.models import F, Min, Q
 
 
 # ==========================================================
@@ -39,7 +39,7 @@ class SanPham(models.Model):
     ma_sp = models.CharField(max_length=10, primary_key=True, verbose_name="Mã sản phẩm")
 
     # Sản phẩm này thuộc về danh mục nào (liên kết khóa ngoại đến DanhMucSanPham)
-    danh_muc = models.ForeignKey(DanhMucSanPham, on_delete=models.CASCADE, verbose_name="Danh mục")
+    danh_muc = models.ForeignKey(DanhMucSanPham, on_delete=models.PROTECT, verbose_name="Danh mục")
 
     # Tên sản phẩm
     ten_sp = models.CharField(max_length=200, verbose_name="Tên sản phẩm")
@@ -75,8 +75,12 @@ class SanPham(models.Model):
         if anh:
             return anh.duong_dan
 
-        # Nếu không có ảnh chính, lấy ảnh bất kỳ đầu tiên
-        anh_dau_tien = HinhAnhSanPham.objects.filter(san_pham=self).first()
+        # Nếu không có ảnh chính, lấy ảnh đầu tiên theo mã hình ảnh
+        anh_dau_tien = (
+            HinhAnhSanPham.objects.filter(san_pham=self)
+            .order_by("ma_hinh_anh")
+            .first()
+        )
         if anh_dau_tien:
             return anh_dau_tien.duong_dan
 
@@ -107,7 +111,7 @@ class BienTheSanPham(models.Model):
     ma_bien_the = models.CharField(max_length=10, primary_key=True, verbose_name="Mã biến thể")
 
     # Biến thể này thuộc sản phẩm nào
-    san_pham = models.ForeignKey(SanPham, on_delete=models.CASCADE, verbose_name="Sản phẩm")
+    san_pham = models.ForeignKey(SanPham, on_delete=models.PROTECT, verbose_name="Sản phẩm")
 
     don_vi_tinh = models.ForeignKey(
         DonViTinh,
@@ -145,6 +149,29 @@ class BienTheSanPham(models.Model):
         db_table = 'BIENTHE_SANPHAM'
         verbose_name = 'Biến thể sản phẩm'
         verbose_name_plural = 'Biến thể sản phẩm'
+        ordering = ['ma_bien_the']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['san_pham', 'huong_vi', 'quy_cach'],
+                name='uq_bienthe_sp_huongvi_quycach',
+            ),
+            models.CheckConstraint(
+                condition=Q(gia_ban_le__gt=0),
+                name='ck_bienthe_gia_le_duong',
+            ),
+            models.CheckConstraint(
+                condition=Q(gia_ban_si__isnull=True) | Q(gia_ban_si__gt=0),
+                name='ck_bienthe_gia_si_duong',
+            ),
+            models.CheckConstraint(
+                condition=Q(gia_ban_si__isnull=True) | Q(gia_ban_si__lte=F('gia_ban_le')),
+                name='ck_bienthe_gia_si_khong_hon_gia_le',
+            ),
+            models.CheckConstraint(
+                condition=Q(so_luong_toi_thieu_si__gte=1),
+                name='ck_bienthe_sl_si_duong',
+            ),
+        ]
 
     def __str__(self):
         return self.san_pham.ten_sp + " - " + self.huong_vi + " (" + self.quy_cach + ")"
