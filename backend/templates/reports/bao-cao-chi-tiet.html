@@ -13,7 +13,7 @@
             <h1>Báo cáo chi tiết</h1>
         </div>
         <div class="report-heading-actions">
-            <a class="module-button" href="{% url 'reports:export_csv' %}?tab={{ active_tab }}&preset={{ selected_preset }}&start_date={{ date_range.start_date|date:'Y-m-d' }}&end_date={{ date_range.end_date|date:'Y-m-d' }}&customer_type={{ selected_customer_type }}&pttt={{ selected_pttt }}&category={{ selected_category|default_if_none:''|urlencode }}&product={{ selected_product|default_if_none:''|urlencode }}&amount_min={{ amount_min_input|urlencode }}&amount_max={{ amount_max_input|urlencode }}&q={{ search_kw|urlencode }}&sort_by={{ selected_sort }}&level={{ selected_level }}">Xuất CSV ↓</a>
+            <a class="module-button" href="{% url 'reports:export_csv' %}?tab={{ active_tab }}&preset={{ selected_preset }}&start_date={{ date_range.start_date|date:'Y-m-d' }}&end_date={{ date_range.end_date|date:'Y-m-d' }}&customer_type={{ selected_customer_type }}&pttt={{ selected_pttt }}&category={{ selected_category|default_if_none:''|urlencode }}&product={{ selected_product|default_if_none:''|urlencode }}&amount_min={{ amount_min_input|urlencode }}&amount_max={{ amount_max_input|urlencode }}&q={{ search_kw|urlencode }}&sort_by={{ selected_sort }}&level={{ selected_level }}&order_sort={{ selected_order_sort }}&order_sort_dir={{ selected_order_sort_dir }}">Xuất CSV ↓</a>
             <a class="module-link-button secondary" href="{% url 'reports:dashboard' %}">← Tổng quan</a>
         </div>
     </header>
@@ -65,11 +65,11 @@
                     <select id="report-category" name="category"><option value="">Tất cả danh mục</option>{% for category in categories %}<option value="{{ category.ma_dm }}" {% if selected_category == category.ma_dm %}selected{% endif %}>{{ category.ten_dm }}</option>{% endfor %}</select>
                 </div>
                 <div>
-                    <label for="report-amount-min">Tổng đơn từ (đ)</label>
+                    <label for="report-amount-min">Tiền hàng từ (đ)</label>
                     <input id="report-amount-min" type="number" name="amount_min" min="0" step="1" value="{{ amount_min_input }}" placeholder="Không giới hạn">
                 </div>
                 <div>
-                    <label for="report-amount-max">Tổng đơn đến (đ)</label>
+                    <label for="report-amount-max">Tiền hàng đến (đ)</label>
                     <input id="report-amount-max" type="number" name="amount_max" min="0" step="1" value="{{ amount_max_input }}" placeholder="Không giới hạn">
                 </div>
                 <div class="report-range" data-report-range {% if selected_preset != "custom" %}hidden{% endif %}>
@@ -93,6 +93,10 @@
     {% if active_tab == "products" %}
     <section class="report-panel">
         <div class="report-panel-heading" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
+            <div>
+                <h2>Sản phẩm bán chạy</h2>
+                <p>{{ revenue_basis_label }}</p>
+            </div>
             <div style="display:flex; align-items:center; flex-wrap:wrap; gap:14px;">
                 <div style="display:flex; align-items:center; gap:8px;">
                     <label for="top_n_select" style="font-size:13px; font-weight:700; color:#173c32; margin:0;">Top</label>
@@ -109,44 +113,39 @@
                         <option value="revenue" {% if selected_sort == "revenue" %}selected{% endif %}>Doanh thu</option>
                     </select>
                 </div>
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <label for="level_select" style="font-size:13px; font-weight:700; color:#173c32; margin:0;">Cấp xem</label>
-                    <select id="level_select" onchange="window.location.search = updateQueryString('level', this.value)" style="border:1px solid #d5e4dd; border-radius:8px; padding:6px 12px; font-size:13px; background:#fff; color:#173c32;">
-                        <option value="variant" {% if selected_level == "variant" %}selected{% endif %}>Biến thể</option>
-                        <option value="product" {% if selected_level == "product" %}selected{% endif %}>Sản phẩm gốc</option>
-                        <option value="category" {% if selected_level == "category" %}selected{% endif %}>Danh mục</option>
-                    </select>
-                </div>
             </div>
         </div>
         <div class="module-table-wrap">
             <table class="report-green-table">
                 <thead>
                     <tr>
-                        <th style="border-radius:8px 0 0 8px; width:55px; text-align:center;">Hạng</th>
-                        <th>Mã SP</th>
-                        <th>Sản phẩm</th>
+                        <th style="width:55px; text-align:center;">Hạng</th>
+                        <th>SẢN PHẨM</th>
                         <th>Danh mục</th>
-                        <th>Biến thể</th>
-                        <th style="text-align:right;">Đơn giá</th>
-                        <th style="text-align:right;">SL bán</th>
-                        <th style="border-radius:0 8px 8px 0; text-align:right;">Doanh thu</th>
+                        <th style="text-align:right;">Giá bán TB</th>
+                        <th style="text-align:right;">Số lượng</th>
+                        <th style="text-align:right;">Doanh thu</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for item in top_products %}
                     <tr>
                         <td style="font-weight:700; color:#173c32; text-align:center;">{{ item.rank }}</td>
-                        <td><strong style="color:#173c32;">{{ item.code }}</strong></td>
-                        <td style="font-weight:600; color:#000;">{{ item.name }}</td>
+                        <td>
+                            {% if item.product_code %}
+                            <a href="/products/quan-ly/chi-tiet/{{ item.product_code }}/" style="font-weight:600; color:#000; text-decoration:none;" title="Xem chi tiết sản phẩm {{ item.name }}">{{ item.name }}</a><br>
+                            {% else %}
+                            <span style="font-weight:600; color:#000;">{{ item.name }}</span><br>
+                            {% endif %}
+                            {% if item.spec and item.spec != "-" %}<small style="color:#766A61; font-size:12.5px;">{{ item.spec }}</small>{% endif %}
+                        </td>
                         <td style="color:#000;">{{ item.category }}</td>
-                        <td style="color:#000;">{{ item.spec }}</td>
                         <td style="text-align:right; color:#000;">{{ item.price }}</td>
                         <td style="text-align:right; color:#000; font-weight:600;">{{ item.qty_formatted }}</td>
                         <td style="text-align:right; color:#173c32; font-weight:700;">{{ item.revenue_formatted }}</td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="8" style="text-align:center; padding:20px; color:#555;">Không có sản phẩm bán trong kỳ phù hợp với bộ lọc.</td></tr>
+                    <tr><td colspan="6" style="text-align:center; padding:20px; color:#555;">Không có sản phẩm bán trong kỳ phù hợp với bộ lọc.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -155,57 +154,50 @@
 
     {% elif active_tab == "recent" %}
     <section class="report-panel">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
-            <div style="display:flex; align-items:center; flex-wrap:wrap; gap:14px;">
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <label for="recent_limit_select" style="font-size:13px; font-weight:700; color:#173c32; margin:0;">Số dòng</label>
-                    <select id="recent_limit_select" onchange="window.location.search = updateQueryString('recent_limit', this.value)" style="border:1px solid #d5e4dd; border-radius:8px; padding:6px 12px; font-size:13px; background:#fff; color:#173c32;">
-                        <option value="10" {% if selected_recent_limit == 10 %}selected{% endif %}>10</option>
-                        <option value="20" {% if selected_recent_limit == 20 %}selected{% endif %}>20</option>
-                        <option value="50" {% if selected_recent_limit == 50 %}selected{% endif %}>50</option>
-                    </select>
-                </div>
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <label for="recent_cat_select" style="font-size:13px; font-weight:700; color:#173c32; margin:0;">Danh mục</label>
-                    <select id="recent_cat_select" onchange="window.location.search = updateQueryString('category', this.value)" style="border:1px solid #d5e4dd; border-radius:8px; padding:6px 12px; font-size:13px; background:#fff; color:#173c32;">
-                        <option value="">Tất cả</option>
-                        {% for c in categories %}
-                        <option value="{{ c.ma_dm }}" {% if selected_category == c.ma_dm %}selected{% endif %}>{{ c.ten_dm }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
+        <div class="report-panel-heading" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
+            <div>
+                <h2>Sản phẩm bán gần đây</h2>
             </div>
-            <span style="color:#78857e; font-size:12px; font-style:italic;">* Không phụ thuộc bộ lọc thời gian - không tính đơn Đã hủy</span>
         </div>
         <div class="module-table-wrap">
             <table class="report-green-table">
                 <thead>
                     <tr>
-                        <th style="border-radius:8px 0 0 8px;">Sản phẩm</th>
-                        <th>Biến thể</th>
-                        <th style="text-align:right; width:60px;">SL</th>
-                        <th style="text-align:right;">Thành tiền</th>
-                        <th style="text-align:center;">Mã đơn</th>
-                        <th style="text-align:center;">Loại khách</th>
-                        <th style="border-radius:0 8px 8px 0; text-align:right;">Thời điểm đặt</th>
+                        <th>Mã đơn</th>
+                        <th>SẢN PHẨM</th>
+                        <th>Danh mục</th>
+                        <th style="text-align:right; width:110px;">Đơn giá</th>
+                        <th style="text-align:right; width:90px;">Số lượng</th>
+                        <th style="text-align:right; width:130px;">Thành tiền</th>
+                        <th style="text-align:center; width:120px;">Loại khách</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for item in recent_products %}
                     <tr>
-                        <td style="color:#000; font-weight:600;">{{ item.product_name }}</td>
-                        <td style="color:#000;">{{ item.spec }}</td>
+                        <td style="white-space:nowrap;">
+                            <a href="/don-hang/{{ item.order_code }}/" style="color:#173c32; font-weight:700; text-decoration:none;" title="Xem chi tiết đơn hàng {{ item.order_code }}"><strong>{{ item.order_code }}</strong></a><br>
+                            <small style="color:#766A61; font-size:12px;">{{ item.full_time }}</small>
+                        </td>
+                        <td>
+                            {% if item.product_code %}
+                            <a href="/products/quan-ly/chi-tiet/{{ item.product_code }}/" style="color:#000; font-weight:600; text-decoration:none;" title="Xem chi tiết sản phẩm {{ item.product_name }}">{{ item.product_name }}</a><br>
+                            {% else %}
+                            <span style="color:#000; font-weight:600;">{{ item.product_name }}</span><br>
+                            {% endif %}
+                            {% if item.spec and item.spec != "-" %}<small style="color:#766A61; font-size:12px;">{{ item.spec }}</small>{% endif %}
+                        </td>
+                        <td style="color:#000;">{{ item.category }}</td>
+                        <td style="text-align:right; color:#000;">{{ item.unit_price_formatted }}</td>
                         <td style="text-align:right; color:#000; font-weight:600;">{{ item.qty }}</td>
                         <td style="text-align:right; color:#173c32; font-weight:700;">{{ item.amount_formatted }}</td>
-                        <td style="text-align:center;"><strong style="color:#173c32;">{{ item.order_code }}</strong></td>
                         <td style="text-align:center;">
                             {% if item.customer_type == "Sỉ" or item.is_si %}
-                            <span style="background:#d1e3da; color:#173c32; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:700;">Sỉ</span>
+                            <span class="report-badge-si">Khách sỉ</span>
                             {% else %}
-                            <span style="background:#e8f0ec; color:#173c32; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:700;">Lẻ</span>
+                            <span class="report-badge-le">Khách lẻ</span>
                             {% endif %}
                         </td>
-                        <td style="text-align:right; color:#000;">{{ item.full_time }}</td>
                     </tr>
                     {% empty %}
                     <tr><td colspan="7" style="text-align:center; padding:20px; color:#555;">Không có giao dịch phù hợp bộ lọc.</td></tr>
@@ -217,14 +209,20 @@
 
     {% elif active_tab == "area" %}
     <section class="report-panel">
+        <div class="report-panel-heading" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
+            <div>
+                <h2>Khu vực</h2>
+                <p>{{ revenue_basis_label }}</p>
+            </div>
+        </div>
         <div class="module-table-wrap">
             <table class="report-green-table">
                 <thead>
                     <tr>
-                        <th style="border-radius:8px 0 0 8px;">Tỉnh/Thành</th>
-                        <th style="text-align:right;">Số đơn HT</th>
-                        <th style="text-align:right;">Doanh thu thuần</th>
-                        <th style="border-radius:0 8px 8px 0; text-align:right;">So kỳ trước</th>
+                        <th>Tỉnh / Thành phố</th>
+                        <th style="text-align:right;">Số đơn hoàn thành</th>
+                        <th style="text-align:right;">Doanh thu</th>
+                        <th style="text-align:right;">So với kỳ trước</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -235,13 +233,13 @@
                         <td style="text-align:right; color:#173c32; font-weight:700;">{{ item.revenue_formatted }}</td>
                         <td style="text-align:right;">
                             {% if item.pct_change is None %}
-                            <span style="color:#333;">—</span>
+                            <span style="color:#766A61;">—</span>
                             {% elif item.pct_change > 0 %}
                             <span style="color:#2e7d32; font-weight:700;">▲ {{ item.pct_change }}%</span>
                             {% elif item.pct_change < 0 %}
                             <span style="color:#d32f2f; font-weight:700;">▼ {{ item.pct_change|cut:"-" }}%</span>
                             {% else %}
-                            <span style="color:#333;">0%</span>
+                            <span style="color:#766A61;">0%</span>
                             {% endif %}
                         </td>
                     </tr>
@@ -255,74 +253,77 @@
 
     {% else %}
     <section class="report-panel">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
-            <div style="position:relative; width:min(320px, 100%);">
-                <svg style="position:absolute; left:12px; top:50%; transform:translateY(-50%); width:15px; height:15px; color:#78857e; pointer-events:none;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                </svg>
-                <input type="text"
-                       value="{{ search_kw }}"
-                       placeholder="Tìm theo mã đơn, tên khách..."
-                       onkeydown="if(event.key==='Enter'){event.preventDefault(); window.location.search = updateQueryString('q', this.value);}"
-                       style="width:100%; padding:7px 12px 7px 36px; border:1px solid #d5e4dd; border-radius:10px; font-size:13px; outline:none; background:#fff; color:#000;">
-            </div>
-            <div style="display:flex; align-items:center; gap:8px; font-size:13px; color:#173c32;">
-                <span style="font-weight:600; color:#333;">Số dòng / trang</span>
-                <select onchange="window.location.search = updateQueryString('page_size', this.value)" style="border:1px solid #d5e4dd; border-radius:8px; padding:6px 12px; font-size:13px; background:#fff; color:#000;">
-                    <option value="10" {% if selected_page_size == 10 %}selected{% endif %}>10</option>
-                    <option value="20" {% if selected_page_size == 20 %}selected{% endif %}>20</option>
-                    <option value="50" {% if selected_page_size == 50 %}selected{% endif %}>50</option>
-                </select>
+        <div class="report-panel-heading" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
+            <div>
+                <h2>Chi tiết đơn hàng</h2>
             </div>
         </div>
         <div class="module-table-wrap">
             <table class="report-green-table">
                 <thead>
                     <tr>
-                        <th style="border-radius:8px 0 0 8px;"><button type="button" class="report-sort-button" data-order-sort="order_code" style="background:none; border:none; color:inherit; font-weight:inherit; cursor:pointer; padding:0;">Mã đơn</button></th>
-                        <th><button type="button" class="report-sort-button" data-order-sort="completion_time" style="background:none; border:none; color:inherit; font-weight:inherit; cursor:pointer; padding:0;">Ngày hoàn thành</button></th>
-                        <th><button type="button" class="report-sort-button" data-order-sort="customer_name" style="background:none; border:none; color:inherit; font-weight:inherit; cursor:pointer; padding:0;">Khách hàng</button></th>
-                        <th style="text-align:center;"><button type="button" class="report-sort-button" data-order-sort="customer_type" style="background:none; border:none; color:inherit; font-weight:inherit; cursor:pointer; padding:0;">Loại</button></th>
-                        <th>PT thanh toán</th>
+                        <th>Mã đơn</th>
+                        <th>Khách hàng</th>
+                        <th style="text-align:center;">Loại khách</th>
+                        <th>SẢN PHẨM</th>
+                        <th style="text-align:right;">Số lượng</th>
                         <th style="text-align:right;">Tiền hàng</th>
-                        <th style="text-align:right;">Phí VC</th>
-                        <th style="text-align:right;">Tổng thanh toán</th>
-                        <th style="text-align:right;">Đã hoàn</th>
-                        <th style="border-radius:0 8px 8px 0; text-align:right;"><button type="button" class="report-sort-button" data-order-sort="total" style="background:none; border:none; color:inherit; font-weight:inherit; cursor:pointer; padding:0;">DT thuần</button></th>
+                        <th style="text-align:right;">Phí vận chuyển</th>
+                        <th style="text-align:right;">Tổng tiền</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for item in order_details.items %}
                     <tr>
-                        <td><strong style="color:#173c32;">{{ item.order_code }}</strong></td>
-                        <td style="color:#000;">{{ item.completion_time }}</td>
-                        <td style="color:#000; font-weight:600;">{{ item.customer_name }}</td>
-                        <td style="text-align:center;">
-                            {% if item.customer_type == "Sỉ" or "sỉ" in item.customer_type.lower or item.is_si %}
-                            <span style="background:#d1e3da; color:#173c32; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:700;">Sỉ</span>
+                        <td style="white-space:nowrap;">
+                            <a href="/don-hang/{{ item.order_code }}/" style="font-weight:700; color:#173c32; text-decoration:none;" title="Xem chi tiết đơn hàng {{ item.order_code }}"><strong>{{ item.order_code }}</strong></a><br>
+                            <small style="color:#766A61; font-size:12.5px;">{{ item.completion_time }}</small>
+                        </td>
+                        <td>
+                            {% if item.customer_code %}
+                            <a href="/quan-ly/khach-hang/{{ item.customer_code }}/" style="color:#000; font-weight:600; text-decoration:none;" title="Xem hồ sơ khách hàng {{ item.customer_name }}">{{ item.customer_name }}</a><br>
+                            <a href="/quan-ly/khach-hang/{{ item.customer_code }}/" style="color:#766A61; font-size:12.5px; text-decoration:none;" title="Xem hồ sơ khách hàng {{ item.customer_code }}"><small style="color:#766A61; font-size:12.5px;">{{ item.customer_code }}</small></a>
                             {% else %}
-                            <span style="background:#e8f0ec; color:#173c32; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:700;">Lẻ</span>
+                            <span style="color:#000; font-weight:500;">{{ item.customer_name }}</span>
                             {% endif %}
                         </td>
-                        <td style="color:#000;">{{ item.payment_method }}</td>
+                        <td style="text-align:center;">
+                            {% if item.customer_type == "Sỉ" or "sỉ" in item.customer_type.lower or item.is_si %}
+                            <span class="report-badge-si">Khách sỉ</span>
+                            {% else %}
+                            <span class="report-badge-le">Khách lẻ</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% for line in item.line_items %}
+                            <div {% if not forloop.first %}style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed #edf0eb;"{% endif %}>
+                                {% if line.product_code %}
+                                <a href="/products/quan-ly/chi-tiet/{{ line.product_code }}/" style="font-weight:600; color:#000; text-decoration:none;" title="Xem chi tiết sản phẩm {{ line.product_name }}">{{ line.product_name }}</a>
+                                {% else %}
+                                <span style="font-weight:600; color:#000;">{{ line.product_name }}</span>
+                                {% endif %}
+                                {% if line.variant and line.variant != "-" %}<br><small style="color:#766A61; font-size:12px;">{{ line.variant }}</small>{% endif %}
+                            </div>
+                            {% empty %}
+                            <span style="color:#766A61;">—</span>
+                            {% endfor %}
+                        </td>
+                        <td style="text-align:right; color:#000; font-weight:600;">{{ item.quantity_formatted }}</td>
                         <td style="text-align:right; color:#000;">{{ item.subtotal }}</td>
                         <td style="text-align:right; color:#000;">{{ item.shipping_fee }}</td>
-                        <td style="text-align:right; color:#000; font-weight:600;">{{ item.total_payment|default:item.net_revenue }}</td>
-                        <td style="text-align:right; color:#000;">0đ</td>
-                        <td style="text-align:right; color:#173c32; font-weight:700;">{{ item.net_revenue }}</td>
+                        <td style="text-align:right; color:#173c32; font-weight:700;">{{ item.total_payment }}</td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="10" style="text-align:center; padding:20px; color:#555;">Không có đơn hoàn thành phù hợp bộ lọc.</td></tr>
+                    <tr><td colspan="8" style="text-align:center; padding:20px; color:#555;">Không có đơn hoàn thành phù hợp bộ lọc.</td></tr>
                     {% endfor %}
                 </tbody>
                 <tfoot>
                     <tr>
-                        <th colspan="5" style="border-radius:8px 0 0 8px;">Tổng cộng ({{ order_details.total_records }} đơn)</th>
-                        <th style="text-align:right;">{{ order_details.summary.sum_subtotal }}</th>
-                        <th style="text-align:right;">{{ order_details.summary.sum_shipping }}</th>
-                        <th style="text-align:right;">{{ order_details.summary.sum_total|default:order_details.summary.sum_net_revenue }}</th>
-                        <th style="text-align:right;">0đ</th>
-                        <th style="border-radius:0 8px 8px 0; text-align:right; font-weight:700;">{{ order_details.summary.sum_net_revenue }}</th>
+                        <th colspan="4">Tổng cộng ({{ order_details.total_records }} đơn)</th>
+                        <th style="text-align:right; color:#000; font-weight:700;">{{ order_details.summary.sum_quantity }}</th>
+                        <th style="text-align:right; color:#000; font-weight:700;">{{ order_details.summary.sum_subtotal }}</th>
+                        <th style="text-align:right; color:#000; font-weight:700;">{{ order_details.summary.sum_shipping }}</th>
+                        <th style="text-align:right; color:#173c32; font-weight:700;">{{ order_details.summary.sum_total }}</th>
                     </tr>
                 </tfoot>
             </table>
@@ -343,7 +344,7 @@
     {% endif %}
 </main>
 {{ rev_timeline|json_script:"report-timeline" }}
-<script src="{% static 'js/reports.js' %}?v=2" defer></script>
+<script src="{% static 'js/reports.js' %}?v=9" defer></script>
 <script>
 function updateQueryString(key, value) {
     const params = new URLSearchParams(window.location.search);

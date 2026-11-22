@@ -47,11 +47,11 @@
             </select>
         </div>
         <div>
-            <label for="report-amount-min">Tổng đơn từ (đ)</label>
+            <label for="report-amount-min">Tiền hàng từ (đ)</label>
             <input id="report-amount-min" type="number" name="amount_min" min="0" step="1" value="{{ amount_min_input }}" placeholder="Không giới hạn">
         </div>
         <div>
-            <label for="report-amount-max">Tổng đơn đến (đ)</label>
+            <label for="report-amount-max">Tiền hàng đến (đ)</label>
             <input id="report-amount-max" type="number" name="amount_max" min="0" step="1" value="{{ amount_max_input }}" placeholder="Không giới hạn">
         </div>
         <div class="report-range" data-report-range {% if selected_preset != "custom" %}hidden{% endif %}>
@@ -101,15 +101,15 @@
             </small>
         </article>
         <article class="report-kpi">
-            <span>Đơn đang xử lý</span>
-            <strong>{{ kpis.processing_orders.formatted }}</strong>
+            <span>Giá trị TB / đơn</span>
+            <strong>{{ kpis.avg_order_value.formatted }}</strong>
             <small class="report-kpi-change">
-                {% if kpis.processing_orders.pct_change is None %}
+                {% if kpis.avg_order_value.pct_change is None %}
                 <span class="report-kpi-diff neutral">—</span>
-                {% elif kpis.processing_orders.pct_change >= 0 %}
-                <span class="report-kpi-diff up">▲ {{ kpis.processing_orders.pct_change|floatformat:1 }}%</span>
+                {% elif kpis.avg_order_value.pct_change >= 0 %}
+                <span class="report-kpi-diff up">▲ {{ kpis.avg_order_value.pct_change|floatformat:1 }}%</span>
                 {% else %}
-                <span class="report-kpi-diff down">▼ {{ kpis.processing_orders.pct_change|floatformat:1|cut:"-" }}%</span>
+                <span class="report-kpi-diff down">▼ {{ kpis.avg_order_value.pct_change|floatformat:1|cut:"-" }}%</span>
                 {% endif %}
                 <span class="report-kpi-subtext">so kỳ trước</span>
             </small>
@@ -130,20 +130,78 @@
         </article>
     </section>
 
+    <section class="report-kpis" aria-label="Bốn trạng thái đơn hàng" style="margin-top: 0; margin-bottom: 14px;">
+        {% for st in status_summary %}
+        <article class="report-kpi">
+            <span>{{ st.label }}</span>
+            <strong>{{ st.formatted }}</strong>
+            <small class="report-kpi-change">
+                {% if st.pct_change is None %}
+                <span class="report-kpi-diff neutral">—</span>
+                {% elif st.pct_change >= 0 %}
+                <span class="report-kpi-diff up">▲ {{ st.pct_change|floatformat:1 }}%</span>
+                {% else %}
+                <span class="report-kpi-diff down">▼ {{ st.pct_change|floatformat:1|cut:"-" }}%</span>
+                {% endif %}
+                <span class="report-kpi-subtext">so kỳ trước</span>
+            </small>
+        </article>
+        {% endfor %}
+    </section>
+
     <div class="report-grid">
         <section class="report-panel">
-            <div class="report-panel-heading">
-                <div>
-                    <h2>Doanh thu theo thời gian</h2>
-                    <p>Doanh thu (triệu đồng)</p>
+            <div class="report-panel-heading" style="align-items: center; margin-bottom: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                <div><h2>Top 5 sản phẩm bán chạy</h2></div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div class="report-chart-toggle" style="display: inline-flex; border: 1px solid #72b299; border-radius: 8px; overflow: hidden; background: #fff;">
+                        <button type="button" id="btn-show-chart" class="active" style="border: none; background: #173c32; color: #fff; padding: 5px 11px; font-size: 12px; font-weight: 600; cursor: pointer;" title="Xem biểu đồ">Biểu đồ</button>
+                        <button type="button" id="btn-show-table" style="border: none; background: #fff; color: #173c32; padding: 5px 11px; font-size: 12px; font-weight: 600; cursor: pointer;" title="Xem dạng bảng">Bảng</button>
+                    </div>
+                    <a class="module-link-button secondary" href="{% url 'reports:detail' %}?tab=products&preset={{ selected_preset }}&start_date={{ date_range.start_date|date:'Y-m-d' }}&end_date={{ date_range.end_date|date:'Y-m-d' }}&customer_type={{ selected_customer_type }}&product={{ selected_product|default_if_none:''|urlencode }}&amount_min={{ amount_min_input|urlencode }}&amount_max={{ amount_max_input|urlencode }}" style="text-decoration: none; font-size: 13px; font-weight: 700; padding: 5px 14px; border: 1px solid #72b299; background: #eef6f3; color: #173c32; border-radius: 8px;">Xem tất cả</a>
                 </div>
             </div>
-            <div id="revenue-chart"></div>
+            <div id="top-products-chart-container" style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+                <div id="top-products-chart"></div>
+            </div>
+            <div id="top-products-table-container" style="display: none;">
+                <div class="module-table-wrap">
+                    <table class="report-green-table" style="white-space: nowrap;">
+                        <thead>
+                            <tr style="background: #f5f6f1; color: #64716a; font-size: 12px; font-weight: 700; text-transform: uppercase;">
+                                <th style="padding: 11px 14px; text-align: center; width: 50px; border-bottom: 1px solid #edf0eb; white-space: nowrap;">Hạng</th>
+                                <th style="padding: 11px 14px; text-align: left; border-bottom: 1px solid #edf0eb; white-space: nowrap;">SẢN PHẨM</th>
+                                <th style="padding: 11px 14px; text-align: right; width: 95px; border-bottom: 1px solid #edf0eb; white-space: nowrap;">Số lượng</th>
+                                <th style="padding: 11px 14px; text-align: right; width: 125px; border-bottom: 1px solid #edf0eb; white-space: nowrap;">Doanh thu</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in top_products|slice:":5" %}
+                            <tr style="border-bottom: 1px solid #edf0eb; font-size: 13.5px;">
+                                <td style="padding: 12px 14px; font-weight: 700; color: #173c32; text-align: center; white-space: nowrap;">{{ item.rank }}</td>
+                                <td style="padding: 12px 14px; color: #000; font-weight: 500; white-space: nowrap;">
+                                    {% if item.product_code %}
+                                    <a href="/products/quan-ly/chi-tiet/{{ item.product_code }}/" style="color: #173c32; font-weight: 600; text-decoration: none; white-space: nowrap;" title="Xem chi tiết sản phẩm {{ item.name }}">{{ item.name }}</a>
+                                    {% else %}
+                                    <span style="white-space: nowrap;">{{ item.name }}</span>
+                                    {% endif %}
+                                    {% if item.spec and item.spec != "-" %}<br><small style="color:#766A61; font-size:12.5px;">{{ item.spec }}</small>{% endif %}
+                                </td>
+                                <td style="padding: 12px 14px; text-align: right; color: #000; font-weight: 600; white-space: nowrap;">{{ item.qty_formatted }}</td>
+                                <td style="padding: 12px 14px; text-align: right; color: #173c32; font-weight: 700; white-space: nowrap;">{{ item.revenue_formatted }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" style="text-align:center; padding: 20px; color:#555;">Chưa có sản phẩm bán trong kỳ này.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </section>
 
         <section class="report-panel">
             <div class="report-panel-heading">
-                <div><h2>Cơ cấu doanh thu</h2><p>Theo loại khách hàng trong kỳ đã chọn</p></div>
+                <div><h2>Cơ cấu doanh thu</h2></div>
             </div>
             {% if has_customer_revenue %}
             <div class="report-donut-wrap">
@@ -170,62 +228,17 @@
         </section>
     </div>
 
-    <div class="report-grid">
-        <section class="report-panel">
-            <div class="report-panel-heading">
-                <div><h2>Đơn hàng theo trạng thái</h2><p>Số đơn đặt trong kỳ đã chọn</p></div>
+    <section class="report-panel" style="margin-top: 14px;">
+        <div class="report-panel-heading">
+            <div>
+                <h2>Doanh thu theo thời gian</h2>
+                <p id="revenue-chart-subtitle">Doanh thu (triệu đồng)</p>
             </div>
-            <div class="report-status-legend" aria-label="Chú giải màu trạng thái đơn hàng">
-                <span><i class="pending" style="background:#d9822b;"></i>Chờ xác nhận</span>
-                <span><i class="processing" style="background:#4a7c9b;"></i>Đang xử lý</span>
-                <span><i class="completed" style="background:#4d8c57;"></i>Đã giao / hoàn thành</span>
-                <span><i class="cancelled" style="background:#c54a4a;"></i>Đã hủy</span>
-            </div>
-            <div class="report-status-list">
-                {% for status in status_list %}
-                <div class="report-status-row">
-                    <span>{{ status.label }}</span>
-                    <div class="report-meter" role="progressbar" aria-label="{{ status.label }}" aria-valuenow="{{ status.pct }}" aria-valuemin="0" aria-valuemax="100">
-                        <span style="width:{{ status.pct }}%;background:{{ status.color }}"></span>
-                    </div>
-                    <strong>{{ status.count }}</strong>
-                </div>
-                {% endfor %}
-            </div>
-        </section>
-
-        <section class="report-panel">
-            <div class="report-panel-heading" style="align-items: center; margin-bottom: 12px;">
-                <div><h2>Top 5 sản phẩm bán chạy</h2></div>
-                <a class="module-link-button secondary" href="{% url 'reports:detail' %}?tab=products&preset={{ selected_preset }}&start_date={{ date_range.start_date|date:'Y-m-d' }}&end_date={{ date_range.end_date|date:'Y-m-d' }}&customer_type={{ selected_customer_type }}&product={{ selected_product|default_if_none:''|urlencode }}&amount_min={{ amount_min_input|urlencode }}&amount_max={{ amount_max_input|urlencode }}" style="background: #edf3f0; color: #173c32; border: 1px solid #d5e4dd; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 700;">Xem tất cả</a>
-            </div>
-            <div class="module-table-wrap">
-                <table style="width: 100%; border-collapse: collapse;">
-                    <thead>
-                        <tr style="background: #edf3f0; color: #173c32; font-size: 13px; font-weight: 700;">
-                            <th style="padding: 11px 14px; text-align: left; border-radius: 8px 0 0 8px; width: 60px;">Hạng</th>
-                            <th style="padding: 11px 14px; text-align: left;">Sản phẩm</th>
-                            <th style="padding: 11px 14px; text-align: right; width: 90px;">SL bán</th>
-                            <th style="padding: 11px 14px; text-align: right; border-radius: 0 8px 8px 0; width: 130px;">Doanh thu</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for item in top_products|slice:":5" %}
-                        <tr style="border-bottom: 1px solid #e2ebe6; font-size: 13px;">
-                            <td style="padding: 12px 14px; font-weight: 700; color: #173c32; text-align: center;">{{ item.rank }}</td>
-                            <td style="padding: 12px 14px; color: #000; font-weight: 500;">{{ item.name }}</td>
-                            <td style="padding: 12px 14px; text-align: right; color: #000; font-weight: 600;">{{ item.qty_formatted }}</td>
-                            <td style="padding: 12px 14px; text-align: right; color: #173c32; font-weight: 700;">{{ item.revenue_formatted }}</td>
-                        </tr>
-                        {% empty %}
-                        <tr><td colspan="4" style="text-align:center; padding: 20px; color:#555;">Chưa có sản phẩm bán trong kỳ này.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </section>
-    </div>
+        </div>
+        <div id="revenue-chart"></div>
+    </section>
 </main>
 {{ timeline|json_script:"report-timeline" }}
-<script src="{% static 'js/reports.js' %}?v=2" defer></script>
+{{ top_products|json_script:"report-top-products" }}
+<script src="{% static 'js/reports.js' %}?v=9" defer></script>
 {% endblock %}
