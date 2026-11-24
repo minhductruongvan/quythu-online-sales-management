@@ -30,7 +30,7 @@ echo.
 echo Quy Thu is ready at http://127.0.0.1:8000/
 echo Login password for all demo accounts: Quythu123!
 echo Press Ctrl+C to stop the server.
-start "" /b cmd /c "timeout /t 3 /nobreak >nul & start http://127.0.0.1:8000/"
+start "" /min powershell.exe -NoProfile -Command "Start-Sleep -Seconds 3; Start-Process 'http://127.0.0.1:8000/'"
 "..\.venv\Scripts\python.exe" manage.py runserver 127.0.0.1:8000
 set "EXIT_CODE=%ERRORLEVEL%"
 popd

@@ -830,7 +830,7 @@ class KiemThuApiGioHang(TestCase):
         co_chon = self.client.get(f"{URL_GIO}?chon={ma_ctgh}")
 
         self.assertEqual(khong_chon.data["data"]["tam_tinh"], 0)
-        self.assertEqual(co_chon.data["data"]["tam_tinh"], 100000)  # 2 x 50.000
+        self.assertEqual(co_chon.data["data"]["tam_tinh"], 80000)  # 2 x 40.000 giá sỉ
 
     def test_sua_so_luong_doi_sang_gia_si(self):
         ma_ctgh = self.them(so_luong=2).data["data"]["cac_dong"][0]["ma_ctgh"]

@@ -32,7 +32,6 @@ class DatabaseSchemaNamingTests(TestCase):
             "ANH_DOITRA",
             "GIAODICH_HOANTIEN",
             "LICHSU_HAUMAI",
-            "PHANQUYEN_BAOCAO",
             "NHATKY_XUAT_BAOCAO",
         }
 

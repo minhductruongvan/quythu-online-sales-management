@@ -371,12 +371,12 @@ class IntegratedActorPagesTests(TestCase):
         self.assertContains(dashboard, "Nhập khách hàng")
         self.assertContains(dashboard, "Xuất khách hàng")
         self.assertContains(dashboard, "Thêm sản phẩm")
-        self.assertContains(dashboard, "Báo cáo chi tiết")
+        self.assertNotContains(dashboard, "Báo cáo")
         employee_navigation = dashboard.content.decode("utf-8").split(
             '<nav class="sidebar-nav">', 1
         )[1]
         self.assertNotIn("CHĂM SÓC SAU MUA", employee_navigation)
-        self.assertNotIn("BÁO CÁO", employee_navigation)
+        self.assertNotIn("Báo cáo", employee_navigation)
         employee_order = [
             employee_navigation.index(label)
             for label in (
@@ -385,7 +385,6 @@ class IntegratedActorPagesTests(TestCase):
                 "Sản phẩm",
                 "Đơn hàng",
                 "Hậu mãi",
-                "Báo cáo",
             )
         ]
         self.assertEqual(employee_order, sorted(employee_order))
@@ -395,10 +394,10 @@ class IntegratedActorPagesTests(TestCase):
             '<nav class="sidebar-nav">', 1
         )[1]
         self.assertNotIn("CHĂM SÓC SAU MUA", employee_detail_navigation)
-        self.assertNotIn("BÁO CÁO", employee_detail_navigation)
+        self.assertNotIn("Báo cáo", employee_detail_navigation)
         employee_detail_order = [
             employee_detail_navigation.index(label)
-            for label in ("Tổng quan", "Danh sách khách hàng", "Sản phẩm", "Đơn hàng", "Hậu mãi", "Báo cáo")
+            for label in ("Tổng quan", "Danh sách khách hàng", "Sản phẩm", "Đơn hàng", "Hậu mãi")
         ]
         self.assertEqual(employee_detail_order, sorted(employee_detail_order))
         self.assertEqual(self.client.get("/quan-ly/phan-quyen/").status_code, 403)
@@ -407,17 +406,24 @@ class IntegratedActorPagesTests(TestCase):
             "/don-hang/DH001/",
             "/nhan-vien/hau-mai/",
             "/products/quan-ly/",
-            "/reports/dashboard/",
-            "/reports/chi-tiet/",
         ):
             with self.subTest(path=path):
                 self.assertEqual(self.client.get(path).status_code, 200)
+        for path in (
+            "/reports/dashboard/",
+            "/reports/chi-tiet/",
+            "/reports/api/dashboard-data/",
+            "/reports/api/detail-data/",
+            "/reports/export/csv/",
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(self.client.get(path).status_code, 403)
 
     def test_manager_workflows_render(self):
         self.client.force_login(self.manager_account)
         dashboard = self.client.get("/quan-ly/")
         self.assertEqual(dashboard.status_code, 200)
-        self.assertContains(dashboard, "Không gian quản lý")
+        self.assertContains(dashboard, "Quản trị cửa hàng")
         self.assertNotContains(dashboard, "Không gian làm việc nhân viên")
         self.assertContains(dashboard, "Quản lý nhân sự")
         self.assertContains(dashboard, "Báo cáo chi tiết")

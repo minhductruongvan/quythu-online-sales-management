@@ -312,8 +312,8 @@ class M1CustomerManagementTests(TestCase):
         employee_html = employee_after_sales.content.decode()
         self.assertEqual(employee_after_sales.status_code, 200)
         self.assertLess(
-            employee_html.index("Hậu mãi"),
             employee_html.index("Danh sách khách hàng"),
+            employee_html.index("Hậu mãi"),
         )
         self.assertLess(
             employee_html.index('data-section="notifications"'),
@@ -327,7 +327,7 @@ class M1CustomerManagementTests(TestCase):
         manager_after_sales = self.client.get(reverse("manager-after-sales"))
         manager_html = manager_after_sales.content.decode()
         self.assertEqual(manager_after_sales.status_code, 200)
-        self.assertLess(manager_html.index("Hậu mãi"), manager_html.index("Khách hàng"))
+        self.assertLess(manager_html.index("Khách hàng"), manager_html.index("Hậu mãi"))
 
     def test_manager_can_manage_staff_roles_but_employee_cannot(self):
         url = reverse("manager-role-permissions")

@@ -52,6 +52,42 @@
     overflow: hidden;
 }
 
+.price-history-card {
+    margin-top: 24px;
+}
+
+.price-history-card h2 {
+    border-bottom: 1px solid var(--line);
+    margin: 0;
+    padding: 18px 16px 14px;
+}
+
+.price-history-card .module-table-wrap {
+    width: 100%;
+}
+
+.price-history-table {
+    min-width: 880px;
+}
+
+.price-editor-table {
+    min-width: 980px;
+}
+
+.price-editor-table td,
+.price-editor-table th {
+    white-space: nowrap;
+}
+
+.price-editor-table td:nth-child(2) {
+    min-width: 170px;
+    white-space: normal;
+}
+
+.price-editor-table input {
+    max-width: 150px;
+}
+
 .module-panel {
     padding: 22px;
 }

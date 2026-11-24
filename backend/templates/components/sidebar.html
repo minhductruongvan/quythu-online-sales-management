@@ -121,11 +121,6 @@
         <a href="{% url 'staff-after-sales' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'staff-after-sales' %}is-active{% endif %}">
             <span class="nav-icon">↩</span><span>Hậu mãi</span>
         </a>
-        <details class="nav-group" {% if request.resolver_match.namespace == 'reports' %}open{% endif %}>
-            <summary><span class="nav-icon">▥</span><span>Báo cáo</span></summary>
-            <a href="{% url 'reports:dashboard' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'dashboard' and request.resolver_match.namespace == 'reports' %}is-active{% endif %}">Tổng quan</a>
-            <a href="{% url 'reports:detail' %}" class="nav-link-custom {% if request.resolver_match.url_name == 'detail' %}is-active{% endif %}">Báo cáo chi tiết</a>
-        </details>
         {% endif %}
     </nav>
 
